@@ -26,26 +26,28 @@ jobs:
     - name: Build ROS2 workspace
       run: |
         cd ros2_ws
-        source /opt/ros/jazzy/setup.bash
+        . /opt/ros/jazzy/setup.bash
         # Skip build if no packages exist yet
         if [ -d "src" ] && [ "$(ls -A src)" ]; then
           colcon build --symlink-install
         else
           echo "No ROS2 packages found yet, skipping build"
         fi
+      shell: bash
     
     - name: Run ROS2 tests
       run: |
         cd ros2_ws
-        source /opt/ros/jazzy/setup.bash
+        . /opt/ros/jazzy/setup.bash
         # Skip tests if no packages exist yet
         if [ -d "src" ] && [ "$(ls -A src)" ]; then
-          source install/setup.bash
+          . install/setup.bash
           colcon test
           colcon test-result --verbose
         else
           echo "No ROS2 packages found yet, skipping tests"
         fi
+      shell: bash
 
   # Python Linting and Testing
   python-quality:
@@ -75,7 +77,16 @@ jobs:
     
     - name: Check formatting with black
       run: |
-        black --check --diff ros2_ws/src scripts tests
+        # Only check directories that exist
+        DIRS=""
+        [ -d "ros2_ws/src" ] && DIRS="$DIRS ros2_ws/src"
+        [ -d "scripts" ] && DIRS="$DIRS scripts"
+        [ -d "tests" ] && DIRS="$DIRS tests"
+        if [ -n "$DIRS" ]; then
+          black --check --diff $DIRS
+        else
+          echo "No Python directories found to check"
+        fi
     
     - name: Run Python tests
       run: |
