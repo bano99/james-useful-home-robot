@@ -1,0 +1,53 @@
+# Core dependencies
+numpy>=1.24.0
+opencv-python>=4.8.0
+ultralytics>=8.0.0
+
+# ROS2 Python dependencies (installed via apt, listed for reference)
+# ros-jazzy-rclpy
+# ros-jazzy-std-msgs
+# ros-jazzy-geometry-msgs
+# ros-jazzy-sensor-msgs
+# ros-jazzy-nav-msgs
+
+# Machine Learning
+torch>=2.0.0
+torchvision>=0.15.0
+onnx>=1.14.0
+onnxruntime>=1.15.0
+
+# Computer Vision
+pillow>=10.0.0
+scikit-image>=0.21.0
+
+# Data Processing
+pandas>=2.0.0
+scipy>=1.11.0
+
+# Utilities
+pyyaml>=6.0
+python-dotenv>=1.0.0
+
+# Testing
+pytest>=7.4.0
+pytest-cov>=4.1.0
+pytest-mock>=3.11.0
+
+# Code Quality
+black>=23.7.0
+flake8>=6.1.0
+pylint>=2.17.0
+mypy>=1.5.0
+
+# Documentation
+sphinx>=7.1.0
+sphinx-rtd-theme>=1.3.0
+
+# Voice Control (optional)
+# whisper-cpp-python>=0.1.0
+# piper-tts>=1.0.0
+
+# Web Dashboard
+flask>=2.3.0
+flask-cors>=4.0.0
+websockets>=11.0.0
