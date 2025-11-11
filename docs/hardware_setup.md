@@ -948,4 +948,4 @@ After completing this hardware setup:
 4. Proceed with software configuration and calibration
 5. Run integration tests
 
-For detailed software setup, see [Software Installation Guide](software_installation.md).
+For detailed software setup, refer to the main README.md.

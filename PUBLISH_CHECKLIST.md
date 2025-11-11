@@ -142,7 +142,7 @@ After publishing, these links will be active:
 - **Pull Requests**: https://github.com/bano99/james-useful-home-robot/pulls
 - **Actions**: https://github.com/bano99/james-useful-home-robot/actions
 - **Wiki**: https://github.com/bano99/james-useful-home-robot/wiki
-- **Discussions**: https://github.com/bano99/james-useful-home-robot/discussions
+
 
 ## 🚀 Next Steps After Publishing
 

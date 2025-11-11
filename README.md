@@ -230,11 +230,10 @@ This project follows the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.
 
 ## Documentation
 
-- [Architecture Overview](docs/architecture.md)
-- [Hardware Assembly Guide](docs/hardware_assembly.md)
-- [Software Installation Guide](docs/software_installation.md)
-- [API Reference](docs/api_reference.md)
-- [Troubleshooting Guide](docs/troubleshooting.md)
+- [Hardware Setup Guide](docs/hardware_setup.md) - Complete Jetson Nano setup with Ubuntu, ROS2, and dependencies
+- [MCP Server Setup](docs/mcp_setup.md) - Configure GitHub MCP server for CI/CD monitoring
+
+Additional documentation will be added as the project develops.
 
 ## License
 
@@ -243,7 +242,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## Acknowledgments
 
 - [Annin Robotics](https://anninrobotics.com/) for the AR4-MK3 arm
-- [Intel RealSense](https://www.intelrealsense.com/) for camera hardware and SDK
+- Intel RealSense for camera hardware and SDK
 - [ROS2](https://docs.ros.org/) community for the robotics framework
 - [RTAB-Map](http://introlab.github.io/rtabmap/) for SLAM capabilities
 
@@ -252,7 +251,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Project Lead**: bano99
 - **GitHub**: [@bano99](https://github.com/bano99)
 - **Issues**: [GitHub Issues](https://github.com/bano99/james-useful-home-robot/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/bano99/james-useful-home-robot/discussions)
 
 ## Roadmap
 

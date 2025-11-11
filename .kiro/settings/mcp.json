@@ -1,0 +1,36 @@
+{
+  "mcpServers": {
+    "github": {
+      "command": "uvx",
+      "args": ["mcp-server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}",
+        "PYTHONIOENCODING": "utf-8",
+        "PYTHONUTF8": "1"
+      },
+      "disabled": false,
+      "autoApprove": [
+        "list_commits",
+        "get_file_contents",
+        "search_repositories",
+        "get_issue",
+        "list_issues"
+      ]
+    },
+    "filesystem": {
+      "command": "uvx",
+      "args": ["mcp-server-filesystem", "C:\\Users\\denis\\Documents\\James_Useful_Home_Robot"],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR",
+        "PYTHONIOENCODING": "utf-8",
+        "PYTHONUTF8": "1"
+      },
+      "disabled": false,
+      "autoApprove": [
+        "read_file",
+        "list_directory",
+        "search_files"
+      ]
+    }
+  }
+}
