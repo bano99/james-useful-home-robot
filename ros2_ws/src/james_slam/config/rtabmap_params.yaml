@@ -1,0 +1,65 @@
+rtabmap:
+  ros__parameters:
+    # Frame IDs
+    frame_id: base_link
+    odom_frame_id: odom
+    map_frame_id: map
+    
+    # Subscribe to topics
+    subscribe_depth: true
+    subscribe_rgb: true
+    subscribe_scan: false
+    subscribe_odom_info: true
+    
+    # Use T265 odometry as prior
+    odom_sensor_sync: true
+    
+    # Queue sizes (reduced for Jetson Nano memory constraints)
+    queue_size: 10
+    
+    # Memory management for Jetson Nano
+    Mem/IncrementalMemory: "true"
+    Mem/InitWMWithAllNodes: "false"
+    Mem/ReduceGraph: "true"
+    Mem/STMSize: "10"  # Short-term memory size
+    Mem/ImageKept: "false"  # Don't keep raw images in memory
+    Mem/BinDataKept: "false"  # Don't keep binary data
+    
+    # Loop closure detection
+    Mem/LoopClosureDetection: "true"
+    RGBD/LoopClosureReextractFeatures: "true"
+    
+    # Optimize for indoor environments
+    RGBD/OptimizeFromGraphEnd: "false"
+    RGBD/OptimizeMaxError: "0.1"
+    RGBD/ProximityBySpace: "true"
+    RGBD/ProximityMaxGraphDepth: "50"
+    RGBD/ProximityPathMaxNeighbors: "10"
+    
+    # Feature detection (reduced for performance)
+    Kp/MaxFeatures: "200"  # Reduced from default 400
+    Kp/DetectorStrategy: "6"  # GFTT/Good Features to Track (faster than SIFT/SURF)
+    
+    # Visual odometry (use T265 instead)
+    Vis/EstimationType: "0"  # 0=3D->3D, 1=3D->2D (PnP)
+    Vis/MinInliers: "15"
+    Vis/InlierDistance: "0.1"
+    
+    # Grid map generation
+    Grid/FromDepth: "true"
+    Grid/CellSize: "0.05"  # 5cm resolution
+    Grid/RangeMax: "5.0"  # 5 meters max range
+    Grid/RangeMin: "0.2"  # 20cm min range
+    Grid/MaxObstacleHeight: "2.0"  # 2m ceiling height
+    Grid/MinGroundHeight: "-0.1"  # 10cm below robot
+    Grid/MaxGroundHeight: "0.1"  # 10cm above robot (traversable obstacles)
+    Grid/NormalsSegmentation: "false"  # Disable for performance
+    
+    # Optimization
+    Optimizer/Strategy: "0"  # 0=TORO, 1=g2o, 2=GTSAM
+    Optimizer/Iterations: "10"
+    Optimizer/Epsilon: "0.00001"
+    
+    # Database
+    Db/Path: "~/.ros/rtabmap.db"
+    Db/TargetVersion: ""
