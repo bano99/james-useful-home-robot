@@ -67,21 +67,33 @@ echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-a
 sudo apt update
 echo "✓ ROS2 repository added"
 
-# Prevent python3-opencv installation to preserve CUDA version
+# Create dummy python3-opencv package to satisfy ROS2 dependencies
 echo ""
-echo "[5/8] Configuring apt to preserve CUDA-optimized OpenCV..."
-sudo tee /etc/apt/preferences.d/opencv-hold > /dev/null <<'EOF'
-# Prevent python3-opencv installation to preserve Q-engineering CUDA-optimized version
+echo "[5/8] Creating dummy python3-opencv package..."
+mkdir -p /tmp/python3-opencv-dummy/DEBIAN
+cat > /tmp/python3-opencv-dummy/DEBIAN/control <<EOF
 Package: python3-opencv
-Pin: release *
-Pin-Priority: -1
+Version: 9999.0.0
+Architecture: arm64
+Maintainer: Local User
+Depends: 
+Provides: python3-opencv
+Conflicts: 
+Description: Dummy package - CUDA OpenCV is installed manually
+ This dummy package satisfies ROS2 dependencies while preserving
+ the Q-engineering CUDA-optimized OpenCV installation.
 EOF
-echo "✓ OpenCV protection configured"
+
+# Build and install dummy package
+dpkg-deb --build /tmp/python3-opencv-dummy
+sudo dpkg -i /tmp/python3-opencv-dummy.deb
+rm -rf /tmp/python3-opencv-dummy /tmp/python3-opencv-dummy.deb
+echo "✓ Dummy package created"
 
 # Install ROS2 Foxy Desktop
 echo ""
 echo "[6/8] Installing ROS2 Foxy Desktop (this may take 15-20 minutes)..."
-echo "Note: python3-opencv will be skipped to preserve CUDA support"
+echo "Note: Using CUDA-optimized OpenCV instead of python3-opencv"
 sudo apt install -y ros-foxy-desktop
 
 # Install additional ROS2 packages
