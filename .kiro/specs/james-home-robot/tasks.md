@@ -38,7 +38,12 @@
   - _Requirements: 7.2_
 
 - [ ] 3. Remote Control Firmware Enhancement
-- [ ] 3.1 Enhance Remote Control Display
+- [x] 3.1 Enhance Remote Control Display
+
+
+
+
+
   - Add AMOLED display showing joystick values in real-time
   - Display connection status and signal strength
   - Show battery level if available

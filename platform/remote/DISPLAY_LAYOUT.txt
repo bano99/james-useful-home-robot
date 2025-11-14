@@ -1,0 +1,185 @@
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                    JAMES REMOTE CONTROL - DISPLAY LAYOUT                      ║
+║                         LilyGO T-Display S3 AMOLED                            ║
+║                      240x536 pixels (PORTRAIT MODE)                           ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────────┐
+│                         │
+│    ┌───────────────┐    │
+│    │     JAMES     │    │ Y: 10
+│    │    REMOTE     │    │ Y: 30
+│    │ (Green, Size 2)│   │
+│    └───────────────┘    │
+│                         │
+│  Forward/Back: 127      │ Y: 100
+│  ┌────┐                 │
+│  │░░░░│                 │
+│  │░░░░│                 │
+│  │████│                 │ Y: 120
+│  │████│                 │
+│  │████│                 │
+│  │░░░░│                 │
+│  └────┘                 │
+│  (Green bar)            │
+│                         │
+│  Left/Right: -64        │ Y: 200
+│  ┌────┐                 │
+│  │░░░░│                 │
+│  │████│                 │ Y: 220
+│  │████│                 │
+│  │░░░░│                 │
+│  │░░░░│                 │
+│  │░░░░│                 │
+│  └────┘                 │
+│  (Blue bar)             │
+│                         │
+│  Rotation: 0            │ Y: 300
+│  ┌────┐                 │
+│  │░░░░│                 │
+│  │░░░░│                 │ Y: 320
+│  │█░░░│                 │
+│  │░░░░│                 │
+│  │░░░░│                 │
+│  │░░░░│                 │
+│  └────┘                 │
+│  (Orange bar)           │
+│                         │
+│  Status:                │ Y: 400
+│  Connected              │ Y: 415
+│  (Green/Red)            │
+│                         │
+│  Signal:                │ Y: 450
+│  95%                    │ Y: 465
+│  (Green/Yellow/Red)     │
+│                         │
+│  Battery:               │ Y: 480
+│  N/A                    │ Y: 495
+│  (Green/Yellow/Red)     │
+│                         │
+└─────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════
+                              ELEMENT DETAILS
+═══════════════════════════════════════════════════════════════════════════════
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ TITLE SECTION                                                               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Text: "JAMES REMOTE"                                                        │
+│ Position: Center top (X: 180, Y: 5)                                        │
+│ Font: Size 2                                                                │
+│ Color: Green (0x07E0)                                                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ STATUS LINE                                                                 │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Connection Status:                                                          │
+│   Position: (X: 10, Y: 30)                                                  │
+│   Text: "Status: Connected" or "Status: Disconnected"                       │
+│   Color: Green (connected) / Red (disconnected)                             │
+│                                                                             │
+│ Signal Strength:                                                            │
+│   Position: (X: 300, Y: 30)                                                 │
+│   Text: "Signal: XX%"                                                       │
+│   Color: Green (>80%) / Yellow (>50%) / Red (<50%)                          │
+│                                                                             │
+│ Battery Level:                                                              │
+│   Position: (X: 420, Y: 30)                                                 │
+│   Text: "Bat: XX%" or "Bat: N/A"                                            │
+│   Color: Green (>50%) / Yellow (>20%) / Red (<20%)                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ JOYSTICK AXIS 1: FORWARD/BACKWARD                                          │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Label: "Forward/Back:"                                                      │
+│   Position: (X: 10, Y: 60)                                                  │
+│                                                                             │
+│ Value Display:                                                              │
+│   Position: (X: 130, Y: 60)                                                 │
+│   Format: "XXXX" (-255 to +255)                                             │
+│                                                                             │
+│ Progress Bar:                                                               │
+│   Position: (X: 10, Y: 75)                                                  │
+│   Size: 300x20 pixels                                                       │
+│   Background: Dark gray (0x4208)                                            │
+│   Foreground: Green (0x07E0)                                                │
+│   Center line: White (0xFFFF)                                               │
+│   Range: -255 (full left) to +255 (full right)                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ JOYSTICK AXIS 2: LEFT/RIGHT                                                │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Label: "Left/Right:"                                                        │
+│   Position: (X: 10, Y: 110)                                                 │
+│                                                                             │
+│ Value Display:                                                              │
+│   Position: (X: 130, Y: 110)                                                │
+│   Format: "XXXX" (-255 to +255)                                             │
+│                                                                             │
+│ Progress Bar:                                                               │
+│   Position: (X: 10, Y: 125)                                                 │
+│   Size: 300x20 pixels                                                       │
+│   Background: Dark gray (0x4208)                                            │
+│   Foreground: Blue (0x051F)                                                 │
+│   Center line: White (0xFFFF)                                               │
+│   Range: -255 (full left) to +255 (full right)                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ JOYSTICK AXIS 3: ROTATION                                                  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Label: "Rotation:"                                                          │
+│   Position: (X: 10, Y: 160)                                                 │
+│                                                                             │
+│ Value Display:                                                              │
+│   Position: (X: 130, Y: 160)                                                │
+│   Format: "XXXX" (-255 to +255)                                             │
+│                                                                             │
+│ Progress Bar:                                                               │
+│   Position: (X: 10, Y: 175)                                                 │
+│   Size: 300x20 pixels                                                       │
+│   Background: Dark gray (0x4208)                                            │
+│   Foreground: Orange (0xFC00)                                               │
+│   Center line: White (0xFFFF)                                               │
+│   Range: -255 (full left) to +255 (full right)                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════
+                              COLOR PALETTE
+═══════════════════════════════════════════════════════════════════════════════
+
+Background:      0x0000  (Black)
+Text:            0xFFFF  (White)
+Good/Connected:  0x07E0  (Green)
+Warning:         0xFFE0  (Yellow)
+Error:           0xF800  (Red)
+Bar Background:  0x4208  (Dark Gray)
+Bar X-axis:      0x07E0  (Green)
+Bar Y-axis:      0x051F  (Blue)
+Bar Rotation:    0xFC00  (Orange)
+
+═══════════════════════════════════════════════════════════════════════════════
+                           UPDATE FREQUENCIES
+═══════════════════════════════════════════════════════════════════════════════
+
+Display Refresh:     10 Hz (100ms interval)
+Data Transmission:   6.7 Hz (150ms interval)
+Connection Timeout:  1000ms (1 second)
+Counter Reset:       Every 1000 sends
+
+═══════════════════════════════════════════════════════════════════════════════
+                              DIMENSIONS
+═══════════════════════════════════════════════════════════════════════════════
+
+Screen:          536 x 240 pixels
+Title Font:      Size 2 (16 pixels high)
+Body Font:       Size 1 (8 pixels high)
+Bar Width:       300 pixels
+Bar Height:      20 pixels
+Spacing:         50 pixels between sections
+
+═══════════════════════════════════════════════════════════════════════════════

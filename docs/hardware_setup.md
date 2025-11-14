@@ -19,6 +19,32 @@ This guide provides detailed instructions for setting up the hardware components
 
 ---
 
+## Important: Jetson Nano Images
+
+**⚠️ CRITICAL**: Jetson Nano requires NVIDIA JetPack-based images, NOT standard Ubuntu or Raspberry Pi images!
+
+### Recommended Image: Q-engineering Ubuntu 20.04
+
+**This project uses the Q-engineering optimized image:**
+- **Source**: https://github.com/Qengineering/Jetson-Nano-Ubuntu-20-image
+- **Base**: Ubuntu 20.04.6 LTS with JetPack 4.6.4 (L4T 32.7.4)
+- **Pre-installed**: PyTorch, OpenCV with CUDA, ONNX Runtime, TensorRT
+- **Optimized**: For deep learning and computer vision on Jetson Nano
+
+**Why Q-engineering image?**
+- ✅ Ubuntu 20.04 (perfect for ROS2 Humble)
+- ✅ PyTorch 1.13.0 pre-installed with CUDA support
+- ✅ OpenCV 4.8.0 with CUDA acceleration
+- ✅ ONNX Runtime with TensorRT support
+- ✅ GCC 11 available for modern C++ (ROS2)
+- ✅ All deep learning frameworks optimized for Jetson
+
+See `docs/qengineering_image_info.md` for complete details on pre-installed software.
+
+If you see only the NVIDIA logo and no boot:
+- You likely flashed a Raspberry Pi Ubuntu image (wrong!)
+- Follow the instructions below to flash the correct image
+
 ## 1. Jetson Nano Setup
 
 ### Hardware Requirements
@@ -44,27 +70,68 @@ This guide provides detailed instructions for setting up the hardware components
 
 ---
 
-## 2. Ubuntu 24.04 Installation
+## 2. JetPack Installation for Jetson Nano
 
-### Download Ubuntu Image
+**IMPORTANT**: Jetson Nano requires NVIDIA JetPack, not standard Ubuntu images!
 
+### Option 1: Using NVIDIA SDK Manager (Recommended for Ubuntu 24.04)
+
+Since JetPack doesn't officially support Ubuntu 24.04 yet, we'll use JetPack 4.6.4 (Ubuntu 18.04 base) or JetPack 5.x (Ubuntu 20.04 base) and upgrade components manually.
+
+**Prerequisites:**
+- Ubuntu host PC (18.04 or 20.04 recommended)
+- NVIDIA Developer account (free)
+- USB cable (micro-USB for Jetson Nano)
+
+**Steps:**
+
+1. Download NVIDIA SDK Manager:
+   - Go to: https://developer.nvidia.com/sdk-manager
+   - Sign in with NVIDIA Developer account
+   - Download SDK Manager for your host OS
+
+2. Install SDK Manager:
 ```bash
-# On your development PC
-wget https://cdimage.ubuntu.com/releases/24.04/release/ubuntu-24.04-preinstalled-server-arm64+raspi.img.xz
-
-# Extract the image
-xz -d ubuntu-24.04-preinstalled-server-arm64+raspi.img.xz
+sudo apt install ./sdkmanager_[version].deb
 ```
 
-### Flash Image to microSD Card
+3. Run SDK Manager:
+```bash
+sdkmanager
+```
+
+4. Follow the wizard:
+   - Select Jetson Nano as target
+   - Select JetPack 4.6.4 (most stable for Nano)
+   - Choose "Download and flash"
+   - Put Jetson Nano in recovery mode (see below)
+
+**Recovery Mode for Jetson Nano:**
+1. Power off Jetson Nano
+2. Connect micro-USB cable between Jetson Nano and host PC
+3. Place jumper on FC REC and GND pins (J40, pins 3-4)
+4. Connect power supply
+5. Remove jumper after 2 seconds
+6. Jetson should appear as USB device on host PC
+
+### Option 2: Using Pre-built Image (Easier, Recommended for Beginners)
+
+**Download JetPack Image:**
+
+1. Go to: https://developer.nvidia.com/embedded/jetpack
+2. Download JetPack 4.6.4 SD Card Image for Jetson Nano
+3. Extract the .zip file
+
+**Flash Image to microSD Card:**
 
 **Using Balena Etcher (Recommended):**
 
 1. Download Etcher from https://www.balena.io/etcher/
-2. Insert microSD card into your PC
-3. Select the Ubuntu image file
+2. Insert microSD card (64GB+ recommended) into your PC
+3. Select the extracted JetPack image (.img file)
 4. Select the microSD card as target
 5. Click "Flash!"
+6. Wait for verification to complete
 
 **Using dd (Linux/Mac):**
 
@@ -73,26 +140,48 @@ xz -d ubuntu-24.04-preinstalled-server-arm64+raspi.img.xz
 lsblk
 
 # Flash the image (replace /dev/sdX with your SD card device)
-sudo dd if=ubuntu-24.04-preinstalled-server-arm64+raspi.img of=/dev/sdX bs=4M status=progress
+sudo dd if=jetson-nano-jp46-sd-card-image.img of=/dev/sdX bs=4M status=progress
 sudo sync
 ```
+
+**Using Win32DiskImager (Windows):**
+
+1. Download from: https://sourceforge.net/projects/win32diskimager/
+2. Run as Administrator
+3. Select the .img file
+4. Select your SD card drive
+5. Click "Write"
 
 ### First Boot Configuration
 
 1. Insert microSD card into Jetson Nano
-2. Connect HDMI monitor, keyboard, and Ethernet cable
-3. Connect power supply
-4. Wait for first boot (takes 2-3 minutes)
+2. Connect HDMI monitor, USB keyboard, and mouse
+3. Connect Ethernet cable (recommended for initial setup)
+4. Connect 5V 4A power supply via barrel jack
+5. Wait for first boot (takes 5-10 minutes)
 
-**Initial Login:**
-- Username: `ubuntu`
-- Password: `ubuntu`
-- You will be prompted to change the password immediately
+**Initial Setup Wizard:**
 
-**Set New Password:**
-```bash
-# Follow the prompts to set a secure password
-```
+The Jetson will boot into an initial setup wizard:
+
+1. **Accept License Agreement**
+2. **Select Language**: English (or your preference)
+3. **Select Keyboard Layout**: English (US) or your layout
+4. **Select Time Zone**: Your time zone
+5. **Create User Account**:
+   - Name: Your name
+   - Username: `james` (or your preference)
+   - Password: Set a secure password
+   - Confirm password
+6. **Partition Selection**: Use entire disk (default)
+7. **Network Configuration**: Will auto-configure if Ethernet is connected
+8. **APP Partition Size**: Maximum (default)
+9. **Nvpmodel Mode**: MAXN (maximum performance)
+10. Wait for installation to complete (10-15 minutes)
+
+**After Setup:**
+- The system will reboot automatically
+- Login with the username and password you created
 
 **Update Hostname:**
 ```bash
@@ -269,9 +358,11 @@ EOF
 
 ---
 
-## 5. ROS2 Jazzy Installation
+## 5. ROS2 Installation
 
-### Add ROS2 Repository
+**IMPORTANT**: JetPack 4.6.4 comes with Ubuntu 18.04, which doesn't support ROS2 Jazzy. We'll use ROS2 Foxy (LTS) instead.
+
+### Option A: ROS2 Foxy (Recommended for JetPack 4.6.4 / Ubuntu 18.04)
 
 ```bash
 # Set locale
@@ -283,41 +374,70 @@ export LANG=en_US.UTF-8
 # Add ROS2 GPG key
 sudo apt install -y software-properties-common
 sudo add-apt-repository universe
-sudo apt update && sudo apt install -y curl
+sudo apt update && sudo apt install -y curl gnupg lsb-release
 sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg
 
 # Add repository to sources list
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" | sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
-```
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
 
-### Install ROS2 Jazzy
-
-```bash
 # Update package lists
 sudo apt update
 
-# Install ROS2 Jazzy Desktop (includes RViz, demos, tutorials)
-sudo apt install -y ros-jazzy-desktop
+# Install ROS2 Foxy Desktop
+sudo apt install -y ros-foxy-desktop
 
 # Install development tools
-sudo apt install -y ros-dev-tools
+sudo apt install -y python3-colcon-common-extensions python3-rosdep python3-vcstool
 
-# Install colcon build tool
-sudo apt install -y python3-colcon-common-extensions
+# Initialize rosdep
+sudo rosdep init
+rosdep update
+```
+
+### Option B: Upgrade to Ubuntu 20.04 for ROS2 Humble (Advanced)
+
+If you want newer ROS2 (Humble), you can upgrade Ubuntu:
+
+```bash
+# Backup your system first!
+
+# Upgrade to Ubuntu 20.04
+sudo apt update && sudo apt upgrade -y
+sudo do-release-upgrade
+
+# After upgrade, install ROS2 Humble
+# Follow similar steps as above but use ros-humble-desktop
+```
+
+### Option C: Use Docker for ROS2 Jazzy (Alternative)
+
+If you need ROS2 Jazzy specifically, use Docker:
+
+```bash
+# Install Docker
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
+sudo usermod -aG docker $USER
+
+# Pull ROS2 Jazzy image
+docker pull ros:jazzy
+
+# Run ROS2 Jazzy container
+docker run -it --rm --network=host ros:jazzy
 ```
 
 ### Configure ROS2 Environment
 
 ```bash
-# Add to .bashrc
-echo "source /opt/ros/jazzy/setup.bash" >> ~/.bashrc
+# Add to .bashrc (adjust for your ROS2 version)
+echo "source /opt/ros/foxy/setup.bash" >> ~/.bashrc
 echo "export ROS_DOMAIN_ID=42" >> ~/.bashrc
 echo "export ROS_LOCALHOST_ONLY=0" >> ~/.bashrc
 
-# For james-nav
+# For james-nav Jetson
 echo "export ROS_NAMESPACE=james_nav" >> ~/.bashrc
 
-# For james-perception
+# For james-perception Jetson
 # echo "export ROS_NAMESPACE=james_perception" >> ~/.bashrc
 
 # Source the file
@@ -331,9 +451,14 @@ source ~/.bashrc
 ros2 --version
 
 # Run demo (in separate terminals)
+# Terminal 1:
 ros2 run demo_nodes_cpp talker
+
+# Terminal 2:
 ros2 run demo_nodes_cpp listener
 ```
+
+**Note**: If you see communication between talker and listener, ROS2 is working correctly!
 
 ---
 

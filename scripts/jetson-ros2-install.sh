@@ -129,14 +129,34 @@ else
     echo "✓ ROS2 already configured in ~/.bashrc"
 fi
 
-# Install additional Python packages
+# Check for Q-engineering image optimizations
+echo ""
+echo "Checking for Q-engineering image optimizations..."
+if python3 -c "import torch" 2>/dev/null; then
+    TORCH_VERSION=$(python3 -c "import torch; print(torch.__version__)" 2>/dev/null)
+    echo "✓ PyTorch $TORCH_VERSION detected (pre-installed)"
+else
+    echo "! PyTorch not found"
+fi
+
+if python3 -c "import cv2" 2>/dev/null; then
+    CV_VERSION=$(python3 -c "import cv2; print(cv2.__version__)" 2>/dev/null)
+    echo "✓ OpenCV $CV_VERSION detected (pre-installed)"
+else
+    echo "! OpenCV not found"
+fi
+
+# Check GCC version
+GCC_VERSION=$(gcc --version | head -n1)
+echo "✓ Compiler: $GCC_VERSION"
+
+# Install additional Python packages (only what's not pre-installed)
 echo ""
 echo "Installing additional Python packages..."
 pip3 install --user \
     pytest \
     pytest-cov \
-    numpy \
-    opencv-python
+    ultralytics
 
 echo ""
 echo "=========================================="
@@ -145,10 +165,18 @@ echo "=========================================="
 echo ""
 echo "ROS2 Humble has been successfully installed on your Jetson Nano."
 echo ""
+echo "Pre-installed optimizations detected:"
+python3 -c "import torch; print(f'  - PyTorch {torch.__version__} with CUDA: {torch.cuda.is_available()}')" 2>/dev/null || echo "  - PyTorch: Not found"
+python3 -c "import cv2; print(f'  - OpenCV {cv2.__version__}')" 2>/dev/null || echo "  - OpenCV: Not found"
+echo "  - Compiler: $(gcc --version | head -n1 | cut -d' ' -f3)"
+echo ""
 echo "Next steps:"
 echo "1. Source your bashrc: source ~/.bashrc"
 echo "2. Verify installation: ros2 --version"
 echo "3. Test with demo: ros2 run demo_nodes_cpp talker"
+echo "4. Optional: Switch to GCC 11 for better ROS2 performance:"
+echo "   sudo update-alternatives --set gcc /usr/bin/gcc-11"
+echo "   sudo update-alternatives --set g++ /usr/bin/g++-11"
 echo ""
 echo "To start using ROS2 in this terminal:"
 echo "  source /opt/ros/humble/setup.bash"
@@ -156,5 +184,6 @@ echo ""
 echo "System information:"
 ros2 --version 2>/dev/null || echo "  (restart terminal to use ros2 command)"
 echo ""
+echo "For Q-engineering image optimizations, see: docs/qengineering_image_info.md"
 echo "For next steps, see: docs/hardware_setup.md"
 echo ""

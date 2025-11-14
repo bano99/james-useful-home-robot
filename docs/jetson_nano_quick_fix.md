@@ -15,7 +15,23 @@ Jetson Nano uses a different ARM architecture (ARM Cortex-A57) than Raspberry Pi
 
 ### Step 1: Download Correct Image
 
-**Option A: Official NVIDIA Image (Recommended)**
+**Option A: Q-engineering Ubuntu 20.04 Image (Recommended for James Project)**
+
+This is the image used by the James project with many optimizations pre-installed:
+
+1. Go to: https://github.com/Qengineering/Jetson-Nano-Ubuntu-20-image
+2. Download: **Jetson Nano Ubuntu 20.04 image**
+3. Follow the download instructions on the GitHub page
+4. Extract the .img file from the archive
+
+**Why Q-engineering image?**
+- Ubuntu 20.04 (vs 18.04 in official JetPack)
+- PyTorch, OpenCV, ONNX Runtime pre-installed
+- All optimized for Jetson Nano with CUDA support
+- Perfect for ROS2 Humble
+- Saves hours of setup time!
+
+**Option B: Official NVIDIA Image**
 
 1. Go to: https://developer.nvidia.com/embedded/jetpack
 2. Scroll to "Jetson Nano Developer Kit"
@@ -23,7 +39,7 @@ Jetson Nano uses a different ARM architecture (ARM Cortex-A57) than Raspberry Pi
 4. File will be named something like: `jetson-nano-jp464-sd-card-image.zip`
 5. Extract the .zip to get the .img file
 
-**Option B: Direct Download Link**
+**Option C: Direct Download Link (Official)**
 
 ```bash
 # Download JetPack 4.6.4 (Ubuntu 18.04 based)
