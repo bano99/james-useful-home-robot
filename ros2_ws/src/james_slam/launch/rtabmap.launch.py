@@ -44,7 +44,7 @@ def generate_launch_description():
         
         # RTAB-Map node
         Node(
-            package='rtabmap_ros',
+            package='rtabmap_slam',
             executable='rtabmap',
             name='rtabmap',
             output='screen',
@@ -70,7 +70,7 @@ def generate_launch_description():
         
         # RTAB-Map visualization node
         Node(
-            package='rtabmap_ros',
+            package='rtabmap_viz',
             executable='rtabmapviz',
             name='rtabmapviz',
             output='screen',
