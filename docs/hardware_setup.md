@@ -360,9 +360,28 @@ EOF
 
 ## 5. ROS2 Installation
 
-**IMPORTANT**: JetPack 4.6.4 comes with Ubuntu 18.04, which doesn't support ROS2 Jazzy. We'll use ROS2 Foxy (LTS) instead.
+**IMPORTANT**: The Q-engineering image uses Ubuntu 20.04, which supports ROS2 Foxy (LTS).
 
-### Option A: ROS2 Foxy (Recommended for JetPack 4.6.4 / Ubuntu 18.04)
+### Option A: Automated Installation (Recommended for Q-engineering Image)
+
+**Use the provided installation script that preserves CUDA-optimized OpenCV:**
+
+```bash
+cd ~/james-useful-home-robot/scripts
+chmod +x jetson-ros2-foxy-install.sh
+./jetson-ros2-foxy-install.sh
+```
+
+This script will:
+- Install ROS2 Foxy Desktop
+- Preserve your CUDA-optimized OpenCV (critical for performance)
+- Configure cv_bridge to use GPU-accelerated OpenCV
+- Set up development tools (colcon, rosdep, vcstool)
+- Verify all optimizations remain intact
+
+**See `docs/ros2_foxy_opencv_setup.md` for details on OpenCV preservation strategy.**
+
+### Option B: Manual Installation (Advanced)
 
 ```bash
 # Set locale
