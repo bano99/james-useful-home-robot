@@ -230,7 +230,9 @@ This project follows the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.
 
 ## Documentation
 
+- [Remote Installation Guide](docs/remote_installation_guide.md) - **START HERE**: Install ROS2 on Jetson Nano remotely via SSH
 - [Hardware Setup Guide](docs/hardware_setup.md) - Complete Jetson Nano setup with Ubuntu, ROS2, and dependencies
+- [Jetson Nano Quick Fix](docs/jetson_nano_quick_fix.md) - Troubleshoot boot issues and flash correct image
 - [MCP Server Setup](docs/mcp_setup.md) - Configure GitHub MCP server for CI/CD monitoring
 
 Additional documentation will be added as the project develops.
