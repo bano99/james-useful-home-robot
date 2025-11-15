@@ -24,22 +24,6 @@ def generate_launch_description():
         # Set environment variable for RTAB-Map
         SetEnvironmentVariable('RTABMAP_SYNC_MULTI_RGBD', '0'),
         
-        # Static transform: base_link -> t265_pose_frame (T265 is the odometry source)
-        Node(
-            package='tf2_ros',
-            executable='static_transform_publisher',
-            name='base_to_t265',
-            arguments=['0', '0', '0', '0', '0', '0', 'base_link', 't265_pose_frame']
-        ),
-        
-        # Static transform: base_link -> d435_link (D435 camera position)
-        Node(
-            package='tf2_ros',
-            executable='static_transform_publisher',
-            name='base_to_d435',
-            arguments=['0', '0', '0', '0', '0', '0', 'base_link', 'd435_link']
-        ),
-        
         # Launch arguments
         DeclareLaunchArgument(
             'use_sim_time',
