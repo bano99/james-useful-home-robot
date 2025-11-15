@@ -24,6 +24,14 @@ def generate_launch_description():
         # Set environment variable for RTAB-Map
         SetEnvironmentVariable('RTABMAP_SYNC_MULTI_RGBD', '0'),
         
+        # TF bridge to connect odom_frame to camera frame
+        Node(
+            package='james_slam',
+            executable='tf_bridge.py',
+            name='tf_bridge',
+            output='screen'
+        ),
+        
         # Launch arguments
         DeclareLaunchArgument(
             'use_sim_time',
