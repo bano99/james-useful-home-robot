@@ -3,6 +3,7 @@
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, SetEnvironmentVariable
 from launch.substitutions import LaunchConfiguration
+from launch.conditions import IfCondition
 from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
 import os
@@ -68,24 +69,24 @@ def generate_launch_description():
             arguments=['--delete_db_on_start']  # Remove this after first successful map
         ),
         
-        # RTAB-Map visualization node
-        Node(
-            package='rtabmap_viz',
-            executable='rtabmapviz',
-            name='rtabmapviz',
-            output='screen',
-            parameters=[
-                parameters_file,
-                {
-                    'use_sim_time': use_sim_time,
-                }
-            ],
-            remappings=[
-                ('rgb/image', '/camera/color/image_raw'),
-                ('rgb/camera_info', '/camera/color/camera_info'),
-                ('depth/image', '/camera/aligned_depth_to_color/image_raw'),
-                ('odom', '/camera/pose/sample'),
-            ],
-            condition=LaunchConfiguration('use_viz', default='false')
-        ),
+        # RTAB-Map visualization node (optional - requires display)
+        # Uncomment to enable visualization
+        # Node(
+        #     package='rtabmap_viz',
+        #     executable='rtabmapviz',
+        #     name='rtabmapviz',
+        #     output='screen',
+        #     parameters=[
+        #         parameters_file,
+        #         {
+        #             'use_sim_time': use_sim_time,
+        #         }
+        #     ],
+        #     remappings=[
+        #         ('rgb/image', '/camera/color/image_raw'),
+        #         ('rgb/camera_info', '/camera/color/camera_info'),
+        #         ('depth/image', '/camera/aligned_depth_to_color/image_raw'),
+        #         ('odom', '/camera/pose/sample'),
+        #     ],
+        # ),
     ])
