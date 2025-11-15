@@ -5,7 +5,7 @@ rtabmap:
     odom_frame_id: odom_frame
     map_frame_id: map
     publish_tf: false
-    wait_for_transform: false
+    wait_for_transform: 0.0
     
     # Subscribe to topics
     subscribe_depth: true
