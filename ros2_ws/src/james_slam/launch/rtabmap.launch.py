@@ -59,12 +59,12 @@ def generate_launch_description():
             ],
             remappings=[
                 # D435 camera topics
-                ('rgb/image', '/camera/color/image_raw'),
-                ('rgb/camera_info', '/camera/color/camera_info'),
-                ('depth/image', '/camera/aligned_depth_to_color/image_raw'),
+                ('rgb/image', '/d435/color/image_raw'),
+                ('rgb/camera_info', '/d435/color/camera_info'),
+                ('depth/image', '/d435/aligned_depth_to_color/image_raw'),
                 
                 # T265 odometry
-                ('odom', '/camera/pose/sample'),
+                ('odom', '/t265/pose/sample'),
             ],
             arguments=['--delete_db_on_start']  # Remove this after first successful map
         ),
