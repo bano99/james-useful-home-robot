@@ -1,9 +1,10 @@
 rtabmap:
   ros__parameters:
-    # Frame IDs (matching T265 frames)
-    frame_id: t265_pose_frame
+    # Frame IDs - use camera optical frame
+    frame_id: d435_color_optical_frame
     odom_frame_id: odom_frame
     map_frame_id: map
+    publish_tf: false
     
     # Subscribe to topics
     subscribe_depth: true
