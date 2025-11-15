@@ -115,6 +115,37 @@ rviz2
 
 You'll see the map being built in real-time as James moves around!
 
+## Viewing Saved Maps (Offline)
+
+The Jetson Nano can struggle running cameras + RTAB-Map + RViz2 simultaneously. Here are two ways to view your map after a mapping session:
+
+### Option 1: RTAB-Map Database Viewer (Recommended)
+
+Stop all nodes and use the standalone viewer:
+
+```bash
+# View the saved map
+rtabmap-databaseViewer ~/.ros/rtabmap.db
+```
+
+This lightweight GUI lets you:
+- Explore the 3D point cloud
+- View pose graph and loop closures
+- Export maps (PLY, PCD, OctoMap)
+- Analyze mapping quality
+
+### Option 2: View in RViz2 (Lighter Load)
+
+```bash
+# Launch map viewer (no cameras needed)
+ros2 launch james_slam view_map.launch.py
+
+# In another terminal, launch RViz2
+rviz2
+```
+
+Configure RViz2 as described in section 4 above.
+
 ## Localization Mode
 
 Once you have a good map, you can switch to localization mode (no new mapping):
@@ -127,14 +158,39 @@ ros2 launch james_slam rtabmap.launch.py localization:=true
 
 Maps are automatically saved to `~/.ros/rtabmap.db`
 
-To start fresh (delete existing map):
+### Backup Your Map
 ```bash
+# Create maps directory
+mkdir -p ~/james_maps
+
+# Backup current map with timestamp
+cp ~/.ros/rtabmap.db ~/james_maps/home_map_$(date +%Y%m%d_%H%M).db
+```
+
+### Start Fresh Mapping
+```bash
+# Delete existing map to start over
 rm ~/.ros/rtabmap.db
 ```
 
-To backup your map:
+### Load a Specific Map
 ```bash
-cp ~/.ros/rtabmap.db ~/james_maps/home_map_$(date +%Y%m%d).db
+# Copy a backup to active location
+cp ~/james_maps/home_map_20241115_1030.db ~/.ros/rtabmap.db
+
+# Or specify path in launch
+ros2 launch james_slam rtabmap.launch.py database_path:=~/james_maps/my_map.db
+```
+
+### Export Map for Other Tools
+```bash
+# Open database viewer
+rtabmap-databaseViewer ~/.ros/rtabmap.db
+
+# Then: File → Export → Choose format:
+# - Point Cloud (PLY, PCD) - for CloudCompare, MeshLab
+# - OctoMap (.ot) - for motion planning
+# - 2D Grid Map (PGM) - for Nav2
 ```
 
 ## Troubleshooting
