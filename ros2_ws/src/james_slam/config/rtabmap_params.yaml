@@ -9,7 +9,7 @@ rtabmap:
     subscribe_depth: true
     subscribe_rgb: true
     subscribe_scan: false
-    subscribe_odom_info: true
+    subscribe_odom_info: false
     
     # Use T265 odometry as prior
     odom_sensor_sync: true
