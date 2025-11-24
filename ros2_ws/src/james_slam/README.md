@@ -218,7 +218,10 @@ ros2 launch james_slam view_map.launch.py
 rviz2
 ```
 
-Configure RViz2 as described in section 4 above.
+**Configure RViz2:**
+1. Set Fixed Frame to `map`
+2. Add → By topic → `/grid_prob_map` → OccupancyGrid (this is the 2D map)
+3. Optionally add `/mapGraph` → MarkerArray (shows robot trajectory)
 
 ## Localization Mode
 
