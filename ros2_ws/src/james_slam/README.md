@@ -4,6 +4,24 @@ RTAB-Map SLAM configuration for James home robot using RealSense D435 (RGB-D) an
 
 ## Quick Start
 
+### D435 Only (Recommended - Lower Power)
+
+```bash
+# Terminal 1 - D435 Camera
+ros2 launch realsense2_camera rs_launch.py device_type:=d435 camera_name:=d435 \
+  enable_depth:=true enable_color:=true align_depth.enable:=true \
+  depth_module.profile:=640x480x30 rgb_camera.profile:=640x480x30
+
+# Terminal 2 - RTAB-Map with Visual Odometry
+cd ~/james-useful-home-robot/ros2_ws && source install/setup.bash
+ros2 launch james_slam rtabmap_d435_only.launch.py
+
+# Terminal 3 - Visualization (optional)
+rviz2
+```
+
+### D435 + T265 (Higher Accuracy, More Power)
+
 ```bash
 # Terminal 1 - T265
 ros2 launch realsense2_camera rs_launch.py device_type:=t265 camera_name:=t265 enable_pose:=true
@@ -23,12 +41,47 @@ rviz2
 
 ## Features
 
+- **Two Modes**: D435-only (lower power) or D435+T265 (higher accuracy)
 - **Optimized for Jetson Nano**: Reduced memory footprint and computational requirements
-- **Sensor Fusion**: Combines D435 visual data with T265 odometry
+- **Visual Odometry**: D435-only mode uses RGB-D visual odometry
+- **Sensor Fusion**: D435+T265 mode combines visual data with tracking odometry
 - **Indoor Mapping**: Configured for home environments with 5cm grid resolution
 - **Traversable Obstacles**: Ignores obstacles < 10cm height (carpets, cables, yoga mats)
 - **Loop Closure**: Automatic loop closure detection for consistent maps
-- **TF Bridge**: Custom node handles frame transforms between cameras
+
+## Which Mode Should I Use?
+
+### D435 Only Mode (Recommended)
+**Use when:**
+- Power is limited (Jetson Nano USB power constraints)
+- Simpler setup preferred
+- Indoor environments with good lighting and texture
+
+**Pros:**
+- ✅ Lower power consumption (one camera)
+- ✅ Simpler - no camera synchronization needed
+- ✅ Good accuracy in textured environments
+- ✅ Fewer USB bandwidth issues
+
+**Cons:**
+- ❌ Odometry can drift in textureless areas (blank walls)
+- ❌ Slower to recover from tracking loss
+
+### D435 + T265 Mode
+**Use when:**
+- Power supply is adequate
+- Maximum accuracy needed
+- Operating in challenging environments (low light, textureless)
+
+**Pros:**
+- ✅ More accurate odometry from T265
+- ✅ Better performance in textureless areas
+- ✅ Faster recovery from tracking loss
+
+**Cons:**
+- ❌ Higher power consumption (two cameras)
+- ❌ More complex setup
+- ❌ Requires camera synchronization
 
 ## Prerequisites
 
@@ -50,7 +103,32 @@ source install/setup.bash
 
 ## Usage
 
-### 1. Start Cameras
+### D435-Only Mode (Recommended)
+
+**Terminal 1 - Start D435:**
+```bash
+cd ~/james-useful-home-robot/ros2_ws
+source install/setup.bash
+ros2 launch realsense2_camera rs_launch.py \
+    device_type:=d435 \
+    camera_name:=d435 \
+    enable_depth:=true \
+    enable_color:=true \
+    align_depth.enable:=true \
+    depth_module.profile:=640x480x30 \
+    rgb_camera.profile:=640x480x30
+```
+
+**Terminal 2 - Start RTAB-Map with Visual Odometry:**
+```bash
+cd ~/james-useful-home-robot/ros2_ws
+source install/setup.bash
+ros2 launch james_slam rtabmap_d435_only.launch.py
+```
+
+You should see both `rgbd_odometry` and `rtabmap` nodes start. The visual odometry will compute robot motion from the camera images.
+
+### D435 + T265 Mode (Higher Accuracy)
 
 **Terminal 1 - T265 (Tracking Camera):**
 ```bash
@@ -76,18 +154,14 @@ ros2 launch realsense2_camera rs_launch.py \
     rgb_camera.profile:=640x480x30
 ```
 
-**Note**: Using separate `camera_name` parameters prevents topic conflicts between cameras.
-
-### 2. Start RTAB-Map SLAM
-
-**Terminal 3:**
+**Terminal 3 - Start RTAB-Map:**
 ```bash
 cd ~/james-useful-home-robot/ros2_ws
 source install/setup.bash
 ros2 launch james_slam rtabmap.launch.py
 ```
 
-You should see RTAB-Map start and begin processing camera data. The TF bridge node will automatically connect the camera frames.
+The TF bridge node will automatically connect the camera frames.
 
 ### 3. Drive Robot to Build Map
 

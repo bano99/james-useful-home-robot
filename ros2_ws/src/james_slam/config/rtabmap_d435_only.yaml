@@ -1,0 +1,97 @@
+rtabmap:
+  ros__parameters:
+    # Frame IDs - D435 only
+    frame_id: d435_link
+    odom_frame_id: odom
+    map_frame_id: map
+    
+    # Subscribe to topics
+    subscribe_depth: true
+    subscribe_rgb: true
+    subscribe_scan: false
+    subscribe_odom_info: false
+    
+    # Use visual odometry from rgbd_odometry node
+    odom_sensor_sync: false
+    
+    # Queue sizes (reduced for Jetson Nano)
+    queue_size: 10
+    
+    # Memory management for Jetson Nano
+    Mem/IncrementalMemory: "true"
+    Mem/InitWMWithAllNodes: "false"
+    Mem/ReduceGraph: "true"
+    Mem/STMSize: "10"
+    Mem/ImageKept: "false"
+    Mem/BinDataKept: "false"
+    
+    # Loop closure detection
+    Mem/LoopClosureDetection: "true"
+    RGBD/LoopClosureReextractFeatures: "true"
+    
+    # Optimize for indoor environments
+    RGBD/OptimizeFromGraphEnd: "false"
+    RGBD/OptimizeMaxError: "0.1"
+    RGBD/ProximityBySpace: "true"
+    RGBD/ProximityMaxGraphDepth: "50"
+    RGBD/ProximityPathMaxNeighbors: "10"
+    
+    # Feature detection (reduced for performance)
+    Kp/MaxFeatures: "200"
+    Kp/DetectorStrategy: "6"  # GFTT
+    
+    # Visual odometry parameters
+    Vis/EstimationType: "0"  # 0=3D->3D
+    Vis/MinInliers: "15"
+    Vis/InlierDistance: "0.1"
+    Vis/MaxDepth: "5.0"
+    
+    # Grid map generation
+    Grid/FromDepth: "true"
+    Grid/CellSize: "0.05"
+    Grid/RangeMax: "5.0"
+    Grid/RangeMin: "0.2"
+    Grid/MaxObstacleHeight: "2.0"
+    Grid/MinGroundHeight: "-0.1"
+    Grid/MaxGroundHeight: "0.1"
+    Grid/NormalsSegmentation: "false"
+    
+    # Optimization
+    Optimizer/Strategy: "0"  # TORO
+    Optimizer/Iterations: "10"
+    Optimizer/Epsilon: "0.00001"
+    
+    # Database
+    Db/Path: "~/.ros/rtabmap.db"
+    Db/TargetVersion: ""
+
+# Visual odometry node parameters
+rgbd_odometry:
+  ros__parameters:
+    frame_id: d435_link
+    odom_frame_id: odom
+    publish_tf: true
+    publish_null_when_lost: false
+    guess_frame_id: ""
+    wait_for_transform: 0.2
+    
+    # Odometry parameters
+    Odom/Strategy: "0"  # 0=Frame-to-Map, 1=Frame-to-Frame
+    Odom/ResetCountdown: "1"
+    Odom/GuessMotion: "true"
+    Odom/FillInfoData: "true"
+    
+    # Visual odometry
+    Vis/EstimationType: "0"  # 0=3D->3D
+    Vis/MinInliers: "15"
+    Vis/InlierDistance: "0.1"
+    Vis/MaxDepth: "5.0"
+    Vis/DepthAsMask: "true"
+    
+    # Feature detection
+    Kp/MaxFeatures: "200"
+    Kp/DetectorStrategy: "6"  # GFTT
+    
+    # Memory
+    Mem/STMSize: "10"
+    Mem/ImageKept: "false"

@@ -1,0 +1,95 @@
+#!/usr/bin/env python3
+"""
+RTAB-Map SLAM using only the D435 camera.
+Uses visual odometry from RGB-D data instead of T265.
+Lower power consumption and simpler setup.
+"""
+
+from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument, SetEnvironmentVariable
+from launch.substitutions import LaunchConfiguration
+from launch_ros.actions import Node
+from ament_index_python.packages import get_package_share_directory
+import os
+
+
+def generate_launch_description():
+    # Get package directory
+    pkg_dir = get_package_share_directory('james_slam')
+    
+    # Parameters
+    use_sim_time = LaunchConfiguration('use_sim_time')
+    localization = LaunchConfiguration('localization')
+    database_path = LaunchConfiguration('database_path')
+    
+    # RTAB-Map parameters file for D435-only
+    parameters_file = os.path.join(pkg_dir, 'config', 'rtabmap_d435_only.yaml')
+    
+    return LaunchDescription([
+        # Set environment variable for RTAB-Map
+        SetEnvironmentVariable('RTABMAP_SYNC_MULTI_RGBD', '0'),
+        
+        # Launch arguments
+        DeclareLaunchArgument(
+            'use_sim_time',
+            default_value='false',
+            description='Use simulation time'
+        ),
+        
+        DeclareLaunchArgument(
+            'localization',
+            default_value='false',
+            description='Start in localization mode (true) or mapping mode (false)'
+        ),
+        
+        DeclareLaunchArgument(
+            'database_path',
+            default_value='~/.ros/rtabmap.db',
+            description='Path to RTAB-Map database'
+        ),
+        
+        # RTAB-Map node with visual odometry
+        Node(
+            package='rtabmap_slam',
+            executable='rtabmap',
+            name='rtabmap',
+            output='screen',
+            parameters=[
+                parameters_file,
+                {
+                    'use_sim_time': use_sim_time,
+                    'Mem/IncrementalMemory': LaunchConfiguration('localization', default='false'),
+                    'Db/Path': database_path,
+                }
+            ],
+            remappings=[
+                # D435 camera topics
+                ('rgb/image', '/d435/color/image_raw'),
+                ('rgb/camera_info', '/d435/color/camera_info'),
+                ('depth/image', '/d435/aligned_depth_to_color/image_raw'),
+            ],
+            arguments=['--delete_db_on_start']  # Remove this after first successful map
+        ),
+        
+        # Visual odometry node
+        Node(
+            package='rtabmap_odom',
+            executable='rgbd_odometry',
+            name='rgbd_odometry',
+            output='screen',
+            parameters=[
+                parameters_file,
+                {
+                    'use_sim_time': use_sim_time,
+                    'frame_id': 'd435_link',
+                    'publish_tf': True,
+                    'wait_for_transform': 0.2,
+                }
+            ],
+            remappings=[
+                ('rgb/image', '/d435/color/image_raw'),
+                ('rgb/camera_info', '/d435/color/camera_info'),
+                ('depth/image', '/d435/aligned_depth_to_color/image_raw'),
+            ],
+        ),
+    ])
