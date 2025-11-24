@@ -17,6 +17,10 @@ rtabmap:
     # Queue sizes (reduced for Jetson Nano)
     queue_size: 10
     
+    # Synchronization parameters
+    approx_sync: true
+    approx_sync_max_interval: 0.0
+    
     # Memory management for Jetson Nano
     Mem/IncrementalMemory: "true"
     Mem/InitWMWithAllNodes: "false"
@@ -73,7 +77,11 @@ rgbd_odometry:
     publish_tf: true
     publish_null_when_lost: false
     guess_frame_id: ""
-    wait_for_transform: 0.2
+    wait_for_transform: 0.3
+    
+    # Synchronization
+    approx_sync: true
+    approx_sync_max_interval: 0.0
     
     # Odometry parameters
     Odom/Strategy: "0"  # 0=Frame-to-Map, 1=Frame-to-Frame
