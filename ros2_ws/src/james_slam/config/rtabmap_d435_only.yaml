@@ -26,8 +26,8 @@ rtabmap:
     Mem/InitWMWithAllNodes: "false"
     Mem/ReduceGraph: "true"
     Mem/STMSize: "10"
-    Mem/ImageKept: "false"
-    Mem/BinDataKept: "false"
+    Mem/ImageKept: "true"  # Keep images for visualization (uses more memory)
+    Mem/BinDataKept: "true"  # Keep raw data for point clouds
     
     # Loop closure detection
     Mem/LoopClosureDetection: "true"
@@ -102,4 +102,4 @@ rgbd_odometry:
     
     # Memory
     Mem/STMSize: "10"
-    Mem/ImageKept: "false"
+    Mem/ImageKept: "true"
