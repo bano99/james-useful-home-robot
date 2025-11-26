@@ -18,7 +18,11 @@ chmod +x scripts/slam-*.sh
 
 **Terminal 2 - RTAB-Map:**
 ```bash
+# Without images (lower memory, faster)
 ~/james-useful-home-robot/scripts/slam-start-rtabmap-d435only.sh
+
+# With images (for better visualization in database viewer)
+~/james-useful-home-robot/scripts/slam-start-rtabmap-d435only.sh images
 ```
 
 **Terminal 3 - RViz2 (optional):**
@@ -40,7 +44,11 @@ chmod +x scripts/slam-*.sh
 
 **Terminal 3 - RTAB-Map:**
 ```bash
+# Without images (lower memory, faster)
 ~/james-useful-home-robot/scripts/slam-start-rtabmap-dual.sh
+
+# With images (for better visualization in database viewer)
+~/james-useful-home-robot/scripts/slam-start-rtabmap-dual.sh images
 ```
 
 **Terminal 4 - RViz2 (optional):**
@@ -64,12 +72,34 @@ chmod +x scripts/slam-*.sh
 ~/james-useful-home-robot/scripts/slam-view-map.sh ~/james_maps/home_map_20241124_1430.db
 ```
 
+## Image Storage
+
+**Without `images` parameter (default):**
+- Lower memory usage
+- Faster processing
+- Map suitable for navigation
+- Database viewer shows sparse points only
+
+**With `images` parameter:**
+- Higher memory usage (watch for OOM on Jetson Nano)
+- Stores RGB-D images in database
+- Database viewer shows full 3D point clouds
+- Can export images and dense maps
+- Better for visualization and analysis
+
+**When to use images:**
+- Creating maps for presentation/visualization
+- Need to export point clouds
+- Analyzing map quality in detail
+- Have adequate memory available
+
 ## Tips
 
 - Use `screen` or `tmux` for persistent sessions if PuTTY disconnects
 - Close RViz2 during mapping to save resources
 - Backup maps after each successful session
 - Drive slowly (< 0.3 m/s) for best results
+- Start without `images`, add it only if needed
 
 ## Troubleshooting
 
