@@ -27,7 +27,7 @@ graph TD
     end
 
     subgraph "Distributed Compute Cluster"
-        ORIN["Letson Orin Nano<br/>(Central Hub)"]
+        ORIN["Jetson Orin Nano<br/>(Central Hub)"]
         NANO1["Jetson Nano 1<br/>(Vision Preproc)"]
         NANO2["Jetson Nano 2<br/>(Sensor Hub)"]
     end
