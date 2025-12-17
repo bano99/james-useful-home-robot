@@ -1,6 +1,6 @@
 # James SLAM Package
 
-RTAB-Map SLAM configuration for James home robot using RealSense D435 (RGB-D) and T265 (odometry).
+RTAB-Map SLAM configuration for James home robot using RealSense D435 (top-mounted RGB-D), optional T265 (odometry), and D415 (ground-level RGB-D).
 
 ## Quick Start
 
@@ -48,6 +48,7 @@ rviz2
 - **Indoor Mapping**: Configured for home environments with 5cm grid resolution
 - **Traversable Obstacles**: Ignores obstacles < 10cm height (carpets, cables, yoga mats)
 - **Loop Closure**: Automatic loop closure detection for consistent maps
+- **Map Quality Monitoring**: Real-time monitoring of SLAM health and automatic optimization
 
 ## Which Mode Should I Use?
 
@@ -350,6 +351,47 @@ Key parameters:
 - `/info` - RTAB-Map statistics (nodes, loop closures, etc.)
 - `/global_pose` - Robot pose in map frame
 - `/tf` and `/tf_static` - Transform tree
+
+## Map Quality Monitoring
+
+The james_slam package includes a map quality monitor that tracks SLAM health in real-time. See [Map Quality Monitoring Documentation](docs/map_quality_monitoring.md) for details.
+
+### Quick Start with Monitoring
+
+Launch RTAB-Map with automatic quality monitoring:
+
+```bash
+ros2 launch james_slam rtabmap_with_monitoring.launch.py
+```
+
+This will:
+- Start RTAB-Map SLAM
+- Monitor loop closure success rate
+- Detect map degradation
+- Trigger optimization when needed
+- Publish diagnostics to `/diagnostics`
+
+### View Diagnostics
+
+```bash
+# View diagnostic messages
+ros2 topic echo /diagnostics
+
+# Or use rqt_robot_monitor for a GUI
+ros2 run rqt_robot_monitor rqt_robot_monitor
+```
+
+### Test Without Hardware
+
+Test the monitor with simulated data:
+
+```bash
+# Terminal 1: Start monitor
+ros2 run james_slam map_quality_monitor.py
+
+# Terminal 2: Run simulator
+ros2 run james_slam test_map_quality_monitor.py
+```
 
 ## Next Steps
 

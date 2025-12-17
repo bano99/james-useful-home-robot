@@ -9,11 +9,34 @@
 #include <DFRobot_IICSerial.h>
 #include <DNSServer.h>
 #include <DFRobot_IICSerial.h>
+#include <Arduino_GFX_Library.h>
+
+// Display configuration (Landscape mode - rotated 90 degrees)
+#define SCREEN_WIDTH 536
+#define SCREEN_HEIGHT 240
+#define DISPLAY_UPDATE_MS 100  // 10 Hz refresh rate
 
 DFRobot_IICSerial iicSerial1(Wire, /*subUartChannel =*/SUBUART_CHANNEL_1,/*IA1 = */1,/*IA0 = */1);//Construct UART1
 DFRobot_IICSerial iicSerial2(Wire, /*subUartChannel =*/SUBUART_CHANNEL_2, /*IA1 = */1,/*IA0 = */1);//Construct UART2
 
+// Display setup - QSPI configuration for LilyGO T-Display S3 AMOLED V2
+Arduino_DataBus *bus = new Arduino_ESP32QSPI(6 /* cs */, 47 /* sck */, 18 /* d0 */, 7 /* d1 */, 48 /* d2 */, 5 /* d3 */);
+Arduino_GFX *gfx = new Arduino_RM67162(bus, 17 /* RST */, 3 /* rotation - 3=landscape flipped */);
+Arduino_GFX *gfx2;  // Canvas for double buffering
 
+// Display colors
+#define COLOR_BG       BLACK
+#define COLOR_TEXT     WHITE
+#define COLOR_GOOD     GREEN
+#define COLOR_WARNING  YELLOW
+#define COLOR_ERROR    RED
+#define COLOR_BAR_BG   DARKGREY
+#define COLOR_MANUAL   CYAN
+#define COLOR_AUTO     MAGENTA
+
+// Display state
+unsigned long lastDisplayUpdate = 0;
+bool displayInitialized = false;
  
  
 struct JoystickValues {
@@ -42,6 +65,18 @@ MotorCommand motorFL, motorFR, motorBL, motorBR;
 JoystickValues joystickValues;
 int motorFL_state, motorFR_state, motorBL_state, motorBR_state;
 
+// Control mode
+enum ControlMode {
+  MODE_MANUAL,
+  MODE_AUTONOMOUS,
+  MODE_STOPPED
+};
+ControlMode currentMode = MODE_STOPPED;
+
+// Connection status
+unsigned long lastManualCommandTime = 0;
+unsigned long lastAutonomousCommandTime = 0;
+const unsigned long CONNECTION_TIMEOUT_MS = 1000;
 
 // Timer variables
 esp_timer_handle_t watchdog_timer;
@@ -67,18 +102,203 @@ void IRAM_ATTR onWatchdogTimeout(void* arg) {
 
 
 // #############################################################
+// Display Functions
+// #############################################################
+
+void initDisplay() {
+  Serial.println("Initializing display...");
+  
+  // CRITICAL: Power on display (pin 38)
+  pinMode(38, OUTPUT);
+  digitalWrite(38, HIGH);
+  
+  // Initialize GFX
+  if (!gfx->begin()) {
+    Serial.println("gfx->begin() failed!");
+    return;
+  }
+  
+  // Create canvas for double buffering
+  gfx2 = new Arduino_Canvas(SCREEN_WIDTH, SCREEN_HEIGHT, gfx, 0, 0);
+  gfx2->begin(GFX_SKIP_OUTPUT_BEGIN);
+  
+  displayInitialized = true;
+  Serial.println("Display initialized!");
+  
+  // Draw initial UI
+  drawUI();
+}
+
+void drawUI() {
+  if (!displayInitialized) return;
+  
+  gfx2->fillScreen(COLOR_BG);
+  
+  // Draw static layout elements
+  // Left: Connection status circle placeholder
+  gfx2->drawCircle(120, 120, 80, COLOR_BAR_BG);
+  
+  // Right: Movement direction circle
+  gfx2->drawCircle(400, 120, 80, COLOR_BAR_BG);
+  gfx2->drawCircle(400, 120, 3, COLOR_TEXT);  // Center dot
+  
+  gfx2->flush();
+}
+
+// Battery monitoring removed - requires PSRAM and complex library setup
+
+void drawConnectionStatus(int x, int y, int radius, bool connected, const char* label) {
+  if (!displayInitialized) return;
+  
+  // Clear area
+  gfx2->fillCircle(x, y, radius + 5, COLOR_BG);
+  
+  // Draw status circle
+  uint16_t color = connected ? COLOR_GOOD : COLOR_ERROR;
+  gfx2->fillCircle(x, y, radius, color);
+  gfx2->drawCircle(x, y, radius, COLOR_TEXT);
+  
+  // Draw label below
+  gfx2->setTextSize(2);
+  gfx2->setTextColor(COLOR_TEXT);
+  int textWidth = strlen(label) * 12;  // Approximate width
+  gfx2->setCursor(x - textWidth/2, y + radius + 10);
+  gfx2->print(label);
+}
+
+void drawMovementIndicator(int centerX, int centerY, int radius) {
+  if (!displayInitialized) return;
+  
+  // Clear area
+  gfx2->fillCircle(centerX, centerY, radius + 10, COLOR_BG);
+  
+  // Redraw circle
+  gfx2->drawCircle(centerX, centerY, radius, COLOR_BAR_BG);
+  gfx2->drawCircle(centerX, centerY, 3, COLOR_TEXT);
+  
+  // Draw crosshair
+  gfx2->drawFastHLine(centerX - radius, centerY, radius * 2, COLOR_BAR_BG);
+  gfx2->drawFastVLine(centerX, centerY - radius, radius * 2, COLOR_BAR_BG);
+  
+  // Calculate movement vector
+  // Use joystick values directly for visualization
+  int vecX = map(joystickData.x, -255, 255, -radius + 10, radius - 10);
+  int vecY = map(joystickData.y, -255, 255, -radius + 10, radius - 10);
+  
+  // Draw movement arrow if there's movement
+  if (abs(joystickData.x) > 10 || abs(joystickData.y) > 10) {
+    int endX = centerX + vecX;
+    int endY = centerY - vecY;  // Invert Y for screen coordinates
+    
+    // Draw thick line
+    for (int i = -2; i <= 2; i++) {
+      for (int j = -2; j <= 2; j++) {
+        gfx2->drawLine(centerX + i, centerY + j, endX + i, endY + j, COLOR_GOOD);
+      }
+    }
+    
+    // Draw arrowhead
+    gfx2->fillCircle(endX, endY, 8, COLOR_GOOD);
+    gfx2->drawCircle(endX, endY, 8, COLOR_TEXT);
+  }
+  
+  // Draw rotation indicator
+  if (abs(joystickData.rot) > 10) {
+    uint16_t rotColor = joystickData.rot > 0 ? CYAN : MAGENTA;
+    // Draw rotation arc
+    for (int angle = 0; angle < 360; angle += 10) {
+      float rad = angle * PI / 180.0;
+      int arcX = centerX + (int)((radius - 15) * cos(rad));
+      int arcY = centerY + (int)((radius - 15) * sin(rad));
+      gfx2->fillCircle(arcX, arcY, 3, rotColor);
+    }
+  }
+}
+
+// Battery indicator removed - requires complex PMU library with PSRAM
+
+void updateDisplay() {
+  if (!displayInitialized) return;
+  
+  unsigned long currentTime = millis();
+  
+  if (currentTime - lastDisplayUpdate < DISPLAY_UPDATE_MS) {
+    return;
+  }
+  lastDisplayUpdate = currentTime;
+  
+  // Check connection status
+  bool manualConnected = (currentTime - lastManualCommandTime) < CONNECTION_TIMEOUT_MS;
+  bool autoConnected = (currentTime - lastAutonomousCommandTime) < CONNECTION_TIMEOUT_MS;
+  
+  // LEFT: Connection Status (Large Circle)
+  bool connected = manualConnected || autoConnected;
+  const char* statusLabel = manualConnected ? "MANUAL" : (autoConnected ? "AUTO" : "OFFLINE");
+  drawConnectionStatus(120, 120, 80, connected, statusLabel);
+  
+  // RIGHT: Movement Direction Indicator (Large Circle with Arrow)
+  drawMovementIndicator(400, 120, 80);
+  
+  // TOP: Mode indicator (small text)
+  gfx2->fillRect(0, 0, SCREEN_WIDTH, 30, COLOR_BG);
+  gfx2->setTextSize(2);
+  gfx2->setTextColor(COLOR_TEXT);
+  gfx2->setCursor(10, 8);
+  gfx2->print("JAMES");
+  
+  // Show current mode with color
+  gfx2->setCursor(SCREEN_WIDTH - 150, 8);
+  switch (currentMode) {
+    case MODE_MANUAL:
+      gfx2->setTextColor(COLOR_MANUAL);
+      gfx2->print("MANUAL");
+      break;
+    case MODE_AUTONOMOUS:
+      gfx2->setTextColor(COLOR_AUTO);
+      gfx2->print("AUTO");
+      break;
+    case MODE_STOPPED:
+      gfx2->setTextColor(COLOR_ERROR);
+      gfx2->print("STOP");
+      break;
+  }
+  
+  // BOTTOM: Velocity values (small text)
+  gfx2->fillRect(0, SCREEN_HEIGHT - 25, SCREEN_WIDTH, 25, COLOR_BG);
+  gfx2->setTextSize(1);
+  gfx2->setTextColor(COLOR_TEXT);
+  
+  char buf[100];
+  snprintf(buf, sizeof(buf), "FL:%.1f FR:%.1f BL:%.1f BR:%.1f", 
+           motorFL.velocity, motorFR.velocity, motorBL.velocity, motorBR.velocity);
+  gfx2->setCursor(10, SCREEN_HEIGHT - 18);
+  gfx2->print(buf);
+  
+  // Flush to display
+  gfx2->flush();
+}
+
+// #############################################################
 
 void setup() {
   Serial.begin(115200);
+  delay(1000);
+  Serial.println("\n\nJames Platform Controller - AMOLED Version (Landscape)");
+  
+  // Initialize display FIRST
+  initDisplay();
+  
   Wire.begin(I2C_SDA, I2C_SCL); // Initialize I2C communication with the defined SDA and SCL pins
   
   // Initialize ESP-NOW
+  Serial.println("Initializing ESP-NOW...");
   WiFi.mode(WIFI_STA);
   if (esp_now_init() != ESP_OK) {
     Serial.println("Error initializing ESP-NOW");
     return;
   }
   esp_now_register_recv_cb(onDataReceive);
+  Serial.println("ESP-NOW initialized");
 
    // Configure the timer
   esp_timer_create_args_t timer_args;
@@ -87,9 +307,9 @@ void setup() {
   
   esp_timer_create(&timer_args, &watchdog_timer);
 
-
   delay(1000);
 
+  Serial.println("Initializing ODrive communication...");
   iicSerial1.begin(115200, IICSerial_8N1);/*UART1 init*/
   iicSerial2.begin(115200, IICSerial_8N1);/*UART2 init*/
   
@@ -100,13 +320,13 @@ void setup() {
   motorBL_state = -1;
   motorBR_state = -1;
 
-
+  Serial.println("Setup complete!");
 }
 
 
 void loop() {
-
-delay(1);
+  updateDisplay();
+  delay(1);
 }
 
 // ###################################################################################################
@@ -260,6 +480,12 @@ void controlMecanumWheels(JoystickValues joystick, MotorCommand& motorFL, MotorC
 // Correct signature for the onDataReceive callback
 void onDataReceive(const esp_now_recv_info *info, const uint8_t *incomingData, int len) {
   memcpy(&joystickData, incomingData, sizeof(joystickData));
+
+  // Update manual command timestamp
+  lastManualCommandTime = millis();
+  
+  // Manual control takes priority - set mode
+  currentMode = MODE_MANUAL;
 
 //Serial.println("Data received: x" + String(joystickData.x) + " y"+ String(joystickData.y) + " rot" + String(joystickData.rot));
 /*

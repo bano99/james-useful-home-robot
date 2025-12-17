@@ -105,4 +105,6 @@ Thumbs.db
 credentials.json
 secrets.yaml
 *.pem
-*.key
+
+# Sponsorship
+bambu_lab_sponsorship_application.md

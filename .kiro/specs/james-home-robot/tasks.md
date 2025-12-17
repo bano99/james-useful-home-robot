@@ -19,7 +19,12 @@
   - Implement status reporting back to Jetson (commanded speeds, mode, timestamp)
   - _Requirements: 1.1, 1.2_
 
-- [ ] 2.2 Implement AMOLED Display Interface
+- [x] 2.2 Implement AMOLED Display Interface
+
+
+
+
+
   - Initialize LilyGO AMOLED display using manufacturer examples
   - Create status display showing: current velocities, mode (manual/autonomous), connection status
   - Implement display update loop (10 Hz refresh rate)
@@ -39,6 +44,8 @@
 
 - [ ] 3. Remote Control Firmware Enhancement
 - [x] 3.1 Enhance Remote Control Display
+
+
 
 
 
@@ -70,8 +77,10 @@
   - Model platform base (45x56cm footprint, 17.5cm wheels)
   - Import AR4-MK3 URDF from Annin Robotics
   - Position arm at 36cm height on platform
-  - Add camera mounts at 120cm height, 35cm from front
-  - Define TF tree: base_link → arm_base → camera_mount
+  - Add top camera mounts: D435 at 130cm height, T265 at 120cm height, 35cm from front
+  - Add low camera mount: D415 under arm at 35cm height for ground-level vision
+  - Define TF tree: base_link → top_camera_mount → d435_link, t265_link
+  - Define TF tree: base_link → arm_base → low_camera_mount → d415_link
   - _Requirements: 7.1, 11.1_
 
 - [ ]* 4.3 Create visualization launch file
@@ -102,30 +111,46 @@
   - _Requirements: 7.2_
 
 - [ ] 6. Camera Integration
-- [ ] 6.1 Set up RealSense D435 camera
+- [ ] 6.1 Set up RealSense D435 camera (Top Mount - 1.3m height)
   - Install librealsense2 and ROS2 wrapper
+  - Mount D435 on top of robot at 1.3m height for SLAM and object detection
   - Configure camera parameters (resolution, frame rate, depth settings)
   - Launch camera node and verify RGB and depth streams
   - Calibrate camera intrinsics if needed
   - _Requirements: 2.1, 3.1, 11.2_
 
-- [ ] 6.2 Set up RealSense T265 tracking camera
+- [ ] 6.2 Set up RealSense T265 tracking camera (Top Mount - 1.2m height)
   - Install T265 ROS2 wrapper
+  - Mount T265 directly under D435 at 1.2m height for visual-inertial odometry
   - Configure odometry output
   - Verify pose estimation accuracy
   - Integrate with TF tree (publish odom → base_link transform)
+  - Note: T265 may be optional and can be removed if not needed
   - _Requirements: 2.2, 11.2_
 
-- [ ]* 6.3 Create camera calibration tools
-  - Write script to capture calibration images
-  - Perform stereo calibration for D435
-  - Verify depth accuracy at various distances
+- [ ] 6.3 Set up RealSense D415 camera (Low Mount - 0.35m height)
+  - Install D415 ROS2 wrapper
+  - Mount D415 under robot arm at 35cm height for ground-level object detection
+  - Configure stereo camera parameters for close-range objects
+  - Launch camera node and verify stereo streams
+  - Calibrate stereo camera intrinsics
+  - _Requirements: 3.1, 11.2_
+
+- [ ] 6.4 Create camera calibration tools
+  - Write script to capture calibration images for all three cameras
+  - Perform stereo calibration for D435 and D415
+  - Calibrate camera-to-camera transforms (D435-T265, D435-D415)
+  - Verify depth accuracy at various distances for both depth cameras
   - _Requirements: 11.2_
 
 - [ ] 7. SLAM Implementation
-- [ ] 7.1 Configure RTAB-Map for James
-  - Set up RTAB-Map node with D435 RGB-D input
-  - Integrate T265 odometry as prior
+- [x] 7.1 Configure RTAB-Map for James
+
+
+
+  - Set up RTAB-Map node with D435 RGB-D input (primary SLAM camera)
+  - Integrate T265 odometry as prior (optional - can be disabled)
+  - Configure D415 as additional RGB-D input for low-level mapping
   - Configure memory management for Jetson Nano
   - Enable loop closure detection
   - Tune parameters for indoor environments
@@ -137,14 +162,25 @@
   - Configure map saving and loading
   - _Requirements: 2.4, 7.1_
 
-- [ ] 7.3 Test SLAM in home environment
+- [x] 7.3 Test SLAM in home environment
+
+
+
+
+
   - Drive James manually through home to build initial map
   - Verify loop closure works correctly
   - Test relocalization after restart
   - Save map for navigation testing
   - _Requirements: 2.1, 2.3, 2.4_
 
-- [ ]* 7.4 Implement map quality monitoring
+- [x] 7.4 Implement map quality monitoring
+
+
+
+
+
+
   - Monitor loop closure success rate
   - Detect map degradation
   - Trigger map optimization when needed
@@ -153,7 +189,7 @@
 - [ ] 8. Navigation System
 - [ ] 8.1 Configure Nav2 stack
   - Set up global costmap with RTAB-Map
-  - Configure local costmap with D435 depth data
+  - Configure local costmap with D435 depth data (obstacles) and D415 depth data (ground-level)
   - Set robot footprint (45x56cm)
   - Configure inflation radius (0.40m) for door navigation
   - Set min_obstacle_height to 0.10m for traversable obstacles
@@ -195,11 +231,12 @@
   - _Requirements: 3.1, 3.5_
 
 - [ ] 9.2 Implement object detection node
-  - Subscribe to /camera/color/image_raw from D435
-  - Subscribe to /camera/aligned_depth_to_color/image_raw
-  - Run YOLO inference on RGB images
-  - Extract depth for each detected object
-  - Project 2D detections to 3D using camera intrinsics
+  - Subscribe to /d435/color/image_raw and /d435/aligned_depth_to_color/image_raw (top view)
+  - Subscribe to /d415/color/image_raw and /d415/aligned_depth_to_color/image_raw (ground view)
+  - Run YOLO inference on RGB images from both cameras
+  - Extract depth for each detected object from respective depth streams
+  - Project 2D detections to 3D using camera intrinsics for both cameras
+  - Merge detections from both viewpoints to eliminate duplicates
   - Publish DetectedObjectArray with 3D poses
   - _Requirements: 3.1, 3.2, 3.4, 3.5_
 
@@ -444,8 +481,11 @@
 
 - [ ] 16.3 Implement camera feed streaming
   - Subscribe to camera topics via rosbridge
-  - Display D435 RGB feed
+  - Display D435 RGB feed (top view - SLAM/objects)
   - Display D435 depth feed (colorized)
+  - Display D415 RGB feed (ground view - floor objects)
+  - Display D415 depth feed (colorized)
+  - Display T265 pose visualization (if enabled)
   - Implement JPEG compression for bandwidth
   - _Requirements: 10.4_
 

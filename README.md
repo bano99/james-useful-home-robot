@@ -27,8 +27,9 @@ James is an open-source autonomous home cleanup robot designed to perform simple
   - Jetson Nano 2: Object Detection, Manipulation Planning, LLM Inference
 
 ### Sensors
-- **RealSense D435**: RGB-D camera for object detection and depth perception
-- **RealSense T265**: Tracking camera for visual-inertial odometry
+- **RealSense D435**: RGB-D camera mounted at 1.3m height for SLAM and object detection
+- **RealSense T265**: Tracking camera mounted at 1.2m height for visual-inertial odometry (optional)
+- **RealSense D415**: Stereo camera mounted at 0.35m height under arm for ground-level object detection
 
 ### Manipulator
 - **AR4-MK3**: 6-DOF robotic arm from Annin Robotics
@@ -235,6 +236,14 @@ This project follows the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.
 - [Jetson Nano Quick Fix](docs/jetson_nano_quick_fix.md) - Flash the correct Ubuntu 20.04 image
 - [Remote Installation Guide](docs/remote_installation_guide.md) - Install ROS2 on Jetson Nano remotely via SSH
 - [Hardware Setup Guide](docs/hardware_setup.md) - Complete Jetson Nano setup with Ubuntu, ROS2, and dependencies
+- [Hardware Distribution](docs/hardware_distribution.md) - Optimal resource allocation across Orin, Nanos, and PC
+
+### SLAM and Navigation
+- [SLAM Testing Guide](docs/slam_testing_guide.md) - Comprehensive guide for testing SLAM in home environment
+- [SLAM Testing Quick Reference](docs/slam_testing_quick_reference.md) - Quick commands and checklists
+- [SLAM Test Report Template](docs/slam_test_report_template.md) - Template for documenting test results
+- [SLAM Package README](ros2_ws/src/james_slam/README.md) - RTAB-Map configuration and usage
+- [SLAM Scripts README](scripts/SLAM_SCRIPTS_README.md) - Quick start scripts for SLAM
 
 ### Development
 - [MCP Server Setup](docs/mcp_setup.md) - Configure GitHub MCP server for CI/CD monitoring

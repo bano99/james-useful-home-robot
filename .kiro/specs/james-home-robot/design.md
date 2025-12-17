@@ -93,8 +93,16 @@ James is built on a layered ROS2 architecture running on dual Jetson Nano comput
 **Jetson Nano 2 (Secondary):**
 - Object detection/recognition
 - Manipulation planning (MoveIt2)
-- Arm control
+- High-level arm control commands to Teensy
 - LLM inference (quantized model) or API gateway
+
+**Teensy 4.1 (AR4 Controller):**
+- Primary controller for AR4-MK3 robot arm
+- Direct motor driver control (J1-J6)
+- Gripper controller communication (ESP32)
+- Connected to PC via USB for calibration/testing
+- Connected to Jetson Nano 2 via USB for autonomous control
+- Runs AR4 control software protocol
 
 **ESP32 Platform Controller:**
 - ODrive UART communication
@@ -109,6 +117,14 @@ James is built on a layered ROS2 architecture running on dual Jetson Nano comput
 - AMOLED display showing joystick values and connection status
 - Touchscreen interface for mode selection and settings
 - Current implementation: Reads analog pins 13, 14, 15 for joystick axes
+
+**ESP32 Gripper Controller (Servo Driver with ESP32):**
+- Hardware: Waveshare Servo Driver with ESP32 board
+- ST3020 servo control via serial bus
+- Sensor integration: VL53L1X (ToF), BNO055 (IMU), FSR (force)
+- Connected to Teensy 4.1 via serial/I2C
+- 5-level programmable torque control
+- Local sensor processing and feedback
 
 ## Components and Interfaces
 
@@ -355,17 +371,26 @@ class ObjectDetectionNode:
 
 ### 5. Manipulation System
 
-#### AR4-MK3 ROS2 Integration
+#### AR4-MK3 Control Architecture
 
-**Existing Support:**
+**Teensy 4.1 as Primary Controller:**
+- Teensy 4.1 directly controls motor drivers for all 6 joints
+- Connected to PC via USB for calibration, testing, and manual control
+- Runs AR4 control software with serial command protocol
+- Jetson Nano 2 sends high-level commands to Teensy via USB serial
+
+**AR4 ROS2 Integration:**
 - AR4-MK3 has official ROS2 support (https://anninrobotics.com/ros2/)
 - Provides URDF model and MoveIt2 configuration
-- Joint trajectory controller interface
+- ROS2 node on Jetson communicates with Teensy via serial
+- Joint trajectory controller translates MoveIt2 plans to Teensy commands
 
 **Custom Modifications:**
 - Update URDF to reflect JMC closed-loop motors on first 3 joints
 - Calibrate backlash compensation parameters
-- Add custom gripper URDF and controller
+- Add custom gripper URDF and controller (ST3020 servo)
+- Extend Teensy firmware to support gripper commands
+- Add gripper control to AR4 PC software protocol
 
 #### MoveIt2 Configuration
 

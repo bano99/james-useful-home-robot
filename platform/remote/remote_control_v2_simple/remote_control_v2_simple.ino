@@ -1,19 +1,15 @@
 /*
  * James Robot - Remote Control with AMOLED Display
  * Hardware: LilyGO T-Display S3 AMOLED V2
+ * Board: LilyGo T-Display-S3
  * 
- * Uses Arduino_GFX library (install from Library Manager)
- * Search for "GFX Library for Arduino" by moononournation
+ * Based on working Arduino_GFX_HelloWorld example
  */
 
 #include <esp_now.h>
 #include <WiFi.h>
 #include <esp_wifi.h>
 #include <Arduino_GFX_Library.h>
-
-// Display pins for LilyGO T-Display S3 AMOLED
-#define TFT_BL     38
-#define TFT_POWER  15
 
 // Display configuration (Portrait mode)
 #define SCREEN_WIDTH 240
@@ -48,9 +44,10 @@ unsigned long lastDisplayUpdate = 0;
 int sendSuccessCount = 0;
 int sendFailCount = 0;
 
-// Create display using Arduino_GFX (same as working example)
-Arduino_DataBus *bus = new Arduino_HWSPI(7 /* DC */, 6 /* CS */, 47 /* SCK */, 18 /* MOSI */, GFX_NOT_DEFINED /* MISO */);
-Arduino_GFX *gfx = new Arduino_RM67162(bus, 17 /* RST */, 0 /* rotation */, true /* IPS */);
+// Display setup - EXACTLY like working HelloWorld example
+Arduino_DataBus *bus = new Arduino_ESP32QSPI(6 /* cs */, 47 /* sck */, 18 /* d0 */, 7 /* d1 */, 48 /* d2 */, 5 /* d3 */);
+Arduino_GFX *gfx = new Arduino_RM67162(bus, 17 /* RST */, 0 /* rotation */);
+Arduino_GFX *gfx2;  // Canvas for double buffering
 
 // Colors
 #define COLOR_BG       BLACK
@@ -66,70 +63,136 @@ Arduino_GFX *gfx = new Arduino_RM67162(bus, 17 /* RST */, 0 /* rotation */, true
 void initDisplay() {
   Serial.println("Initializing display...");
   
-  // Power on display
-  pinMode(TFT_POWER, OUTPUT);
-  digitalWrite(TFT_POWER, HIGH);
-  delay(10);
+  // CRITICAL: Power on display (pin 38)
+  pinMode(38, OUTPUT);
+  digitalWrite(38, HIGH);
   
-  // Turn on backlight
-  pinMode(TFT_BL, OUTPUT);
-  digitalWrite(TFT_BL, HIGH);
-  
-  // Initialize GFX
+  // Initialize GFX - same as HelloWorld
   if (!gfx->begin()) {
     Serial.println("gfx->begin() failed!");
-  } else {
-    Serial.println("Display initialized!");
   }
   
-  // Test pattern - you should see these colors!
-  Serial.println("Drawing test pattern...");
-  gfx->fillScreen(RED);
-  delay(500);
-  gfx->fillScreen(GREEN);
-  delay(500);
-  gfx->fillScreen(BLUE);
-  delay(500);
-  gfx->fillScreen(BLACK);
+  // Create canvas for double buffering
+  gfx2 = new Arduino_Canvas(240, 536, gfx, 0, 0);
+  gfx2->begin(GFX_SKIP_OUTPUT_BEGIN);
   
-  // Draw UI
-  gfx->setTextColor(GREEN);
-  gfx->setTextSize(2);
-  gfx->setCursor(60, 10);
-  gfx->println("JAMES");
-  gfx->setCursor(50, 30);
-  gfx->println("REMOTE");
+  Serial.println("Display initialized!");
   
-  gfx->setTextSize(1);
-  gfx->setTextColor(WHITE);
-  gfx->setCursor(10, 100);
-  gfx->println("Fwd/Back:");
-  gfx->setCursor(10, 200);
-  gfx->println("Left/Right:");
-  gfx->setCursor(10, 300);
-  gfx->println("Rotation:");
-  gfx->setCursor(10, 400);
-  gfx->println("Status:");
+  // Draw initial UI directly (no test pattern)
+  Serial.println("Drawing UI...");
+  drawUI();
   
   Serial.println("UI drawn!");
 }
 
-void drawBar(int x, int y, int width, int height, int value, uint16_t color) {
-  // Draw background
-  gfx->fillRect(x, y, width, height, COLOR_BAR_BG);
+void drawUI() {
+  gfx2->fillScreen(BLACK);
   
-  // Calculate bar position
-  int centerY = y + height / 2;
-  int barHeight = (abs(value) * height / 2) / 255;
+  // Connection status banner at top (will be updated in loop)
+  gfx2->fillRect(0, 0, 240, 30, DARKGREY);
+  gfx2->setTextColor(WHITE);
+  gfx2->setTextSize(2);
+  gfx2->setCursor(20, 8);
+  gfx2->println("JAMES REMOTE");
   
-  if (value > 0) {
-    gfx->fillRect(x, centerY, width, barHeight, color);
-  } else if (value < 0) {
-    gfx->fillRect(x, centerY - barHeight, width, barHeight, color);
+  // Draw joystick visualization area
+  gfx2->setTextSize(2);  // Larger font for labels
+  gfx2->setTextColor(WHITE);
+  
+  // Position indicator (X/Y)
+  gfx2->setCursor(10, 45);
+  gfx2->println("Position:");
+  gfx2->drawCircle(120, 150, 70, DARKGREY);  // Outer circle
+  gfx2->drawCircle(120, 150, 3, WHITE);      // Center dot
+  gfx2->drawFastHLine(50, 150, 140, DARKGREY);  // Crosshair
+  gfx2->drawFastVLine(120, 80, 140, DARKGREY);
+  
+  // Rotation indicator
+  gfx2->setCursor(10, 270);
+  gfx2->println("Rotation:");
+  gfx2->drawCircle(120, 350, 50, DARKGREY);  // Rotation circle
+  gfx2->drawFastVLine(120, 300, 100, DARKGREY);  // Center line
+  
+  // Value displays
+  gfx2->setCursor(10, 450);
+  gfx2->println("X:");
+  gfx2->setCursor(10, 470);
+  gfx2->println("Y:");
+  gfx2->setCursor(10, 490);
+  gfx2->println("R:");
+  
+  gfx2->flush();
+}
+
+void drawJoystickPosition(int16_t x, int16_t y, int16_t valueX, int16_t valueY) {
+  // Clear entire area with rectangle (more reliable than circle)
+  gfx2->fillRect(x - 85, y - 85, 170, 170, BLACK);
+  
+  // Redraw circle and crosshair with thicker lines
+  gfx2->drawCircle(x, y, 70, DARKGREY);
+  gfx2->drawCircle(x, y, 69, DARKGREY);
+  gfx2->drawCircle(x, y, 3, WHITE);
+  
+  // Thicker crosshair
+  for (int i = -1; i <= 1; i++) {
+    gfx2->drawFastHLine(x - 70, y + i, 140, DARKGREY);
+    gfx2->drawFastVLine(x + i, y - 70, 140, DARKGREY);
   }
   
-  // Draw center line
-  gfx->drawFastHLine(x, centerY, width, WHITE);
+  // Calculate position (scale -255..255 to -60..60 pixels)
+  // FLIP both axes: negative valueY should go UP, negative valueX should go LEFT
+  int16_t posX = -(valueX * 60) / 255;  // Inverted!
+  int16_t posY = -(valueY * 60) / 255;  // Inverted!
+  
+  // Draw position indicator with thicker outline
+  gfx2->fillCircle(x + posX, y + posY, 10, GREEN);
+  gfx2->drawCircle(x + posX, y + posY, 11, WHITE);
+  gfx2->drawCircle(x + posX, y + posY, 10, WHITE);
+}
+
+void drawRotationIndicator(int16_t x, int16_t y, int16_t rotation) {
+  // Clear previous rotation indicator
+  gfx2->fillCircle(x, y, 52, BLACK);
+  
+  // Redraw circle with thicker line
+  gfx2->drawCircle(x, y, 50, DARKGREY);
+  gfx2->drawCircle(x, y, 49, DARKGREY);
+  
+  // Thicker center line
+  for (int i = -1; i <= 1; i++) {
+    gfx2->drawFastVLine(x + i, y - 50, 100, DARKGREY);
+  }
+  
+  // Calculate angle (rotation -255..255 to -180..180 degrees)
+  float angle = (rotation * 180.0) / 255.0;
+  float radians = (angle - 90) * PI / 180.0;  // -90 to start from top
+  
+  // Draw rotation line with thickness
+  int16_t endX = x + (int16_t)(cos(radians) * 45);
+  int16_t endY = y + (int16_t)(sin(radians) * 45);
+  
+  // Thicker line (draw multiple lines)
+  for (int i = -2; i <= 2; i++) {
+    for (int j = -2; j <= 2; j++) {
+      gfx2->drawLine(x + i, y + j, endX + i, endY + j, ORANGE);
+    }
+  }
+  
+  gfx2->fillCircle(endX, endY, 6, ORANGE);
+  gfx2->drawCircle(endX, endY, 6, WHITE);
+  
+  // Draw arc to show rotation direction with thicker arc
+  // Only draw if rotation is significant
+  if (abs(rotation) > 20) {
+    uint16_t color = rotation > 0 ? YELLOW : CYAN;
+    // Draw thicker arc indicator
+    for (int i = -8; i <= 8; i++) {
+      float arcAngle = (angle + i - 90) * PI / 180.0;
+      int16_t arcX = x + (int16_t)(cos(arcAngle) * 40);
+      int16_t arcY = y + (int16_t)(sin(arcAngle) * 40);
+      gfx2->fillCircle(arcX, arcY, 2, color);
+    }
+  }
 }
 
 void updateDisplay() {
@@ -140,41 +203,64 @@ void updateDisplay() {
   }
   lastDisplayUpdate = currentTime;
   
+  // Update connection status banner (prominent at top)
+  bool connected = lastSendSuccess && (currentTime - lastSuccessTime < 1000);
+  uint16_t bannerColor = connected ? GREEN : RED;
+  gfx2->fillRect(0, 0, 240, 30, bannerColor);
+  gfx2->setTextColor(BLACK);
+  gfx2->setTextSize(2);
+  gfx2->setCursor(20, 8);
+  gfx2->print("JAMES REMOTE");
+  
+  // Draw joystick position (X/Y combined)
+  drawJoystickPosition(120, 150, transformedValues.value14, transformedValues.value13);
+  
+  // Draw rotation indicator
+  drawRotationIndicator(120, 350, transformedValues.value15);
+  
+  // Update value displays with larger font
   char buf[20];
+  gfx2->setTextSize(2);  // Larger font
+  gfx2->setTextColor(WHITE);
   
-  // Forward/Back
-  snprintf(buf, sizeof(buf), "%4d", transformedValues.value13);
-  gfx->fillRect(100, 100, 50, 10, BLACK);
-  gfx->setCursor(100, 100);
-  gfx->setTextColor(WHITE);
-  gfx->setTextSize(1);
-  gfx->print(buf);
-  drawBar(10, 120, 60, 60, transformedValues.value13, COLOR_BAR_X);
+  // X value (Left/Right)
+  snprintf(buf, sizeof(buf), "X:%4d", transformedValues.value14);
+  gfx2->fillRect(10, 440, 110, 20, BLACK);
+  gfx2->setCursor(10, 440);
+  gfx2->print(buf);
   
-  // Left/Right
-  snprintf(buf, sizeof(buf), "%4d", transformedValues.value14);
-  gfx->fillRect(100, 200, 50, 10, BLACK);
-  gfx->setCursor(100, 200);
-  gfx->print(buf);
-  drawBar(10, 220, 60, 60, transformedValues.value14, COLOR_BAR_Y);
+  // Y value (Forward/Back)
+  snprintf(buf, sizeof(buf), "Y:%4d", transformedValues.value13);
+  gfx2->fillRect(10, 465, 110, 20, BLACK);
+  gfx2->setCursor(10, 465);
+  gfx2->print(buf);
   
-  // Rotation
-  snprintf(buf, sizeof(buf), "%4d", transformedValues.value15);
-  gfx->fillRect(100, 300, 50, 10, BLACK);
-  gfx->setCursor(100, 300);
-  gfx->print(buf);
-  drawBar(10, 320, 60, 60, transformedValues.value15, COLOR_BAR_ROT);
+  // Rotation value
+  snprintf(buf, sizeof(buf), "R:%4d", transformedValues.value15);
+  gfx2->fillRect(10, 490, 110, 20, BLACK);
+  gfx2->setCursor(10, 490);
+  gfx2->print(buf);
   
-  // Connection status
-  gfx->fillRect(10, 415, 100, 10, BLACK);
-  gfx->setCursor(10, 415);
-  if (lastSendSuccess && (currentTime - lastSuccessTime < 1000)) {
-    gfx->setTextColor(GREEN);
-    gfx->print("Connected");
-  } else {
-    gfx->setTextColor(RED);
-    gfx->print("Disconnected");
+  // Signal quality (success rate)
+  int totalSends = sendSuccessCount + sendFailCount;
+  if (totalSends > 0) {
+    int signalPercent = (sendSuccessCount * 100) / totalSends;
+    snprintf(buf, sizeof(buf), "Q:%3d%%", signalPercent);  // Q for Quality
+    gfx2->fillRect(130, 490, 100, 20, BLACK);
+    gfx2->setCursor(130, 490);
+    
+    if (signalPercent > 80) {
+      gfx2->setTextColor(GREEN);
+    } else if (signalPercent > 50) {
+      gfx2->setTextColor(YELLOW);
+    } else {
+      gfx2->setTextColor(RED);
+    }
+    gfx2->print(buf);
   }
+  
+  // CRITICAL: Flush canvas to display!
+  gfx2->flush();
 }
 
 // Joystick functions
@@ -229,7 +315,7 @@ void sendTransformedValues() {
 void setup() {
   Serial.begin(115200);
   delay(1000);
-  Serial.println("\n\nJames Remote Control - Arduino_GFX Version");
+  Serial.println("\n\nJames Remote Control - QSPI Version");
 
   // Initialize display FIRST
   initDisplay();
@@ -245,9 +331,10 @@ void setup() {
   
   if (esp_now_init() != ESP_OK) {
     Serial.println("ESP-NOW init failed");
-    gfx->setCursor(10, 450);
-    gfx->setTextColor(RED);
-    gfx->println("ESP-NOW FAILED!");
+    gfx2->setCursor(10, 450);
+    gfx2->setTextColor(RED);
+    gfx2->println("ESP-NOW FAILED!");
+    gfx2->flush();
     return;
   }
   
@@ -261,16 +348,18 @@ void setup() {
 
   if (esp_now_add_peer(&peerInfo) != ESP_OK) {
     Serial.println("Failed to add peer");
-    gfx->setCursor(10, 450);
-    gfx->setTextColor(RED);
-    gfx->println("PEER ADD FAILED!");
+    gfx2->setCursor(10, 450);
+    gfx2->setTextColor(RED);
+    gfx2->println("PEER ADD FAILED!");
+    gfx2->flush();
     return;
   }
 
   Serial.println("Setup complete!");
-  gfx->setCursor(10, 450);
-  gfx->setTextColor(GREEN);
-  gfx->println("Ready!");
+  gfx2->setCursor(10, 450);
+  gfx2->setTextColor(GREEN);
+  gfx2->println("Ready!");
+  gfx2->flush();
 }
 
 void loop() {

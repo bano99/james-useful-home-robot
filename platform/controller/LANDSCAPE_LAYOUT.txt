@@ -1,0 +1,55 @@
+╔══════════════════════════════════════════════════════════════════════════╗
+║ JAMES Platform Controller - Landscape Display Layout                    ║
+╠══════════════════════════════════════════════════════════════════════════╣
+║                                                                          ║
+║  ┌─────────────────────────────────────────────────────────────────┐   ║
+║  │ JAMES                                            MANUAL          │   ║
+║  ├─────────────────────────────────────────────────────────────────┤   ║
+║  │                                                                  │   ║
+║  │   ┌─────────┐         ┌───────────┐           ┌────────┐       │   ║
+║  │   │         │         │     ↑     │           │████████│       │   ║
+║  │   │    ●    │         │   ←─┼─→   │           │████████│ 12.3V │   ║
+║  │   │         │         │     ↓     │           │████████│       │   ║
+║  │   └─────────┘         └───────────┘           │░░░░░░░░│  85%  │   ║
+║  │     MANUAL              Movement               └────────┘       │   ║
+║  │   Connection                                    Battery          │   ║
+║  │                                                                  │   ║
+║  ├─────────────────────────────────────────────────────────────────┤   ║
+║  │ FL:1.2  FR:1.3  BL:1.2  BR:1.3                                  │   ║
+║  └─────────────────────────────────────────────────────────────────┘   ║
+║                                                                          ║
+║  Screen: 536x240 pixels (Landscape)                                     ║
+║  Optimized for: Low viewing angle, distance viewing                     ║
+║                                                                          ║
+╠══════════════════════════════════════════════════════════════════════════╣
+║ KEY FEATURES:                                                            ║
+║                                                                          ║
+║  LEFT SECTION (80px center):                                             ║
+║    • Large 60px radius status circle                                     ║
+║    • GREEN = Connected, RED = Offline                                    ║
+║    • Label: MANUAL / AUTO / OFFLINE                                      ║
+║                                                                          ║
+║  CENTER SECTION (268px center):                                          ║
+║    • Large 80px radius movement indicator                                ║
+║    • Arrow shows direction & magnitude                                   ║
+║    • Rotating arc shows rotation (Cyan=CW, Magenta=CCW)                  ║
+║                                                                          ║
+║  RIGHT SECTION (420-500px):                                              ║
+║    • Large 80x120px battery bar                                          ║
+║    • Color coded: Green>50%, Yellow>20%, Red<20%                         ║
+║    • Voltage and percentage display                                      ║
+║                                                                          ║
+║  TOP BAR (0-30px):                                                       ║
+║    • System name and current mode                                        ║
+║                                                                          ║
+║  BOTTOM BAR (215-240px):                                                 ║
+║    • Individual wheel velocities                                         ║
+║                                                                          ║
+╠══════════════════════════════════════════════════════════════════════════╣
+║ VISIBILITY OPTIMIZATIONS:                                                ║
+║  ✓ Large elements (60-80px radius circles)                               ║
+║  ✓ High contrast colors                                                  ║
+║  ✓ Minimal text, maximum graphics                                        ║
+║  ✓ Color-coded status (Green/Yellow/Red)                                 ║
+║  ✓ 10Hz refresh rate for smooth updates                                  ║
+╚══════════════════════════════════════════════════════════════════════════╝

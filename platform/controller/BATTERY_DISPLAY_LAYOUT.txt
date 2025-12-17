@@ -1,0 +1,90 @@
+╔══════════════════════════════════════════════════════════════╗
+║ Battery Display Layout - Optimized for Visibility           ║
+╠══════════════════════════════════════════════════════════════╣
+║                                                              ║
+║  RIGHT SECTION (420-500px horizontal):                       ║
+║                                                              ║
+║                    ┌────┐                                    ║
+║                    │████│  ← Small battery icon (30x50px)   ║
+║                    │████│     Shows charge level            ║
+║                    │████│     Color coded                   ║
+║                    └────┘                                    ║
+║                                                              ║
+║                   3.87V    ← LARGE voltage (text size 5)    ║
+║                            ← Color matches battery level    ║
+║                                                              ║
+║                    78%     ← Medium percentage (text size 3)║
+║                                                              ║
+╠══════════════════════════════════════════════════════════════╣
+║ LAYOUT BREAKDOWN:                                            ║
+║                                                              ║
+║  Y Position:                                                 ║
+║    80px  - Small battery icon starts                         ║
+║   130px  - Icon ends (50px tall)                             ║
+║   145px  - Large voltage text (size 5)                       ║
+║   195px  - Percentage text (size 3)                          ║
+║                                                              ║
+║  Text Sizes:                                                 ║
+║    Size 5 - Voltage (30px per character)                     ║
+║    Size 3 - Percentage (18px per character)                  ║
+║                                                              ║
+║  Colors:                                                     ║
+║    Voltage text color matches battery level:                 ║
+║      GREEN  - > 50% (> 3.6V)                                 ║
+║      YELLOW - 20-50% (3.24V - 3.6V)                          ║
+║      RED    - < 20% (< 3.24V)                                ║
+║                                                              ║
+╠══════════════════════════════════════════════════════════════╣
+║ VISIBILITY IMPROVEMENTS:                                     ║
+║                                                              ║
+║  ✓ Small icon (30x50) - just shows status at a glance       ║
+║  ✓ HUGE voltage text (size 5) - readable from distance      ║
+║  ✓ Color-coded voltage - instant status recognition         ║
+║  ✓ Percentage for precise reading                            ║
+║  ✓ Vertical layout - efficient use of space                  ║
+║                                                              ║
+╠══════════════════════════════════════════════════════════════╣
+║ EXAMPLE DISPLAYS:                                            ║
+║                                                              ║
+║  Full Battery (4.18V):                                       ║
+║      ┌────┐                                                  ║
+║      │████│                                                  ║
+║      │████│                                                  ║
+║      │████│                                                  ║
+║      └────┘                                                  ║
+║     4.18V  (GREEN, size 5)                                   ║
+║      98%   (WHITE, size 3)                                   ║
+║                                                              ║
+║  Medium Battery (3.65V):                                     ║
+║      ┌────┐                                                  ║
+║      │████│                                                  ║
+║      │░░░░│                                                  ║
+║      │░░░░│                                                  ║
+║      └────┘                                                  ║
+║     3.65V  (YELLOW, size 5)                                  ║
+║      54%   (WHITE, size 3)                                   ║
+║                                                              ║
+║  Low Battery (3.15V):                                        ║
+║      ┌────┐                                                  ║
+║      │░░░░│                                                  ║
+║      │░░░░│                                                  ║
+║      │█░░░│                                                  ║
+║      └────┘                                                  ║
+║     3.15V  (RED, size 5)                                     ║
+║      13%   (WHITE, size 3)                                   ║
+║                                                              ║
+╠══════════════════════════════════════════════════════════════╣
+║ COMPARISON:                                                  ║
+║                                                              ║
+║  OLD LAYOUT:                                                 ║
+║    - Large battery icon (80x120)                             ║
+║    - Small voltage text (size 3)                             ║
+║    - Hard to read from distance                              ║
+║                                                              ║
+║  NEW LAYOUT:                                                 ║
+║    - Small battery icon (30x50)                              ║
+║    - LARGE voltage text (size 5)                             ║
+║    - Easy to read from distance                              ║
+║    - Color-coded for instant recognition                     ║
+║                                                              ║
+╚══════════════════════════════════════════════════════════════╝

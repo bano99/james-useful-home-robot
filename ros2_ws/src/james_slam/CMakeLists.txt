@@ -14,6 +14,8 @@ install(DIRECTORY
 # Install Python scripts
 install(PROGRAMS
   scripts/tf_bridge.py
+  scripts/map_quality_monitor.py
+  scripts/test_map_quality_monitor.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

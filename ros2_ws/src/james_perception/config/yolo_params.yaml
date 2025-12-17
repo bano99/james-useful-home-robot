@@ -1,0 +1,3 @@
+yolo_model: "yolov8n.pt"
+confidence_threshold: 0.5
+classes: ["person", "chair", "table"]
