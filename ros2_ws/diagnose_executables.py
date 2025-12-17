@@ -45,7 +45,7 @@ def check_package_built():
             exec_dir = f"{pkg_dir}/lib/james_manipulation"
             if os.path.exists(exec_dir):
                 executables = os.listdir(exec_dir)
-                print(f"📁 Executables found: {executables}")
+                print("📁 Executables found: " + str(executables))
             else:
                 print("❌ No executables directory")
         else:
@@ -72,7 +72,7 @@ def check_workspace_sourced():
             return False
     else:
         print("❌ ROS2 not available or workspace not sourced")
-        print(f"Error: {stderr}")
+        print("Error: " + stderr)
         return False
     
     return True
@@ -91,10 +91,10 @@ def check_executables():
     for exe in executables:
         returncode, stdout, stderr = run_command(f"ros2 run james_manipulation {exe} --help")
         if returncode == 0:
-            print(f"✅ {exe}: Available")
+            print("✅ " + exe + ": Available")
         else:
-            print(f"❌ {exe}: Not available")
-            print(f"   Error: {stderr.strip()}")
+            print("❌ " + exe + ": Not available")
+            print("   Error: " + stderr.strip())
             all_good = False
     
     return all_good
@@ -115,9 +115,9 @@ def check_python_imports():
     for module in modules:
         try:
             __import__(module)
-            print(f"✅ {module}: Available")
+            print("✅ " + module + ": Available")
         except ImportError as e:
-            print(f"❌ {module}: Missing - {e}")
+            print("❌ " + module + ": Missing - " + str(e))
             if module == "serial":
                 print("   💡 Install with: pip install pyserial")
             all_good = False
@@ -152,7 +152,7 @@ def main():
             result = check_func()
             results.append((check_name, result))
         except Exception as e:
-            print(f"❌ {check_name}: Exception - {e}")
+            print("❌ " + check_name + ": Exception - " + str(e))
             results.append((check_name, False))
     
     # Summary
@@ -161,7 +161,7 @@ def main():
     all_passed = True
     for check_name, result in results:
         status = "✅ PASS" if result else "❌ FAIL"
-        print(f"   {status}: {check_name}")
+        print("   " + status + ": " + check_name)
         if not result:
             all_passed = False
     

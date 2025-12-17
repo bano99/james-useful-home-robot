@@ -11,14 +11,14 @@ def run_command(cmd, cwd=None):
     """Run command and return success status"""
     try:
         result = subprocess.run(cmd, shell=True, cwd=cwd, capture_output=True, text=True)
-        print(f"Command: {cmd}")
+        print("Command: " + cmd)
         if result.stdout:
-            print(f"Output: {result.stdout}")
+            print("Output: " + result.stdout)
         if result.stderr:
-            print(f"Error: {result.stderr}")
+            print("Error: " + result.stderr)
         return result.returncode == 0
     except Exception as e:
-        print(f"Exception running {cmd}: {e}")
+        print("Exception running " + cmd + ": " + str(e))
         return False
 
 def main():
@@ -48,7 +48,7 @@ def main():
     
     # Step 4: Source workspace
     print("\n4. Sourcing workspace...")
-    print("💡 Run this command manually: call install\\setup.bat")
+    print("💡 Run this command manually: call install\\\\setup.bat")
     
     # Step 5: Test executables
     print("\n5. Testing executables...")
@@ -57,7 +57,7 @@ def main():
     
     print("\n✅ Fix script completed!")
     print("📋 Next steps:")
-    print("   1. Run: call install\\setup.bat")
+    print("   1. Run: call install\\\\setup.bat")
     print("   2. Test: ros2 run james_manipulation platform_serial_bridge --help")
     
     return 0

@@ -15,14 +15,14 @@ def check_syntax(file_path):
         
         # Try to parse the AST
         ast.parse(source)
-        print(f"✅ {file_path}: Syntax OK")
+        print("✅ " + file_path + ": Syntax OK")
         return True
         
     except SyntaxError as e:
-        print(f"❌ {file_path}: Syntax Error at line {e.lineno}: {e.msg}")
+        print("❌ " + file_path + ": Syntax Error at line " + str(e.lineno) + ": " + e.msg)
         return False
     except Exception as e:
-        print(f"❌ {file_path}: Error: {e}")
+        print("❌ " + file_path + ": Error: " + str(e))
         return False
 
 def main():
@@ -30,9 +30,9 @@ def main():
     base_path = "src/james_manipulation/james_manipulation"
     
     files_to_check = [
-        f"{base_path}/platform_serial_bridge.py",
-        f"{base_path}/arm_cartesian_controller.py", 
-        f"{base_path}/teensy_serial_bridge.py"
+        base_path + "/platform_serial_bridge.py",
+        base_path + "/arm_cartesian_controller.py", 
+        base_path + "/teensy_serial_bridge.py"
     ]
     
     print("Checking Python syntax for james_manipulation nodes...")
@@ -44,7 +44,7 @@ def main():
             if not check_syntax(file_path):
                 all_good = False
         else:
-            print(f"❌ {file_path}: File not found")
+            print("❌ " + file_path + ": File not found")
             all_good = False
     
     print("=" * 60)
