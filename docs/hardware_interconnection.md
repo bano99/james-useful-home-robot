@@ -10,6 +10,10 @@ The system consists of a central computation unit (NVIDIA Jetson Nano Orin) whic
 graph TD
     subgraph "Remote Control Unit"
         RC["Remote Control<br/>(ESP32-S3 + AMOLED)"]
+        L_JOY["Left Joystick<br/>(Arm Manual Control)"]
+        R_JOY["Right Joystick<br/>(Platform/Arm Vertical)"]
+        SW_MODE["Mode Switch<br/>(Left/Right Control)"]
+        G_POT["Gripper Pot<br/>(Pin 16)"]
     end
 
     subgraph "Mobile Platform"
@@ -32,15 +36,25 @@ graph TD
         
         DRIVERS["Stepper Drivers<br/>x6"]
         ENC["Encoders<br/>x6"]
-        
-        TOF["ToF Sensor<br/>(VL53L1X)"]
-        IMU["IMU<br/>(BNO055)"]
         SERVO((Servo))
     end
-
-    %% Communications
-    RC -.->|ESP-NOW<br/>Wireless| PC
     
+    subgraph "Sensors (Direct to Orin)"
+        TOF["ToF Sensor<br/>(VL53L1X)"]
+        IMU["IMU<br/>(BNO055)"]
+    end
+
+    %% Inputs to Remote
+    L_JOY --> RC
+    R_JOY --> RC
+    SW_MODE --> RC
+    G_POT --> RC
+
+    %% Remote Communications
+    RC -.->|"ESP-NOW<br/>(Platform Control)"| PC
+    RC -.->|"ESP-NOW<br/>(Direct Gripper Control)"| GRP
+    
+    %% Compute Connections
     PC <==>|"USB / Serial"| ORIN
     TEENSY <==>|"USB / Serial"| ORIN
     GRP <==>|"USB / Serial"| ORIN
@@ -58,9 +72,11 @@ graph TD
     TEENSY --> ENC
 
     %% Gripper Internal
-    GRP -->|I2C| TOF
-    GRP -->|I2C| IMU
     GRP -->|PWM| SERVO
+    
+    %% Sensor Connections
+    ORIN -->|"I2C Bus 7<br/>(Pins 3 & 5)"| TOF
+    ORIN -->|"I2C Bus 7<br/>(Pins 3 & 5)"| IMU
 ```
 
 ---
@@ -69,23 +85,36 @@ graph TD
 
 ### 2.1 Remote Control Unit (Remote)
 **Hardware**: LilyGO T-Display S3 AMOLED V2  
-**Role**: Sends manual control commands to the Platform Controller.
+**Role**: Master controller for Mobility (Mecanum) and Manipulation (Arm/Gripper).
 
-> [!WARNING]
-> **Pin Conflict Detected**: The source code defines Pin 15 as both `rightJoystickRotationPin` (Input) and `LCD_POWER` (Output). This requires verification on the physical hardware.
+#### Control Modes
+The **Left Switch** toggles the precision control behavior of the **Right Joystick**.
+
+**Mode A: Platform Control (Switch ON)**
+- **Left Joystick**: *Horizontal Arm Control* (Cartesian X/Y). Moves gripper tip Forward/Back/Left/Right while maintaining height and orientation.
+- **Right Joystick**: *Platform Movement*. Standard mecanum drive (Holonomic).
+- **Gripper Pot**: Servo Open/Close position.
+
+**Mode B: Vertical Arm Control (Switch OFF)**
+- **Left Joystick**: *Horizontal Arm Control* (Cartesian X/Y). Same as Mode A.
+- **Right Joystick**: *Vertical Arm Control*.
+    - Up/Down: Gripper moves vertically (Cartesian Z) maintaining orientation.
+    - Left/Right: Gripper Rotation (Yaw) or J1 rotation.
+- **Gripper Pot**: Servo Open/Close position.
 
 #### Connections
 | Component | Pin (ESP32) | Function | Notes |
 | :--- | :--- | :--- | :--- |
-| **Joystick** | 13 | Analog Out | Forward/Backward (Y-axis) |
-| | 14 | Analog Out | Left/Right (X-axis) |
-| | 15 | Analog Out | Rotation (Z-axis) **(Conflict)** |
-| **Display** | 6 | CS | Chip Select |
-| | 47 | SCK | SPI Clock |
-| | 18 | D0 (MOSI) | SPI Data 0 |
-| | 7 | D1 (DC) | SPI Data 1 / DC |
-| | 38 | BL | Backlight |
-| | 15 | PWR | Display Power **(Conflict)** |
+| **Right Joystick** | 13 | Analog In | Y-axis (Fwd/Back) |
+| | 14 | Analog In | X-axis (Left/Right) |
+| | 15 | Analog In | Rotation / Twist |
+| **Gripper Pot** | 16 | Analog In | Gripper Open/Close Position |
+| **Left Joystick** | *TBD* | Analog In | Y-axis (Arm Fwd/Back) |
+| | *TBD* | Analog In | X-axis (Arm Left/Right) |
+| | *TBD* | Analog In | Z-axis / Rotation |
+| **Mode Switch** | *TBD* | Digital In | Toggle Platform/Arm Vertical Mode |
+
+**Note**: Left Joystick manual control is calculated via Inverse Kinematics on the Orin (received via Platform Controller -> Orin link).
 
 ### 2.2 Platform Controller
 **Hardware**: LilyGO T-Display S3 AMOLED V2  
@@ -97,63 +126,54 @@ graph TD
 | **Orin** | USB | Data | Connected via USB-C port (Serial over USB) |
 | **I2C Bridge** | 3 | SDA | To DFRobot I2C-to-Dual-UART Bridge |
 | | 2 | SCL | To DFRobot I2C-to-Dual-UART Bridge |
-| **Display** | *Same as Remote* | | Landscape orientation |
-
-**Motor Control Chain**:
-1.  **ESP32** (I2C) -> **DFRobot Bridge**
-2.  **Bridge UART1** -> **ODrive 1** (Front Wheels?) -> Motors FL/FR
-3.  **Bridge UART2** -> **ODrive 2** (Rear Wheels?) -> Motors BL/BR
+| **Display** | *Internal* | | Landscape orientation |
 
 ### 2.3 Robot Arm (AR4 MK3)
 **Hardware**: Teensy 4.1  
 **Role**: Controls the 6-axis AR4 MK3 robotic arm.  
 **Connection to Orin**: USB Serial
 
-#### Pinout Configuration (from Firmware)
-
-| Joint | Step Pin | Dir Pin | Encoder A | Encoder B | Cal/Limit Pin |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **J1** | 0 | 1 | 14 | 15 | 26 |
-| **J2** | 2 | 3 | 17 | 16 | 27 |
-| **J3** | 4 | 5 | 19 | 18 | 28 |
-| **J4** | 6 | 7 | 20 | 21 | 29 |
-| **J5** | 8 | 9 | 23 | 22 | 30 |
-| **J6** | 10 | 11 | 24 | 25 | 31 |
-| **J7** (Aux) | 12 | 13 | - | - | 36 |
-
-**Other Pins**:
-- **E-Stop**: Pin 39
-- **J8/J9 (Aux)**: Defined in code but optional utilization.
-
 ### 2.4 Gripper System
 **Hardware**: ESP32 (Nano form factor)  
-**Role**: Controls end-effector servo and reads environmental sensors.  
-**Connection to Orin**: USB Serial
+**Role**: Controls end-effector servo only.  
+**Connection to Remote**: Direct ESP-NOW link for low-latency gripper actuation.  
+**Connection to Orin**: USB Serial (for status/configuration).
 
 #### Connections
 | Component | Pin | Protocol | Notes |
 | :--- | :--- | :--- | :--- |
-| **VL53L1X** | A4 (SDA) | I2C | Distance/ToF Sensor (Addr: 0x30*) |
-| **BNO055** | A4 (SDA) | I2C | IMU / Orientation (Addr: 0x29) |
-| | A5 (SCL) | I2C | Shared Bus |
 | **Servo** | *TBD* | PWM | Gripper Open/Close |
+| **Remote** | Wireless | ESP-NOW | Direct control from RC Pin 16 |
 
-*\*Note: Firmware changes VL53L1X address from default 0x29 to 0x30 at runtime to avoid conflict with BNO055.*
+### 2.5 Jetson Orin Expansion Header
+**Hardware**: NVIDIA Jetson Orin Nano Developer Kit  
+**Role**: Central Brain, runs ROS 2, Perception, and Kinematics.
+
+#### Sensor Connections (I2C)
+| Component | Bus | Pins | Notes |
+| :--- | :--- | :--- | :--- |
+| **VL53L1X** | I2C Bus 7 | 3 (SDA), 5 (SCL) | ToF Distance Sensor (Addr: 0x29) |
+| **BNO055** | I2C Bus 7 | 3 (SDA), 5 (SCL) | IMU Orientation (Addr: 0x28) |
 
 ---
 
 ## 3. Communication Flow
 
-### Manual Control Mode
-1.  **User** moves Joystick on **Remote**.
-2.  **Remote** sends `TransformedValues` via **ESP-NOW** to **Platform Controller**.
-3.  **Platform Controller** calculates inverse kinematics for Mecanum drive.
-4.  **Platform Controller** sends commands via **I2C** to **UART Bridge**.
-5.  **UART Bridge** forwards commands to **ODrive** controllers.
+### Manual Control Path
+1.  **User** manipulates Remote inputs.
+2.  **Remote** reads Inputs:
+    - **Right Joystick** -> Sent via **ESP-NOW** to **Platform Controller**.
+    - **Left Joystick** -> Sent via **ESP-NOW** to **Platform Controller** -> Forwarded via **USB** to **Orin**.
+    - **Gripper Pot** -> Sent via **ESP-NOW** directly to **Gripper ESP32**.
+3.  **Orin** (running ROS 2):
+    - Receives Left Joystick (Cartesian Cmd).
+    - Calculates IK for Arm Joint velocities.
+    - Sends Joint commands via **USB** to **Teensy**.
+4.  **Platform Controller**:
+    - If Mode Switch = ON: Maps Right Joystick directly to Mecanum drive (Manual).
+    - If Mode Switch = OFF: Ignores Right Joystick (or forwards to Orin for Z-axis control).
 
-### Autonomous / ROS 2 Mode
-1.  **Jetson Orin** runs navigation/manipulation stack.
-2.  **Orin** sends velocity commands (`cmd_vel`) via **USB Serial** to **Platform Controller**.
-3.  **Orin** sends joint trajectory commands via **USB Serial** to **Teensy (Arm)**.
-4.  **Orin** sends gripper commands via **USB Serial** to **Gripper ESP32**.
-5.  **Platform Controller** prioritizes Manual input over Autonomous input (safety override).
+### Autonomous Path
+- **Orin** has full control over Platform, Arm, and Gripper via USB Serial links.
+- **Platform Controller** enforces safety override (Manual input blocks Autonomous platform moves).
+
