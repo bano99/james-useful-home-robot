@@ -51,7 +51,28 @@ struct MotorCommand {
 };
 
 
-// Define the structure for receiving data
+// Updated structure to match remote control (RemoteControlData)
+typedef struct RemoteControlData {
+  // Right joystick (platform control)
+  int right_y;      // Pin 13 - forward/back
+  int right_x;      // Pin 14 - left/right
+  int right_rot;    // Pin 15 - rotation
+  
+  // Left joystick (arm control)
+  int left_y;       // Pin 1 - arm forward/back (Cartesian X)
+  int left_x;       // Pin 11 - arm left/right (Cartesian Y)
+  int left_z;       // Pin 12 - arm up/down or rotation (Cartesian Z)
+  
+  // Switch state
+  bool switch_platform_mode;  // Pin 45 - true = platform mode, false = vertical arm mode
+  
+  // Gripper (placeholder for future)
+  int gripper_pot;  // Pin 16 (not yet implemented)
+} RemoteControlData;
+
+RemoteControlData controlData;
+
+// Legacy joystick data structure for existing platform control
 typedef struct JoystickData {
   int y;
   int x;
@@ -76,7 +97,13 @@ ControlMode currentMode = MODE_STOPPED;
 // Connection status
 unsigned long lastManualCommandTime = 0;
 unsigned long lastAutonomousCommandTime = 0;
+unsigned long lastArmCommandTime = 0;
 const unsigned long CONNECTION_TIMEOUT_MS = 1000;
+
+// USB Serial communication to Jetson
+unsigned long lastJetsonSendTime = 0;
+const unsigned long JETSON_SEND_INTERVAL_MS = 20;  // 50 Hz
+bool jetsonConnected = false;
 
 // Timer variables
 esp_timer_handle_t watchdog_timer;
@@ -100,6 +127,67 @@ void IRAM_ATTR onWatchdogTimeout(void* arg) {
 }
 
 
+
+// #############################################################
+// Jetson Communication Functions
+// #############################################################
+
+void sendArmDataToJetson() {
+  unsigned long currentTime = millis();
+  
+  // Send at 50 Hz rate
+  if (currentTime - lastJetsonSendTime < JETSON_SEND_INTERVAL_MS) {
+    return;
+  }
+  lastJetsonSendTime = currentTime;
+  
+  // Always send complete control data - let Jetson decide what to use
+  Serial.print("{\"type\":\"manual_control\",");
+  
+  // Left joystick (arm control)
+  Serial.print("\"left_x\":");
+  Serial.print(controlData.left_x);
+  Serial.print(",\"left_y\":");
+  Serial.print(controlData.left_y);
+  Serial.print(",\"left_z\":");
+  Serial.print(controlData.left_z);
+  
+  // Right joystick (platform/vertical arm control)
+  Serial.print(",\"right_x\":");
+  Serial.print(controlData.right_x);
+  Serial.print(",\"right_y\":");
+  Serial.print(controlData.right_y);
+  Serial.print(",\"right_rot\":");
+  Serial.print(controlData.right_rot);
+  
+  // Switch state and gripper
+  Serial.print(",\"switch_mode\":\"");
+  Serial.print(controlData.switch_platform_mode ? "platform" : "vertical");
+  Serial.print("\",\"gripper_pot\":");
+  Serial.print(controlData.gripper_pot);
+  Serial.print(",\"timestamp\":");
+  Serial.print(currentTime);
+  Serial.println("}");
+}
+
+void processJetsonResponse() {
+  // Check for incoming status messages from Jetson
+  if (Serial.available()) {
+    String response = Serial.readStringUntil('\n');
+    response.trim();
+    
+    if (response.length() > 0) {
+      // Simple parsing - look for "arm_status" type
+      if (response.indexOf("\"type\":\"arm_status\"") >= 0) {
+        jetsonConnected = true;
+        lastAutonomousCommandTime = millis();
+        
+        // Could parse more detailed status here if needed
+        // For now, just acknowledge connection
+      }
+    }
+  }
+}
 
 // #############################################################
 // Display Functions
@@ -230,10 +318,20 @@ void updateDisplay() {
   // Check connection status
   bool manualConnected = (currentTime - lastManualCommandTime) < CONNECTION_TIMEOUT_MS;
   bool autoConnected = (currentTime - lastAutonomousCommandTime) < CONNECTION_TIMEOUT_MS;
+  bool armConnected = (currentTime - lastArmCommandTime) < CONNECTION_TIMEOUT_MS;
   
   // LEFT: Connection Status (Large Circle)
   bool connected = manualConnected || autoConnected;
-  const char* statusLabel = manualConnected ? "MANUAL" : (autoConnected ? "AUTO" : "OFFLINE");
+  const char* statusLabel;
+  if (manualConnected && armConnected) {
+    statusLabel = "MAN+ARM";
+  } else if (manualConnected) {
+    statusLabel = "MANUAL";
+  } else if (autoConnected) {
+    statusLabel = "AUTO";
+  } else {
+    statusLabel = "OFFLINE";
+  }
   drawConnectionStatus(120, 120, 80, connected, statusLabel);
   
   // RIGHT: Movement Direction Indicator (Large Circle with Arrow)
@@ -263,7 +361,7 @@ void updateDisplay() {
       break;
   }
   
-  // BOTTOM: Velocity values (small text)
+  // BOTTOM: Velocity values and Jetson status (small text)
   gfx2->fillRect(0, SCREEN_HEIGHT - 25, SCREEN_WIDTH, 25, COLOR_BG);
   gfx2->setTextSize(1);
   gfx2->setTextColor(COLOR_TEXT);
@@ -273,6 +371,16 @@ void updateDisplay() {
            motorFL.velocity, motorFR.velocity, motorBL.velocity, motorBR.velocity);
   gfx2->setCursor(10, SCREEN_HEIGHT - 18);
   gfx2->print(buf);
+  
+  // Jetson connection status (right side)
+  gfx2->setCursor(SCREEN_WIDTH - 80, SCREEN_HEIGHT - 18);
+  if (armConnected) {
+    gfx2->setTextColor(jetsonConnected ? COLOR_GOOD : COLOR_WARNING);
+    gfx2->print("JETSON");
+  } else {
+    gfx2->setTextColor(COLOR_BAR_BG);
+    gfx2->print("NO ARM");
+  }
   
   // Flush to display
   gfx2->flush();
@@ -325,7 +433,12 @@ void setup() {
 
 
 void loop() {
+  // Process Jetson communication
+  processJetsonResponse();
+  
+  // Update display
   updateDisplay();
+  
   delay(1);
 }
 
@@ -477,36 +590,47 @@ void controlMecanumWheels(JoystickValues joystick, MotorCommand& motorFL, MotorC
 
 
   
-// Correct signature for the onDataReceive callback
+// Simplified callback - always expects RemoteControlData structure
 void onDataReceive(const esp_now_recv_info *info, const uint8_t *incomingData, int len) {
-  memcpy(&joystickData, incomingData, sizeof(joystickData));
+  // Always expect RemoteControlData structure
+  if (len == sizeof(RemoteControlData)) {
+    memcpy(&controlData, incomingData, sizeof(controlData));
+    
+    // Update timestamps
+    lastManualCommandTime = millis();
+    lastArmCommandTime = millis();
+    
+    // Always send arm data to Jetson (let Jetson decide what to do with it)
+    sendArmDataToJetson();
+    
+    // Platform control logic based on switch state
+    if (controlData.switch_platform_mode) {
+      // Platform mode: Use right joystick for mecanum control
+      joystickData.x = controlData.right_x;
+      joystickData.y = controlData.right_y;
+      joystickData.rot = controlData.right_rot;
+    } else {
+      // Vertical arm mode: Use right joystick for vertical arm control
+      // For now, still control platform but could be modified later
+      joystickData.x = controlData.right_x;
+      joystickData.y = controlData.right_y;
+      joystickData.rot = controlData.right_rot;
+    }
+    
+    // Manual control takes priority - set mode
+    currentMode = MODE_MANUAL;
 
-  // Update manual command timestamp
-  lastManualCommandTime = millis();
-  
-  // Manual control takes priority - set mode
-  currentMode = MODE_MANUAL;
+    // Acknowledge receipt
+    esp_now_send(info->des_addr, (uint8_t *)"ACK", sizeof("ACK"));
 
-//Serial.println("Data received: x" + String(joystickData.x) + " y"+ String(joystickData.y) + " rot" + String(joystickData.rot));
-/*
-  
-  
-
-  // Reset the watchdog timer
-  esp_timer_stop(watchdog_timer);
-  esp_timer_start_once(watchdog_timer, timeout_us);
-
-*/
-  // Commit back to the remote control to acknowledge receipt
-  esp_now_send(info->des_addr, (uint8_t *)"ACK", sizeof("ACK"));
-
-  // Calculate movement values based on the received joystick data
-  joystickValues = calculateMovement(joystickData.x, joystickData.y, joystickData.rot);
-
-  // Control the mecanum wheels based on the calculated values
-  controlMecanumWheels(joystickValues, motorFL, motorFR, motorBL, motorBR);
-
-  
+    // Calculate movement values and control mecanum wheels
+    joystickValues = calculateMovement(joystickData.x, joystickData.y, joystickData.rot);
+    controlMecanumWheels(joystickValues, motorFL, motorFR, motorBL, motorBR);
+    
+  } else {
+    // Unexpected packet size - log error
+    Serial.printf("Unexpected packet size: %d bytes (expected %d)\n", len, sizeof(RemoteControlData));
+  }
 }
 
 

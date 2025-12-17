@@ -16,23 +16,43 @@
 #define SCREEN_HEIGHT 536
 #define DISPLAY_UPDATE_MS 100
 
-// Joystick pins
-const int rightJoystickUpDownPin = 13;
-const int rightJoystickLeftRightPin = 14;
-const int rightJoystickRotationPin = 15;
+// Right joystick pins (platform control)
+const int rightJoystickUpDownPin = 13;      // Forward/backward
+const int rightJoystickLeftRightPin = 14;   // Left/right
+const int rightJoystickRotationPin = 15;    // Rotation
+
+// Left joystick pins (arm control) - from remote_control_v1
+const int leftJoystickUpDownPin = 1;        // Arm forward/back (Cartesian X)
+const int leftJoystickLeftRightPin = 11;    // Arm left/right (Cartesian Y)
+const int leftJoystickRotationPin = 12;     // Arm up/down or rotation (Cartesian Z)
+
+// Switch pin - from remote_control_v1
+const int leftSwitchPin = 45;               // Mode switch
 
 // ADC configuration
 const int adcDeadZoneMin = 1900;
 const int adcDeadZoneMax = 2250;
 
-// Data structure
-typedef struct TransformedValues {
-  int value13;
-  int value14;
-  int value15;
-} TransformedValues;
+// Updated data structure for arm control
+typedef struct RemoteControlData {
+  // Right joystick (platform control)
+  int right_y;      // Pin 13 - forward/back
+  int right_x;      // Pin 14 - left/right
+  int right_rot;    // Pin 15 - rotation
+  
+  // Left joystick (arm control)
+  int left_y;       // Pin 1 - arm forward/back (Cartesian X)
+  int left_x;       // Pin 11 - arm left/right (Cartesian Y)
+  int left_z;       // Pin 12 - arm up/down or rotation (Cartesian Z)
+  
+  // Switch state
+  bool switch_platform_mode;  // Pin 45 - true = platform mode, false = vertical arm mode
+  
+  // Gripper (placeholder for future)
+  int gripper_pot;  // Pin 16 (not yet implemented)
+} RemoteControlData;
 
-TransformedValues transformedValues;
+RemoteControlData controlData;
 
 // Receiver MAC address
 uint8_t broadcastAddress[] = {0x24, 0x58, 0x7C, 0xD3, 0x6B, 0x30};
@@ -212,31 +232,31 @@ void updateDisplay() {
   gfx2->setCursor(20, 8);
   gfx2->print("JAMES REMOTE");
   
-  // Draw joystick position (X/Y combined)
-  drawJoystickPosition(120, 150, transformedValues.value14, transformedValues.value13);
+  // Draw joystick position (X/Y combined) - showing RIGHT joystick (platform control)
+  drawJoystickPosition(120, 150, controlData.right_x, controlData.right_y);
   
-  // Draw rotation indicator
-  drawRotationIndicator(120, 350, transformedValues.value15);
+  // Draw rotation indicator - showing RIGHT joystick rotation
+  drawRotationIndicator(120, 350, controlData.right_rot);
   
   // Update value displays with larger font
   char buf[20];
   gfx2->setTextSize(2);  // Larger font
   gfx2->setTextColor(WHITE);
   
-  // X value (Left/Right)
-  snprintf(buf, sizeof(buf), "X:%4d", transformedValues.value14);
+  // Right joystick X value (Left/Right)
+  snprintf(buf, sizeof(buf), "X:%4d", controlData.right_x);
   gfx2->fillRect(10, 440, 110, 20, BLACK);
   gfx2->setCursor(10, 440);
   gfx2->print(buf);
   
-  // Y value (Forward/Back)
-  snprintf(buf, sizeof(buf), "Y:%4d", transformedValues.value13);
+  // Right joystick Y value (Forward/Back)
+  snprintf(buf, sizeof(buf), "Y:%4d", controlData.right_y);
   gfx2->fillRect(10, 465, 110, 20, BLACK);
   gfx2->setCursor(10, 465);
   gfx2->print(buf);
   
-  // Rotation value
-  snprintf(buf, sizeof(buf), "R:%4d", transformedValues.value15);
+  // Right joystick Rotation value
+  snprintf(buf, sizeof(buf), "R:%4d", controlData.right_rot);
   gfx2->fillRect(10, 490, 110, 20, BLACK);
   gfx2->setCursor(10, 490);
   gfx2->print(buf);
@@ -297,18 +317,33 @@ void onDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
   }
 }
 
-void sendTransformedValues() {
-  transformedValues.value13 = mapJoystickToSpeed(analogRead(rightJoystickUpDownPin));
-  transformedValues.value14 = mapJoystickToSpeed(analogRead(rightJoystickLeftRightPin));
-  transformedValues.value15 = mapJoystickToSpeed(analogRead(rightJoystickRotationPin));
+void sendControlData() {
+  // Read right joystick (platform control)
+  controlData.right_y = mapJoystickToSpeed(analogRead(rightJoystickUpDownPin));
+  controlData.right_x = mapJoystickToSpeed(analogRead(rightJoystickLeftRightPin));
+  controlData.right_rot = mapJoystickToSpeed(analogRead(rightJoystickRotationPin));
   
-  esp_err_t result = esp_now_send(NULL, (uint8_t *)&transformedValues, sizeof(transformedValues));
+  // Read left joystick (arm control)
+  controlData.left_y = mapJoystickToSpeed(analogRead(leftJoystickUpDownPin));
+  controlData.left_x = mapJoystickToSpeed(analogRead(leftJoystickLeftRightPin));
+  controlData.left_z = mapJoystickToSpeed(analogRead(leftJoystickRotationPin));
+  
+  // Read switch state
+  controlData.switch_platform_mode = digitalRead(leftSwitchPin) == HIGH;
+  
+  // Gripper pot (placeholder)
+  controlData.gripper_pot = 0;
+  
+  // Send via ESP-NOW
+  esp_err_t result = esp_now_send(NULL, (uint8_t *)&controlData, sizeof(controlData));
   
   if (result == ESP_OK) {
-    Serial.printf("Sent: X=%d Y=%d Rot=%d\n", 
-                  transformedValues.value14, 
-                  transformedValues.value13, 
-                  transformedValues.value15);
+    Serial.printf("Sent: R[%d,%d,%d] L[%d,%d,%d] SW:%d\n", 
+                  controlData.right_y, controlData.right_x, controlData.right_rot,
+                  controlData.left_y, controlData.left_x, controlData.left_z,
+                  controlData.switch_platform_mode);
+  } else {
+    Serial.println("Send failed");
   }
 }
 
@@ -320,10 +355,18 @@ void setup() {
   // Initialize display FIRST
   initDisplay();
 
-  // Setup joystick pins
+  // Setup right joystick pins
   pinMode(rightJoystickUpDownPin, INPUT);
   pinMode(rightJoystickLeftRightPin, INPUT);
   pinMode(rightJoystickRotationPin, INPUT);
+  
+  // Setup left joystick pins
+  pinMode(leftJoystickUpDownPin, INPUT);
+  pinMode(leftJoystickLeftRightPin, INPUT);
+  pinMode(leftJoystickRotationPin, INPUT);
+  
+  // Setup switch pin
+  pinMode(leftSwitchPin, INPUT_PULLUP);
 
   // Initialize WiFi
   Serial.println("Initializing ESP-NOW...");
@@ -363,7 +406,7 @@ void setup() {
 }
 
 void loop() {
-  sendTransformedValues();
+  sendControlData();
   updateDisplay();
   delay(150);
 }
