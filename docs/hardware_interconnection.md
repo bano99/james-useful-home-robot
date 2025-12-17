@@ -9,13 +9,13 @@ The system consists of a central computation unit (NVIDIA Jetson Nano Orin) whic
 ```mermaid
 graph TD
     subgraph "Remote Control Unit"
-        RC[Remote Control<br/>(ESP32-S3 + AMOLED)]
+        RC["Remote Control<br/>(ESP32-S3 + AMOLED)"]
     end
 
     subgraph "Mobile Platform"
-        PC[Platform Controller<br/>(ESP32-S3 + AMOLED)]
-        OD1[ODrive 1<br/>(Front Motors)]
-        OD2[ODrive 2<br/>(Rear Motors)]
+        PC["Platform Controller<br/>(ESP32-S3 + AMOLED)"]
+        OD1["ODrive 1<br/>(Front Motors)"]
+        OD2["ODrive 2<br/>(Rear Motors)"]
         M_FL((M FL))
         M_FR((M FR))
         M_BL((M BL))
@@ -23,31 +23,31 @@ graph TD
     end
 
     subgraph "Brain / Compute"
-        ORIN[NVIDIA Jetson<br/>Nano Orin]
+        ORIN["NVIDIA Jetson<br/>Nano Orin"]
     end
 
     subgraph "Manipulation System"
-        TEENSY[Robot Arm Controller<br/>(Teensy 4.1)]
-        GRP[Gripper Controller<br/>(ESP32 Nano)]
+        TEENSY["Robot Arm Controller<br/>(Teensy 4.1)"]
+        GRP["Gripper Controller<br/>(ESP32 Nano)"]
         
-        DRIVERS[Stepper Drivers<br/>x6]
-        ENC[Encoders<br/>x6]
+        DRIVERS["Stepper Drivers<br/>x6"]
+        ENC["Encoders<br/>x6"]
         
-        TOF[ToF Sensor<br/>(VL53L1X)]
-        IMU[IMU<br/>(BNO055)]
+        TOF["ToF Sensor<br/>(VL53L1X)"]
+        IMU["IMU<br/>(BNO055)"]
         SERVO((Servo))
     end
 
     %% Communications
     RC -.->|ESP-NOW<br/>Wireless| PC
     
-    PC <==>|USB / Serial| ORIN
-    TEENSY <==>|USB / Serial| ORIN
-    GRP <==>|USB / Serial| ORIN
+    PC <==>|"USB / Serial"| ORIN
+    TEENSY <==>|"USB / Serial"| ORIN
+    GRP <==>|"USB / Serial"| ORIN
     
     %% Platform Internal
-    PC -->|I2C-to-UART<br/>Bridge| OD1
-    PC -->|I2C-to-UART<br/>Bridge| OD2
+    PC -->|"I2C-to-UART<br/>Bridge"| OD1
+    PC -->|"I2C-to-UART<br/>Bridge"| OD2
     OD1 --> M_FL
     OD1 --> M_FR
     OD2 --> M_BL
