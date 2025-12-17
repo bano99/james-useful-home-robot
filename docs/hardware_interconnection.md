@@ -26,8 +26,10 @@ graph TD
         M_BR((M BR))
     end
 
-    subgraph "Brain / Compute"
-        ORIN["NVIDIA Jetson<br/>Nano Orin"]
+    subgraph "Distributed Compute Cluster"
+        ORIN["Letson Orin Nano<br/>(Central Hub)"]
+        NANO1["Jetson Nano 1<br/>(Vision Preproc)"]
+        NANO2["Jetson Nano 2<br/>(Sensor Hub)"]
     end
 
     subgraph "Manipulation System"
@@ -39,7 +41,10 @@ graph TD
         SERVO((Servo))
     end
     
-    subgraph "Sensors (Direct to Orin)"
+    subgraph "Vision & Sensors"
+        D415["D415 Camera<br/>(Manipulation)"]
+        D435["D435 Camera<br/>(Long Range / SLAM)"]
+        T265["T265 Camera<br/>(Tracking / Odom)"]
         TOF["ToF Sensor<br/>(VL53L1X)"]
         IMU["IMU<br/>(BNO055)"]
     end
@@ -54,7 +59,11 @@ graph TD
     RC -.->|"ESP-NOW<br/>(Platform Control)"| PC
     RC -.->|"ESP-NOW<br/>(Direct Gripper Control)"| GRP
     
-    %% Compute Connections
+    %% Compute Cluster Connections
+    NANO1 <==>|"Network<br/>(Ethernet/WiFi)"| ORIN
+    NANO2 <==>|"Network<br/>(Ethernet/WiFi)"| ORIN
+    
+    %% Controller Connections to Orin
     PC <==>|"USB / Serial"| ORIN
     TEENSY <==>|"USB / Serial"| ORIN
     GRP <==>|"USB / Serial"| ORIN
@@ -74,7 +83,11 @@ graph TD
     %% Gripper Internal
     GRP -->|PWM| SERVO
     
-    %% Sensor Connections
+    %% Sensor/Camera Connections
+    D415 <==>|USB| ORIN
+    D435 <==>|USB| NANO1
+    T265 <==>|USB| NANO2
+    
     ORIN -->|"I2C Bus 7<br/>(Pins 3 & 5)"| TOF
     ORIN -->|"I2C Bus 7<br/>(Pins 3 & 5)"| IMU
 ```
@@ -145,15 +158,24 @@ The **Left Switch** toggles the precision control behavior of the **Right Joysti
 | **Servo** | *TBD* | PWM | Gripper Open/Close |
 | **Remote** | Wireless | ESP-NOW | Direct control from RC Pin 16 |
 
-### 2.5 Jetson Orin Expansion Header
-**Hardware**: NVIDIA Jetson Orin Nano Developer Kit  
-**Role**: Central Brain, runs ROS 2, Perception, and Kinematics.
+### 2.5 Distributed Compute Cluster
+**1. NVIDIA Jetson Orin Nano ("Brain Stem")**
+- **Role**: Central Controller, Nav2, MoveIt, Safety.
+- **Connections**:
+    - **D415 Camera** (USB): Direct manipulation visuals.
+    - **Sensors** (I2C): ToF and IMU.
+    - **Controllers** (USB): Platform, Arm, Gripper.
+    - **Network**: Links to Nano 1 & 2.
 
-#### Sensor Connections (I2C)
-| Component | Bus | Pins | Notes |
-| :--- | :--- | :--- | :--- |
-| **VL53L1X** | I2C Bus 7 | 3 (SDA), 5 (SCL) | ToF Distance Sensor (Addr: 0x29) |
-| **BNO055** | I2C Bus 7 | 3 (SDA), 5 (SCL) | IMU Orientation (Addr: 0x28) |
+**2. Jetson Nano 1 ("The Eyes")**
+- **Role**: Vision Pre-processing (SLAM, Feature Extraction).
+- **Connections**:
+    - **D435 Camera** (USB): Long-range RGB-D.
+
+**3. Jetson Nano 2 ("The Senses")**
+- **Role**: Odometry and Backup Sensors.
+- **Connections**:
+    - **T265 Camera** (USB): Visual Inertial Odometry.
 
 ---
 
@@ -167,13 +189,14 @@ The **Left Switch** toggles the precision control behavior of the **Right Joysti
     - **Gripper Pot** -> Sent via **ESP-NOW** directly to **Gripper ESP32**.
 3.  **Orin** (running ROS 2):
     - Receives Left Joystick (Cartesian Cmd).
-    - Calculates IK for Arm Joint velocities.
+    - Calculates IK for Arm Joint velocities (J1 Bottom -> J6 Top).
     - Sends Joint commands via **USB** to **Teensy**.
 4.  **Platform Controller**:
     - If Mode Switch = ON: Maps Right Joystick directly to Mecanum drive (Manual).
-    - If Mode Switch = OFF: Ignores Right Joystick (or forwards to Orin for Z-axis control).
+    - If Mode Switch = OFF: Ignores Right Joystick.
 
 ### Autonomous Path
-- **Orin** has full control over Platform, Arm, and Gripper via USB Serial links.
-- **Platform Controller** enforces safety override (Manual input blocks Autonomous platform moves).
+- **Nano 1 & 2** process camera feeds and send simplified odometry/map data to **Orin**.
+- **Orin** fuses Sensor data (IMU, ToF, T265 Odom) and Plans path.
+- **Orin** sends commands to Platform, Arm, and Gripper via USB.
 
