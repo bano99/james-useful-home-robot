@@ -141,33 +141,36 @@ void sendArmDataToJetson() {
   }
   lastJetsonSendTime = currentTime;
   
-  // Always send complete control data - let Jetson decide what to use
-  Serial.print("{\"type\":\"manual_control\",");
+  // Binary packet: 21 bytes total
+  // [0xAA][type][left_x][left_y][left_z][right_x][right_y][right_rot][mode][gripper][timestamp][checksum]
+  uint8_t packet[21];
   
-  // Left joystick (arm control)
-  Serial.print("\"left_x\":");
-  Serial.print(controlData.left_x);
-  Serial.print(",\"left_y\":");
-  Serial.print(controlData.left_y);
-  Serial.print(",\"left_z\":");
-  Serial.print(controlData.left_z);
+  packet[0] = 0xAA;  // Start marker
+  packet[1] = 1;     // Message type: manual_control
   
-  // Right joystick (platform/vertical arm control)
-  Serial.print(",\"right_x\":");
-  Serial.print(controlData.right_x);
-  Serial.print(",\"right_y\":");
-  Serial.print(controlData.right_y);
-  Serial.print(",\"right_rot\":");
-  Serial.print(controlData.right_rot);
+  // Pack 16-bit signed values (little endian)
+  *((int16_t*)&packet[2]) = controlData.left_x;
+  *((int16_t*)&packet[4]) = controlData.left_y;
+  *((int16_t*)&packet[6]) = controlData.left_z;
+  *((int16_t*)&packet[8]) = controlData.right_x;
+  *((int16_t*)&packet[10]) = controlData.right_y;
+  *((int16_t*)&packet[12]) = controlData.right_rot;
   
-  // Switch state and gripper
-  Serial.print(",\"switch_mode\":\"");
-  Serial.print(controlData.switch_platform_mode ? "platform" : "vertical");
-  Serial.print("\",\"gripper_pot\":");
-  Serial.print(controlData.gripper_pot);
-  Serial.print(",\"timestamp\":");
-  Serial.print(currentTime);
-  Serial.println("}");
+  packet[14] = controlData.switch_platform_mode ? 0 : 1;  // 0=platform, 1=vertical
+  packet[15] = (uint8_t)controlData.gripper_pot;
+  
+  // Pack 32-bit timestamp (little endian)
+  *((uint32_t*)&packet[16]) = currentTime;
+  
+  // Calculate checksum (sum of all bytes except checksum)
+  uint8_t checksum = 0;
+  for (int i = 0; i < 20; i++) {
+    checksum += packet[i];
+  }
+  packet[20] = checksum;
+  
+  // Send binary packet
+  Serial.write(packet, 21);
 }
 
 void processJetsonResponse() {

@@ -16,6 +16,7 @@ import serial
 import json
 import threading
 import time
+import struct
 
 
 class PlatformSerialBridge(Node):
@@ -27,7 +28,7 @@ class PlatformSerialBridge(Node):
         super().__init__('platform_serial_bridge')
         
         # Declare parameters
-        self.declare_parameter('serial_port', '/dev/ttyUSB0')
+        self.declare_parameter('serial_port', '/dev/ttyACM0')
         self.declare_parameter('baud_rate', 115200)
         self.declare_parameter('timeout', 0.1)
         self.declare_parameter('publish_rate', 50.0)
@@ -44,6 +45,13 @@ class PlatformSerialBridge(Node):
         self.serial_conn = None
         self.connected = False
         self.last_command_time = time.time()
+        self.message_buffer = b""  # Binary buffer
+        
+        # Binary protocol: 16 bytes total
+        # [0xAA][type][left_x][left_y][left_z][right_x][right_y][right_rot][mode][gripper][timestamp][checksum]
+        # 1 + 1 + 2 + 2 + 2 + 2 + 2 + 2 + 1 + 1 + 4 + 1 = 21 bytes
+        self.PACKET_SIZE = 21
+        self.PACKET_START = 0xAA
         
         # ROS2 publishers and subscribers
         self.arm_command_pub = self.create_publisher(
@@ -114,9 +122,29 @@ class PlatformSerialBridge(Node):
                 # Read data from Platform Controller
                 if self.serial_conn and self.serial_conn.in_waiting > 0:
                     try:
-                        line = self.serial_conn.readline().decode('utf-8').strip()
-                        if line:
-                            self.process_platform_message(line)
+                        data = self.serial_conn.read(self.serial_conn.in_waiting)
+                        self.message_buffer += data
+                        
+                        # Process complete packets
+                        while len(self.message_buffer) >= self.PACKET_SIZE:
+                            # Find packet start
+                            start_idx = self.message_buffer.find(self.PACKET_START)
+                            if start_idx == -1:
+                                self.message_buffer = b""
+                                break
+                            
+                            # Remove data before packet start
+                            if start_idx > 0:
+                                self.message_buffer = self.message_buffer[start_idx:]
+                            
+                            # Check if we have a complete packet
+                            if len(self.message_buffer) >= self.PACKET_SIZE:
+                                packet = self.message_buffer[:self.PACKET_SIZE]
+                                self.message_buffer = self.message_buffer[self.PACKET_SIZE:]
+                                self.process_binary_packet(packet)
+                            else:
+                                break
+                                
                     except Exception as e:
                         self.get_logger().warn(f'Error reading serial data: {e}')
                 
@@ -127,26 +155,48 @@ class PlatformSerialBridge(Node):
                 self.connected = False
                 time.sleep(1.0)
     
-    def process_platform_message(self, message):
-        """Process incoming JSON message from Platform Controller"""
+    def process_binary_packet(self, packet):
+        """Process binary packet from Platform Controller"""
         try:
-            data = json.loads(message)
+            # Unpack binary data
+            unpacked = struct.unpack('<BBhhhhhBBIB', packet)
+            start, msg_type, left_x, left_y, left_z, right_x, right_y, right_rot, mode, gripper, timestamp, checksum = unpacked
             
-            if data.get('type') == 'manual_control':
+            # Verify checksum (simple sum of all bytes except checksum)
+            calc_checksum = sum(packet[:-1]) & 0xFF
+            if calc_checksum != checksum:
+                self.get_logger().debug(f'Checksum mismatch: {calc_checksum} != {checksum}')
+                return
+            
+            if msg_type == 1:  # manual_control
+                # Convert to JSON for compatibility with existing arm controller
+                data = {
+                    'type': 'manual_control',
+                    'left_x': left_x,
+                    'left_y': left_y, 
+                    'left_z': left_z,
+                    'right_x': right_x,
+                    'right_y': right_y,
+                    'right_rot': right_rot,
+                    'switch_mode': 'vertical' if mode == 1 else 'horizontal',
+                    'gripper_pot': gripper,
+                    'timestamp': timestamp
+                }
+                
                 # Update last command time
                 self.last_command_time = time.time()
                 
                 # Forward to arm cartesian controller
                 msg = String()
-                msg.data = message
+                msg.data = json.dumps(data)
                 self.arm_command_pub.publish(msg)
                 
                 self.get_logger().debug(f'Forwarded command: {data}')
             
-        except json.JSONDecodeError as e:
-            self.get_logger().warn(f'Invalid JSON from Platform Controller: {message}')
+        except struct.error as e:
+            self.get_logger().warn(f'Invalid binary packet: {e}')
         except Exception as e:
-            self.get_logger().error(f'Error processing platform message: {e}')
+            self.get_logger().error(f'Error processing binary packet: {e}')
     
     def arm_status_callback(self, msg):
         """Callback for arm status messages to forward back to Platform Controller"""

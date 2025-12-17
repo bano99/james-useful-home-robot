@@ -4,7 +4,7 @@
 platform_serial_bridge:
   ros__parameters:
     # USB Serial connection to Platform Controller
-    serial_port: "/dev/ttyUSB0"
+    serial_port: "/dev/ttyACM0"
     baud_rate: 115200
     timeout: 0.1
     
