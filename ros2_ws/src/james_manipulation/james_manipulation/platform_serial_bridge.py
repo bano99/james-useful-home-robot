@@ -194,7 +194,7 @@ class PlatformSerialBridge(Node):
                     'right_x': right_x,
                     'right_y': right_y,
                     'right_rot': right_rot,
-                    'switch_mode': 'vertical' if mode == 1 else 'horizontal',
+                    'switch_mode': 'vertical' if mode == 1 else 'platform',
                     'gripper_pot': gripper,
                     'timestamp': timestamp
                 }
