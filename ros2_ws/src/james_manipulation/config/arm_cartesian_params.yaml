@@ -15,7 +15,7 @@ platform_serial_bridge:
 teensy_serial_bridge:
   ros__parameters:
     # USB Serial connection to Teensy 4.1 (AR4 controller)
-    serial_port: "/dev/ttyACM0"
+    serial_port: "/dev/ttyACM1"
     baud_rate: 115200
     timeout: 0.1
     
