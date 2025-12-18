@@ -49,8 +49,8 @@ class TeensySerialBridge(Node):
         self.last_joint_state = JointState()
         self.last_command_time = time.time()
         
-        # Joint names for AR4-MK3
-        self.joint_names = ['J1', 'J2', 'J3', 'J4', 'J5', 'J6']
+        # Joint names for AR4-MK3 (matching URDF prefix)
+        self.joint_names = ['arm_joint_1', 'arm_joint_2', 'arm_joint_3', 'arm_joint_4', 'arm_joint_5', 'arm_joint_6']
         
         # Initialize joint state message
         self.last_joint_state.name = self.joint_names

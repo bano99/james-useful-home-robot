@@ -1,0 +1,32 @@
+# AR4-MK3 Custom Joint Limits for James Robot
+# Use !degrees for readability if the xacro loader supports it, 
+# otherwise use radians. The ycheng macro uses !degrees in its yaml.
+
+mesh_dir: ar4_mk3
+
+# Standard limits (tweak these as needed for your specific setup)
+j1_limit_min: !degrees -170
+j1_limit_max: !degrees 170
+
+# J2 limit: User noted this is coupled with J1.
+# Setting to a conservative -30 to 90 for now.
+j2_limit_min: !degrees -30
+j2_limit_max: !degrees 90
+
+j3_limit_min: !degrees -89
+j3_limit_max: !degrees 52
+
+j4_limit_min: !degrees -180
+j4_limit_max: !degrees 180
+
+j5_limit_min: !degrees -105
+j5_limit_max: !degrees 105
+
+j6_limit_min: !degrees -180
+j6_limit_max: !degrees 180
+
+# Link 6 length (distance from J6 to mounting flange)
+l6_length: 0.041
+
+# Custom Gripper Offset (placeholder)
+gripper_offset_z: 0.05

@@ -59,7 +59,7 @@ arm_cartesian_controller:
       j6_max: 2.967   # 170 degrees
     
     # MoveIt configuration
-    move_group_name: "ar4_arm"
+    move_group_name: "ar_manipulator"
     planning_frame: "base_link"
     end_effector_link: "gripper_link"
     

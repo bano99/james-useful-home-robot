@@ -1,0 +1,14 @@
+<?xml version="1.0" ?>
+<robot xmlns:xacro="http://wiki.ros.org/xacro" name="james">
+  <xacro:include filename="$(find james_description)/srdf/ar_macro.srdf.xacro" />
+  
+  <!-- AR4 Manipulator Group with arm_ prefix -->
+  <xacro:ar_srdf tf_prefix="arm_" />
+  
+  <!-- Add platform-specific semantic info here if needed -->
+  
+  <!-- Disable collisions between arm base and platform base -->
+  <disable_collisions link1="arm_base_link" link2="base_link" reason="Adjacent" />
+  <disable_collisions link1="arm_link_1" link2="base_link" reason="Never" />
+
+</robot>
