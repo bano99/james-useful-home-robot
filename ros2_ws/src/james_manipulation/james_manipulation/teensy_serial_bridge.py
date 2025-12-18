@@ -35,6 +35,7 @@ class TeensySerialBridge(Node):
         self.declare_parameter('timeout', 0.1)
         self.declare_parameter('publish_rate', 50.0)
         self.declare_parameter('command_timeout', 0.5)
+        self.declare_parameter('mock_hardware', False)
         
         # Get parameters
         self.serial_port = self.get_parameter('serial_port').value
@@ -42,6 +43,7 @@ class TeensySerialBridge(Node):
         self.timeout = self.get_parameter('timeout').value
         self.publish_rate = self.get_parameter('publish_rate').value
         self.command_timeout = self.get_parameter('command_timeout').value
+        self.mock_hardware = self.get_parameter('mock_hardware').value
         
         # Initialize serial connection
         self.serial_conn = None
@@ -216,6 +218,11 @@ class TeensySerialBridge(Node):
                     if self.connected and self.serial_conn:
                         self.serial_conn.write(command.encode('utf-8'))
                         self.get_logger().debug(f'Sent joint command: {command.strip()}')
+                    
+                    # If mocking, loop back the command as current state
+                    if self.mock_hardware:
+                        self.last_joint_state.position = list(msg.position)
+                        self.last_joint_state.header.stamp = self.get_clock().now().to_msg()
             else:
                 self.get_logger().warn(f'Invalid joint command - expected 6 joints, got {len(msg.position)}')
                 
