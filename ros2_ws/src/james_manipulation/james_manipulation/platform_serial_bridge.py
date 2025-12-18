@@ -46,6 +46,7 @@ class PlatformSerialBridge(Node):
         self.connected = False
         self.last_command_time = time.time()
         self.message_buffer = b""  # Binary buffer
+        self.serial_lock = threading.Lock()
         
         # Binary protocol: 21 bytes total
         # [0xAA][type][left_x][left_y][left_z][right_x][right_y][right_rot][mode][gripper][timestamp][checksum]
@@ -120,40 +121,53 @@ class PlatformSerialBridge(Node):
                         continue
                 
                 # Read data from Platform Controller
-                if self.serial_conn and self.serial_conn.in_waiting > 0:
-                    try:
+                with self.serial_lock:
+                    if self.serial_conn and self.serial_conn.in_waiting > 0:
                         data = self.serial_conn.read(self.serial_conn.in_waiting)
-                        self.message_buffer += data
-                        
-                        # Process complete packets
-                        while len(self.message_buffer) >= self.PACKET_SIZE:
-                            # Find packet start
-                            start_idx = self.message_buffer.find(self.PACKET_START)
-                            if start_idx == -1:
-                                self.message_buffer = b""
-                                break
-                            
-                            # Remove data before packet start
-                            if start_idx > 0:
-                                self.message_buffer = self.message_buffer[start_idx:]
-                            
-                            # Check if we have a complete packet
-                            if len(self.message_buffer) >= self.PACKET_SIZE:
-                                packet = self.message_buffer[:self.PACKET_SIZE]
-                                self.message_buffer = self.message_buffer[self.PACKET_SIZE:]
-                                self.process_binary_packet(packet)
-                            else:
-                                break
-                                
-                    except Exception as e:
-                        self.get_logger().warn(f'Error reading serial data: {e}')
+                        if data:
+                            self.message_buffer += data
                 
-                time.sleep(0.001)  # Small delay to prevent CPU spinning
+                # Process complete packets
+                if len(self.message_buffer) >= self.PACKET_SIZE:
+                    # Process outside the lock to keep lock time minimal
+                    self.process_buffer()
                 
+                time.sleep(0.005)  # Slightly longer delay
+                
+            except serial.SerialException as e:
+                self.get_logger().error(f'Serial connection lost on {self.serial_port}: {e}')
+                self.connected = False
+                if self.serial_conn:
+                    try:
+                        self.serial_conn.close()
+                    except:
+                        pass
+                time.sleep(1.0)
             except Exception as e:
                 self.get_logger().error(f'Serial communication error: {e}')
                 self.connected = False
                 time.sleep(1.0)
+    
+    def process_buffer(self):
+        """Process the binary message buffer for complete packets"""
+        while len(self.message_buffer) >= self.PACKET_SIZE:
+            # Find packet start
+            start_idx = self.message_buffer.find(self.PACKET_START)
+            if start_idx == -1:
+                self.message_buffer = b""
+                break
+            
+            # Remove data before packet start
+            if start_idx > 0:
+                self.message_buffer = self.message_buffer[start_idx:]
+            
+            # Check if we have a complete packet
+            if len(self.message_buffer) >= self.PACKET_SIZE:
+                packet = self.message_buffer[:self.PACKET_SIZE]
+                self.message_buffer = self.message_buffer[self.PACKET_SIZE:]
+                self.process_binary_packet(packet)
+            else:
+                break
     
     def process_binary_packet(self, packet):
         """Process binary packet from Platform Controller"""
@@ -217,11 +231,15 @@ class PlatformSerialBridge(Node):
     def arm_status_callback(self, msg):
         """Callback for arm status messages to forward back to Platform Controller"""
         try:
-            if self.connected and self.serial_conn:
-                # Forward status back to Platform Controller
-                self.serial_conn.write((msg.data + '\n').encode('utf-8'))
-                self.get_logger().debug(f'Sent status to platform: {msg.data}')
+            with self.serial_lock:
+                if self.connected and self.serial_conn:
+                    # Forward status back to Platform Controller
+                    self.serial_conn.write((msg.data + '\n').encode('utf-8'))
+                    self.get_logger().debug(f'Sent status to platform: {msg.data}')
                 
+        except serial.SerialException as e:
+            self.get_logger().warn(f'Serial write failed: {e}')
+            self.connected = False
         except Exception as e:
             self.get_logger().warn(f'Error sending status to platform: {e}')
     

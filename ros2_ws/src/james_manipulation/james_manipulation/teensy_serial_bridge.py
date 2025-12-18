@@ -48,6 +48,7 @@ class TeensySerialBridge(Node):
         self.connected = False
         self.last_joint_state = JointState()
         self.last_command_time = time.time()
+        self.serial_lock = threading.Lock()
         
         # Joint names for AR4-MK3 (matching URDF prefix)
         self.joint_names = ['arm_joint_1', 'arm_joint_2', 'arm_joint_3', 'arm_joint_4', 'arm_joint_5', 'arm_joint_6']
@@ -131,16 +132,26 @@ class TeensySerialBridge(Node):
                         continue
                 
                 # Read data from Teensy
-                if self.serial_conn and self.serial_conn.in_waiting > 0:
+                with self.serial_lock:
+                    if self.serial_conn and self.serial_conn.in_waiting > 0:
+                        try:
+                            line = self.serial_conn.readline().decode('utf-8').strip()
+                            if line:
+                                self.process_teensy_message(line)
+                        except UnicodeDecodeError:
+                            pass
+                
+                time.sleep(0.005)  
+                
+            except serial.SerialException as e:
+                self.get_logger().error(f'Serial connection lost on {self.serial_port}: {e}')
+                self.connected = False
+                if self.serial_conn:
                     try:
-                        line = self.serial_conn.readline().decode('utf-8').strip()
-                        if line:
-                            self.process_teensy_message(line)
-                    except Exception as e:
-                        self.get_logger().warn(f'Error reading serial data: {e}')
-                
-                time.sleep(0.001)  # Small delay to prevent CPU spinning
-                
+                        self.serial_conn.close()
+                    except:
+                        pass
+                time.sleep(1.0)
             except Exception as e:
                 self.get_logger().error(f'Serial communication error: {e}')
                 self.connected = False
@@ -201,12 +212,16 @@ class TeensySerialBridge(Node):
                 command = 'MJ ' + ' '.join(joint_angles) + '\n'
                 
                 # Send command to Teensy
-                self.serial_conn.write(command.encode('utf-8'))
-                
-                self.get_logger().debug(f'Sent joint command: {command.strip()}')
+                with self.serial_lock:
+                    if self.connected and self.serial_conn:
+                        self.serial_conn.write(command.encode('utf-8'))
+                        self.get_logger().debug(f'Sent joint command: {command.strip()}')
             else:
                 self.get_logger().warn(f'Invalid joint command - expected 6 joints, got {len(msg.position)}')
                 
+        except serial.SerialException as e:
+            self.get_logger().warn(f'Serial write to Teensy failed: {e}')
+            self.connected = False
         except Exception as e:
             self.get_logger().error(f'Error sending joint command: {e}')
     
