@@ -47,10 +47,10 @@ class PlatformSerialBridge(Node):
         self.last_command_time = time.time()
         self.message_buffer = b""  # Binary buffer
         
-        # Binary protocol: 19 bytes total
+        # Binary protocol: 21 bytes total
         # [0xAA][type][left_x][left_y][left_z][right_x][right_y][right_rot][mode][gripper][timestamp][checksum]
-        # 1 + 1 + 2 + 2 + 2 + 2 + 2 + 2 + 1 + 1 + 4 + 1 = 19 bytes
-        self.PACKET_SIZE = 19
+        # 1 + 1 + 2 + 2 + 2 + 2 + 2 + 2 + 1 + 1 + 4 + 1 = 21 bytes
+        self.PACKET_SIZE = 21
         self.PACKET_START = 0xAA
         
         # ROS2 publishers and subscribers
@@ -158,13 +158,25 @@ class PlatformSerialBridge(Node):
     def process_binary_packet(self, packet):
         """Process binary packet from Platform Controller"""
         try:
-            # Unpack binary data
-            unpacked = struct.unpack('<BBhhhhhBBLB', packet)
-            start, msg_type, left_x, left_y, left_z, right_x, right_y, right_rot, mode, gripper, combined = unpacked
-            
-            # Extract timestamp and checksum from combined field
-            timestamp = combined & 0xFFFFFF00
-            checksum = combined & 0xFF
+            # Unpack binary data:
+            # B: Start (0xAA)
+            # B: Type
+            # h: left_x
+            # h: left_y
+            # h: left_z
+            # h: right_x
+            # h: right_y
+            # h: right_rot
+            # B: mode
+            # B: gripper
+            # I: timestamp
+            # B: checksum
+            if len(packet) != self.PACKET_SIZE:
+                self.get_logger().debug(f'Invalid packet size: {len(packet)}')
+                return
+
+            unpacked = struct.unpack('<BBhhhhhhBBIB', packet)
+            start, msg_type, left_x, left_y, left_z, right_x, right_y, right_rot, mode, gripper, timestamp, checksum = unpacked
             
             # Verify checksum (simple sum of all bytes except checksum)
             calc_checksum = sum(packet[:-1]) & 0xFF
@@ -195,10 +207,10 @@ class PlatformSerialBridge(Node):
                 msg.data = json.dumps(data)
                 self.arm_command_pub.publish(msg)
                 
-                self.get_logger().info(f'Forwarded command: {data}')
+                self.get_logger().debug(f'Forwarded command: {data}')
             
         except struct.error as e:
-            self.get_logger().warn(f'Invalid binary packet: {e}')
+            self.get_logger().warn(f'Invalid binary packet structure: {e}')
         except Exception as e:
             self.get_logger().error(f'Error processing binary packet: {e}')
     
