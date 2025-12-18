@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<robot xmlns:xacro="http://wiki.ros.org/xacro">
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
   <xacro:macro name="ar_robot" params="
     tf_prefix
     parent
@@ -7,7 +7,7 @@
     robot_parameters_file
   ">
 
-    <xacro:property name="robot_parameters" value="${xacro.load_yaml(robot_parameters_file)}"/>
+    <xacro:property name="robot_parameters" value="${load_yaml(robot_parameters_file)}"/>
 
     <joint name="${tf_prefix}base_joint" type="fixed">
       <xacro:insert_block name="origin" />
