@@ -75,6 +75,13 @@ class TeensySerialBridge(Node):
             10
         )
         
+        self.raw_cmd_sub = self.create_subscription(
+            String,
+            '/arm/teensy_raw_cmd',
+            self.raw_command_callback,
+            10
+        )
+        
         # Status publisher
         self.status_pub = self.create_publisher(
             String,
@@ -231,6 +238,50 @@ class TeensySerialBridge(Node):
             self.connected = False
         except Exception as e:
             self.get_logger().error(f'Error sending joint command: {e}')
+            
+    def raw_command_callback(self, msg):
+        """Send raw command string to Teensy"""
+        try:
+            if not self.connected or not self.serial_conn:
+                if not self.mock_hardware:
+                    self.get_logger().warn('Cannot send raw command - Teensy not connected')
+                    return
+            
+            command = msg.data
+            if not command.endswith('\n'):
+                command += '\n'
+                
+            self.get_logger().info(f'Sending raw command to Teensy: {command.strip()}')
+            
+            with self.serial_lock:
+                if self.connected and self.serial_conn:
+                    self.serial_conn.write(command.encode('utf-8'))
+                
+                # If mocking, simulate responses for testing
+                if self.mock_hardware:
+                    if command.startswith('HM '):
+                        # Simulate homing: set respective joint to 0
+                        joint_match = re.search(r'J(\d+)', command)
+                        if joint_match:
+                            j_idx = int(joint_match.group(1)) - 1
+                            if 0 <= j_idx < 6:
+                                self.last_joint_state.position[j_idx] = 0.0
+                                self.get_logger().info(f'[Mock] Homing J{j_idx+1} complete')
+                    
+                    elif command.startswith('MJ '):
+                        # Simulate move command
+                        joint_pattern = r'J(\d+):([-+]?\d*\.?\d+)'
+                        matches = re.findall(joint_pattern, command)
+                        for joint_num, angle_str in matches:
+                            j_idx = int(joint_num) - 1
+                            if 0 <= j_idx < 6:
+                                self.last_joint_state.position[j_idx] = math.radians(float(angle_str))
+                        self.get_logger().info(f'[Mock] Bulk move MJ complete')
+                        
+                self.last_joint_state.header.stamp = self.get_clock().now().to_msg()
+                
+        except Exception as e:
+            self.get_logger().error(f'Error sending raw command: {e}')
     
     def publish_joint_state(self):
         """Publish current joint state"""

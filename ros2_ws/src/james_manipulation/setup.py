@@ -28,6 +28,7 @@ setup(
             'platform_serial_bridge = james_manipulation.platform_serial_bridge:main',
             'arm_cartesian_controller = james_manipulation.arm_cartesian_controller:main',
             'teensy_serial_bridge = james_manipulation.teensy_serial_bridge:main',
+            'calibrate_arm = james_manipulation.calibrate_arm:main',
         ],
     },
 )
