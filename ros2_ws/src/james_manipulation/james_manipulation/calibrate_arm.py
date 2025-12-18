@@ -10,6 +10,9 @@ class ArmCalibrator(Node):
     def __init__(self):
         super().__init__('arm_calibrator')
         
+        self.declare_parameter('step_by_step', False)
+        self.step_by_step = self.get_parameter('step_by_step').value
+        
         self.raw_cmd_pub = self.create_publisher(String, '/arm/teensy_raw_cmd', 10)
         self.joint_state_sub = self.create_subscription(JointState, '/joint_states', self.joint_state_callback, 10)
         
@@ -54,8 +57,18 @@ class ArmCalibrator(Node):
         self.raw_cmd_pub.publish(msg)
         self.get_logger().info(f'Sent: {cmd}')
 
+    def confirm_step(self, description):
+        """Pause for user confirmation if step_by_step is enabled"""
+        if self.step_by_step:
+            self.get_logger().info(f'---')
+            self.get_logger().info(f'PROMPT: {description}')
+            input("Press ENTER to proceed or Ctrl+C to stop...")
+            self.get_logger().info(f'Proceeding...')
+
     def run_calibration(self):
         self.get_logger().info('Starting Custom Homing Sequence...')
+        if self.step_by_step:
+            self.get_logger().info('STEP-BY-STEP MODE ACTIVE')
         
         # Wait for first joint state
         while rclpy.ok() and not self.received_state:
@@ -63,60 +76,71 @@ class ArmCalibrator(Node):
             rclpy.spin_once(self, timeout_sec=0.1)
 
         # 1. Joint 6 Home
+        self.confirm_step('Home Joint 6')
         self.send_raw('HM J6')
         time.sleep(2.0) # Buffer for homing to start
         # Wait for J6 to be approx 0 (assuming HM resets to 0)
         self.wait_for_joints([None, None, None, None, None, 0.0], timeout=60.0)
         
         # Move J6 to -90
+        self.confirm_step('Move J6 to -90 degrees')
         self.send_raw('MJ J1:0 J2:0 J3:0 J4:0 J5:0 J6:-90')
         self.wait_for_joints([None, None, None, None, None, math.radians(-90)])
 
         # 2. Joint 5 Home
+        self.confirm_step('Home Joint 5')
         self.send_raw('HM J5')
         time.sleep(2.0)
         self.wait_for_joints([None, None, None, None, 0.0, None])
         
         # Move J5 to 45
-        # Note: We keep J6 at -90
+        self.confirm_step('Move J5 to 45 degrees')
         self.send_raw('MJ J1:0 J2:0 J3:0 J4:0 J5:45 J6:-90')
         self.wait_for_joints([None, None, None, None, math.radians(45), math.radians(-90)])
 
         # 3. Joint 4 Home
+        self.confirm_step('Home Joint 4')
         self.send_raw('HM J4')
         time.sleep(2.0)
         self.wait_for_joints([None, None, None, 0.0, None, None])
 
         # 4. Joint 3 Home
+        self.confirm_step('Home Joint 3')
         self.send_raw('HM J3')
         time.sleep(2.0)
         self.wait_for_joints([None, None, 0.0, None, None, None])
         
         # Move J3 to 90
+        self.confirm_step('Move Joint 3 to 90 degrees')
         self.send_raw('MJ J1:0 J2:0 J3:90 J4:0 J5:45 J6:-90')
         self.wait_for_joints([None, None, math.radians(90), None, None, None])
 
         # 5. Joint 1 Home
+        self.confirm_step('Home Joint 1')
         self.send_raw('HM J1')
         time.sleep(2.0)
         self.wait_for_joints([0.0, None, None, None, None, None])
         
         # Move J1 to 90
+        self.confirm_step('Move Joint 1 to 90 degrees')
         self.send_raw('MJ J1:90 J2:0 J3:90 J4:0 J5:45 J6:-90')
         self.wait_for_joints([math.radians(90), None, None, None, None, None])
 
         # 6. Joint 2 Home
+        self.confirm_step('Home Joint 2 (Final Joint)')
         self.get_logger().info('Initializing Joint 2 (last one)...')
         self.send_raw('HM J2')
         time.sleep(2.0)
         self.wait_for_joints([None, 0.0, None, None, None, None])
 
         # 7. Move Joint 1 and 3 back to 0
+        self.confirm_step('Move Joint 1 and 3 back to 0')
         self.get_logger().info('Moving Joint 1 and 3 back to 0...')
         self.send_raw('MJ J1:0 J2:0 J3:0 J4:0 J5:45 J6:-90') # Keeping J5/J6 safe
         self.wait_for_joints([0.0, None, 0.0, None, None, None])
         
         # Final Move to Default 0
+        self.confirm_step('Return all joints to zero')
         self.send_raw('MJ J1:0 J2:0 J3:0 J4:0 J5:0 J6:0')
         self.wait_for_joints([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
 
