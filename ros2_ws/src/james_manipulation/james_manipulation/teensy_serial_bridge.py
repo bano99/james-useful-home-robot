@@ -37,21 +37,22 @@ class TeensySerialBridge(Node):
         self.declare_parameter('command_timeout', 0.5)
         self.declare_parameter('mock_hardware', False)
         
-        # Default config path - use package-relative path
+        # Default config path - use ROS2 package share directory
         import os
+        from ament_index_python.packages import get_package_share_directory
         
-        # Get the directory where this Python file is located
-        # This will work both in development (src) and installed (install) contexts
-        package_dir = os.path.dirname(os.path.abspath(__file__))
-        
-        # Config file is in the same package directory structure
-        # james_manipulation/james_manipulation/teensy_serial_bridge.py
-        # james_manipulation/config/ARconfig.json
-        default_config_path = os.path.join(
-            os.path.dirname(package_dir),  # Go up one level from james_manipulation/james_manipulation
-            'config',
-            'ARconfig.json'
-        )
+        try:
+            # Try to get the installed package share directory
+            package_share_dir = get_package_share_directory('james_manipulation')
+            default_config_path = os.path.join(package_share_dir, 'config', 'ARconfig.json')
+        except Exception:
+            # Fallback for development: use relative to this file
+            package_dir = os.path.dirname(os.path.abspath(__file__))
+            default_config_path = os.path.join(
+                os.path.dirname(package_dir),
+                'config',
+                'ARconfig.json'
+            )
 
         self.declare_parameter('config_file', default_config_path)
 
