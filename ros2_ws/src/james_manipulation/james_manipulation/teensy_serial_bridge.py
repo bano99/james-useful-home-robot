@@ -37,20 +37,21 @@ class TeensySerialBridge(Node):
         self.declare_parameter('command_timeout', 0.5)
         self.declare_parameter('mock_hardware', False)
         
-        # Default config path
+        # Default config path - use package-relative path
         import os
-        from ament_index_python.packages import get_package_share_directory
-        # We try to find the src path for development or share path for install
-        # For now, default to the one we just created in src if running from source context, 
-        # or we can use a fixed path. 
-        # Let's set a default that points to the expected location in the workspace
+        
+        # Get the directory where this Python file is located
+        # This will work both in development (src) and installed (install) contexts
+        package_dir = os.path.dirname(os.path.abspath(__file__))
+        
+        # Config file is in the same package directory structure
+        # james_manipulation/james_manipulation/teensy_serial_bridge.py
+        # james_manipulation/config/ARconfig.json
         default_config_path = os.path.join(
-            os.getcwd(), 'src', 'james_manipulation', 'james_manipulation', 'config', 'ARconfig.json'
-        ) 
-        # Adjust for redundancy if needed, but better to allow override
-        if not os.path.exists(default_config_path):
-             # Try absolute path based on known workspace structure
-             default_config_path = "c:\\Users\\denis\\Documents\\James_Useful_Home_Robot\\ros2_ws\\src\\james_manipulation\\config\\ARconfig.json"
+            os.path.dirname(package_dir),  # Go up one level from james_manipulation/james_manipulation
+            'config',
+            'ARconfig.json'
+        )
 
         self.declare_parameter('config_file', default_config_path)
 
