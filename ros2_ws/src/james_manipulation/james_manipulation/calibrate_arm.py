@@ -84,7 +84,7 @@ class ArmCalibrator(Node):
         
         # Move J6 to -90
         self.confirm_step('Move J6 to -90 degrees')
-        self.send_raw('MJ J1:0 J2:0 J3:0 J4:0 J5:0 J6:-90')
+        self.send_raw('MTA0B0C0D0E0F-90')
         self.wait_for_joints([None, None, None, None, None, math.radians(-90)])
 
         # 2. Joint 5 Home
@@ -95,7 +95,7 @@ class ArmCalibrator(Node):
         
         # Move J5 to 45
         self.confirm_step('Move J5 to 45 degrees')
-        self.send_raw('MJ J1:0 J2:0 J3:0 J4:0 J5:45 J6:-90')
+        self.send_raw('MTA0B0C0D0E45F-90')
         self.wait_for_joints([None, None, None, None, math.radians(45), math.radians(-90)])
 
         # 3. Joint 4 Home
@@ -112,7 +112,7 @@ class ArmCalibrator(Node):
         
         # Move J3 to 90
         self.confirm_step('Move Joint 3 to 90 degrees')
-        self.send_raw('MJ J1:0 J2:0 J3:90 J4:0 J5:45 J6:-90')
+        self.send_raw('MTA0B0C90D0E45F-90')
         self.wait_for_joints([None, None, math.radians(90), None, None, None])
 
         # 5. Joint 1 Home
@@ -123,7 +123,7 @@ class ArmCalibrator(Node):
         
         # Move J1 to 90
         self.confirm_step('Move Joint 1 to 90 degrees')
-        self.send_raw('MJ J1:90 J2:0 J3:90 J4:0 J5:45 J6:-90')
+        self.send_raw('MTA90B0C90D0E45F-90')
         self.wait_for_joints([math.radians(90), None, None, None, None, None])
 
         # 6. Joint 2 Home
@@ -136,12 +136,12 @@ class ArmCalibrator(Node):
         # 7. Move Joint 1 and 3 back to 0
         self.confirm_step('Move Joint 1 and 3 back to 0')
         self.get_logger().info('Moving Joint 1 and 3 back to 0...')
-        self.send_raw('MJ J1:0 J2:0 J3:0 J4:0 J5:45 J6:-90') # Keeping J5/J6 safe
+        self.send_raw('MTA0B0C0D0E45F-90') # Keeping J5/J6 safe
         self.wait_for_joints([0.0, None, 0.0, None, None, None])
         
         # Final Move to Default 0
         self.confirm_step('Return all joints to zero')
-        self.send_raw('MJ J1:0 J2:0 J3:0 J4:0 J5:0 J6:0')
+        self.send_raw('MTA0B0C0D0E0F0')
         self.wait_for_joints([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
 
         self.get_logger().info('Calibration Sequence Complete!')

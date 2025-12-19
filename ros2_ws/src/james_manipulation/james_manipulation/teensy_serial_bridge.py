@@ -36,6 +36,8 @@ class TeensySerialBridge(Node):
         self.declare_parameter('publish_rate', 50.0)
         self.declare_parameter('command_timeout', 0.5)
         self.declare_parameter('mock_hardware', False)
+        self.declare_parameter('robot_model', 'mk3')
+        self.declare_parameter('firmware_version', '2.1.0')
         
         # Get parameters
         self.serial_port = self.get_parameter('serial_port').value
@@ -44,15 +46,19 @@ class TeensySerialBridge(Node):
         self.publish_rate = self.get_parameter('publish_rate').value
         self.command_timeout = self.get_parameter('command_timeout').value
         self.mock_hardware = self.get_parameter('mock_hardware').value
+        self.robot_model = self.get_parameter('robot_model').value
+        self.firmware_version = self.get_parameter('firmware_version').value
         
         # Initialize serial connection
         self.serial_conn = None
         self.connected = False
+        self.initialized = False
         self.last_joint_state = JointState()
         self.last_command_time = time.time()
         self.serial_lock = threading.Lock()
         
-        # Joint names for AR4-MK3 (matching URDF prefix)
+        # Joint labels used by the firmware (A=J1, B=J2, C=J3, D=J4, E=J5, F=J6)
+        self.joint_labels = ['A', 'B', 'C', 'D', 'E', 'F']
         self.joint_names = ['arm_joint_1', 'arm_joint_2', 'arm_joint_3', 'arm_joint_4', 'arm_joint_5', 'arm_joint_6']
         
         # Initialize joint state message
@@ -106,7 +112,7 @@ class TeensySerialBridge(Node):
         self.serial_thread.daemon = True
         self.serial_thread.start()
         
-        self.get_logger().info(f'Teensy Serial Bridge started on {self.serial_port}')
+        self.get_logger().info(f'Teensy Serial Bridge started on {self.serial_port} (Model: {self.robot_model})')
     
     def connect_serial(self):
         """Establish serial connection to Teensy 4.1"""
@@ -121,25 +127,63 @@ class TeensySerialBridge(Node):
             )
             
             self.connected = True
+            self.initialized = False
             self.get_logger().info(f'Connected to Teensy on {self.serial_port}')
+            
+            # Send initialization command
+            self.send_initialization()
+            
             return True
             
         except Exception as e:
             self.connected = False
             self.get_logger().warn(f'Failed to connect to {self.serial_port}: {e}')
             return False
-    
+
+    def send_initialization(self):
+        """Send calibration/initialization message to robot"""
+        # Format: STA<version>B<model>
+        command = f"STA{self.firmware_version}B{self.robot_model}\n"
+        with self.serial_lock:
+            if self.connected and self.serial_conn:
+                self.serial_conn.write(command.encode('utf-8'))
+                self.get_logger().info(f'Sent initialization: {command.strip()}')
+
     def serial_communication_loop(self):
         """Main serial communication loop running in separate thread"""
         while rclpy.ok():
             try:
                 if not self.connected:
                     if self.connect_serial():
-                        time.sleep(0.1)
+                        # Wait a bit longer for Teensy to boot after reset on connection
+                        time.sleep(2.0)
+                        self.send_initialization()
+                        time.sleep(0.5)
                     else:
-                        time.sleep(1.0)  # Wait before retry
+                        time.sleep(1.0)
                         continue
                 
+                # Periodically retry initialization if not yet initialized
+                now = time.time()
+                if not self.initialized and (now % 5.0 < 0.1):
+                    self.get_logger().info("Handshake not complete, retrying...")
+                    self.send_initialization()
+                
+                # Periodically request position/velocity if not using broadcast
+                # (Note: firmware stateTRAJ loop needs query or broadcast? 
+                #  Looking at firmware loop, it only responds to commands. 
+                #  Actually, it processes commands as they come. 
+                #  Usually, we query JP to get position.)
+                
+                # Query joint positions every few iterations to keep state updated
+                # However, usually the firmware might be modified to broadcast.
+                # In ycheng517 firmware, JP/JV are query-based.
+                
+                # Request positions periodicially
+                now = time.time()
+                if self.initialized and (now % 0.1 < 0.01): # roughly 10Hz query
+                   self.query_state()
+
                 # Read data from Teensy
                 with self.serial_lock:
                     if self.serial_conn and self.serial_conn.in_waiting > 0:
@@ -155,6 +199,7 @@ class TeensySerialBridge(Node):
             except serial.SerialException as e:
                 self.get_logger().error(f'Serial connection lost on {self.serial_port}: {e}')
                 self.connected = False
+                self.initialized = False
                 if self.serial_conn:
                     try:
                         self.serial_conn.close()
@@ -166,32 +211,45 @@ class TeensySerialBridge(Node):
                 self.connected = False
                 time.sleep(1.0)
     
+    def query_state(self):
+        """Query joint positions and velocities"""
+        with self.serial_lock:
+            if self.connected and self.serial_conn:
+                self.serial_conn.write(b"JP\n")
+                # self.serial_conn.write(b"JV\n") # Option to query velocity too
+
     def process_teensy_message(self, message):
         """Process incoming message from Teensy (joint state feedback)"""
         try:
-            # Parse AR4 joint state response format
-            # Expected format: "JS J1:45.5 J2:30.2 J3:60.1 J4:0.0 J5:45.0 J6:0.0"
-            if message.startswith('JS '):
-                joint_data = message[3:]  # Remove 'JS ' prefix
+            # Parse AR4 joint state response format (ycheng517 protocol)
+            # JP initialization ack: "STA1B1C2.1.0Dmk3"
+            if message.startswith('ST'):
+                self.initialized = True
+                self.get_logger().info(f'Handshake complete: {message}')
+            
+            # Joint position update: "JPA<val>B<val>C<val>D<val>E<val>F<val>"
+            elif message.startswith('JP'):
+                joint_data = message[2:]
+                self.parse_joint_feedback(joint_data, 'position')
                 
-                # Parse joint values using regex
-                joint_pattern = r'J(\d+):([-+]?\d*\.?\d+)'
-                matches = re.findall(joint_pattern, joint_data)
+            # Joint velocity update: "JVA<val>B<val>C<val>D<val>E<val>F<val>"
+            elif message.startswith('JV'):
+                joint_data = message[2:]
+                self.parse_joint_feedback(joint_data, 'velocity')
+            
+            # Estop status: "ES0" or "ES1"
+            elif message.startswith('ES'):
+                estop = message[2:] == '1'
+                if estop:
+                    self.get_logger().error('EMERGENCY STOP DETECTED')
                 
-                if len(matches) == 6:
-                    # Update joint state
-                    self.last_joint_state.header.stamp = self.get_clock().now().to_msg()
-                    
-                    for i, (joint_num, angle_str) in enumerate(matches):
-                        joint_index = int(joint_num) - 1  # Convert to 0-based index
-                        if 0 <= joint_index < 6:
-                            # Convert degrees to radians
-                            angle_rad = math.radians(float(angle_str))
-                            self.last_joint_state.position[joint_index] = angle_rad
-                    
-                    self.get_logger().debug(f'Updated joint state: {matches}')
-                else:
-                    self.get_logger().warn(f'Invalid joint state format: {message}')
+            # Internal debug: "DB: ..."
+            elif message.startswith('DB:'):
+                self.get_logger().debug(f'Teensy Debug: {message[3:].strip()}')
+            
+            # Error: "ER: ..."
+            elif message.startswith('ER:'):
+                self.get_logger().error(f'Teensy Error: {message[3:].strip()}')
             
             else:
                 # Log other messages for debugging
@@ -200,39 +258,71 @@ class TeensySerialBridge(Node):
         except Exception as e:
             self.get_logger().warn(f'Error parsing Teensy message: {message} - {e}')
     
+    def parse_joint_feedback(self, data, field):
+        """Helper to parse A...B... format into joint states"""
+        self.last_joint_state.header.stamp = self.get_clock().now().to_msg()
+        for i, label in enumerate(self.joint_labels):
+            start_idx = data.find(label)
+            if start_idx == -1: continue
+            
+            # Find next label or end
+            next_label_idx = -1
+            if i < len(self.joint_labels) - 1:
+                next_label_idx = data.find(self.joint_labels[i+1], start_idx + 1)
+            
+            val_str = data[start_idx+1:next_label_idx] if next_label_idx != -1 else data[start_idx+1:]
+            try:
+                val = float(val_str)
+                if field == 'position':
+                    self.last_joint_state.position[i] = math.radians(val)
+                elif field == 'velocity':
+                    self.last_joint_state.velocity[i] = math.radians(val)
+            except ValueError:
+                pass
+
     def joint_command_callback(self, msg):
         """Send joint commands to Teensy"""
         try:
             if not self.connected or not self.serial_conn:
-                self.get_logger().warn('Cannot send joint command - Teensy not connected')
+                self.get_logger().warn('Cannot send joint command - Teensy not connected', throttle_duration_sec=2.0)
                 return
             
+            if not self.initialized:
+                self.get_logger().warn('Cannot send joint command - Waiting for handshake', throttle_duration_sec=2.0)
+                return
+
             self.last_command_time = time.time()
             
-            # Format joint command for AR4 protocol
-            # Expected format: "MJ J1:45.5 J2:30.2 J3:60.1 J4:0.0 J5:45.0 J6:0.0"
+            # Format joint command (ycheng517 protocol: MTA<val>B<val>...)
             if len(msg.position) >= 6:
-                joint_angles = []
+                cmd_parts = []
                 for i in range(6):
-                    # Convert radians to degrees
                     angle_deg = math.degrees(msg.position[i])
-                    joint_angles.append(f'J{i+1}:{angle_deg:.2f}')
+                    cmd_parts.append(f'{self.joint_labels[i]}{angle_deg:.4f}')
                 
-                command = 'MJ ' + ' '.join(joint_angles) + '\n'
+                command = 'MT' + ''.join(cmd_parts) + '\n'
                 
-                # Send command to Teensy
                 with self.serial_lock:
                     if self.connected and self.serial_conn:
                         self.serial_conn.write(command.encode('utf-8'))
-                        self.get_logger().debug(f'Sent joint command: {command.strip()}')
+                        self.get_logger().debug(f'Sent MT command: {command.strip()}')
                     
-                    # If mocking, loop back the command as current state
                     if self.mock_hardware:
                         self.last_joint_state.position = list(msg.position)
                         self.last_joint_state.header.stamp = self.get_clock().now().to_msg()
-            else:
-                self.get_logger().warn(f'Invalid joint command - expected 6 joints, got {len(msg.position)}')
+            
+            # Also handle velocity commands if provided
+            if len(msg.velocity) >= 6 and any(v != 0.0 for v in msg.velocity):
+                cmd_parts = []
+                for i in range(6):
+                    vel_deg = math.degrees(msg.velocity[i])
+                    cmd_parts.append(f'{self.joint_labels[i]}{vel_deg:.4f}')
                 
+                command = 'MV' + ''.join(cmd_parts) + '\n'
+                with self.serial_lock:
+                    if self.connected and self.serial_conn:
+                        self.serial_conn.write(command.encode('utf-8'))
+            
         except serial.SerialException as e:
             self.get_logger().warn(f'Serial write to Teensy failed: {e}')
             self.connected = False
@@ -257,28 +347,11 @@ class TeensySerialBridge(Node):
                 if self.connected and self.serial_conn:
                     self.serial_conn.write(command.encode('utf-8'))
                 
-                # If mocking, simulate responses for testing
+                # Simple mock for debugging
                 if self.mock_hardware:
-                    if command.startswith('HM '):
-                        # Simulate homing: set respective joint to 0
-                        joint_match = re.search(r'J(\d+)', command)
-                        if joint_match:
-                            j_idx = int(joint_match.group(1)) - 1
-                            if 0 <= j_idx < 6:
-                                self.last_joint_state.position[j_idx] = 0.0
-                                self.get_logger().info(f'[Mock] Homing J{j_idx+1} complete')
-                    
-                    elif command.startswith('MJ '):
-                        # Simulate move command
-                        joint_pattern = r'J(\d+):([-+]?\d*\.?\d+)'
-                        matches = re.findall(joint_pattern, command)
-                        for joint_num, angle_str in matches:
-                            j_idx = int(joint_num) - 1
-                            if 0 <= j_idx < 6:
-                                self.last_joint_state.position[j_idx] = math.radians(float(angle_str))
-                        self.get_logger().info(f'[Mock] Bulk move MJ complete')
-                        
-                self.last_joint_state.header.stamp = self.get_clock().now().to_msg()
+                    if command.startswith('MT'):
+                         self.process_teensy_message('STack') # Mock init
+                         self.process_teensy_message('JP' + command[2:])
                 
         except Exception as e:
             self.get_logger().error(f'Error sending raw command: {e}')
@@ -303,6 +376,7 @@ class TeensySerialBridge(Node):
             status = {
                 'type': 'teensy_bridge_status',
                 'connected': self.connected,
+                'initialized': self.initialized,
                 'serial_port': self.serial_port,
                 'last_command_age': command_age,
                 'joint_state_valid': len(self.last_joint_state.position) == 6,
