@@ -95,20 +95,12 @@ typedef struct RemoteControlData {
 
 **Technical Details**:
 ```cpp
-// Serial protocol - Platform Controller → Jetson
-{
-  "type": "manual_control",
-  "left_x": -127 to 127,
-  "left_y": -127 to 127,
-  "left_z": -127 to 127,
-  "right_x": -127 to 127,      // Only if switch is set
-  "right_y": -127 to 127,      // Only if switch is set
-  "right_rot": -127 to 127,    // Only if switch is set
-  "switch_mode": "platform" or "vertical",
-  "timestamp": millis()
-}
+// Serial protocol - Platform Controller → Jetson (Binary 21 bytes)
+[0xAA][type][left_x][left_y][left_z][right_x][right_y][right_rot][mode][gripper][timestamp][checksum]
+// left/right joysticks: int16
+// timestamp: uint32
 
-// Serial protocol - Jetson → Platform Controller
+// Serial protocol - Jetson → Platform Controller (JSON Text)
 {
   "type": "arm_status",
   "ik_success": true/false,
@@ -157,14 +149,14 @@ ros2_ws/src/james_manipulation/
 
 **Objectives**:
 - Create ROS2 node to interface with Platform Controller via USB Serial
-- Parse incoming JSON messages from Platform Controller
-- Publish arm control commands to ROS2 topic
+- Parse incoming **Binary** messages from Platform Controller (21 bytes)
+- Publish arm control commands to ROS2 topic (as JSON String for internal compatibility)
 - Subscribe to arm status and forward to Platform Controller
 - Handle serial connection errors and reconnection
 
 **Acceptance Criteria**:
-- Serial port opens successfully (/dev/ttyUSB0 at 115200 baud)
-- JSON messages parsed correctly
+- Serial port opens successfully (/dev/ttyACM0 at 115200 baud)
+- **Binary** packets parsed correctly (including checksum verification)
 - Publishes to `/arm/manual_cartesian_cmd` topic
 - Subscribes to `/arm/status` topic
 - Handles disconnection and reconnection gracefully
@@ -173,6 +165,15 @@ ros2_ws/src/james_manipulation/
 **ROS2 Topics**:
 - Publish: `/arm/manual_cartesian_cmd` (std_msgs/String - JSON)
 - Subscribe: `/arm/status` (std_msgs/String - JSON)
+
+**Protocol (Binary 21 bytes)**:
+- `[0]` Start (0xAA)
+- `[1]` Type
+- `[2-13]` 6x int16 (left_x, left_y, left_z, right_x, right_y, right_rot)
+- `[14]` Mode
+- `[15]` Gripper
+- `[16-19]` Timestamp (uint32)
+- `[20]` Checksum
 
 ---
 

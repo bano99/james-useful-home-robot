@@ -23,8 +23,8 @@ const float MOTOR_STEPS_PER_DEG_MK1[] = {44.44444444, 55.55555556, 55.55555556,
                                          42.72664356, 21.86024888, 22.22222222};
 const float MOTOR_STEPS_PER_DEG_MK2[] = {44.44444444, 55.55555556, 55.55555556,
                                          49.77777777, 21.86024888, 22.22222222};
-const float MOTOR_STEPS_PER_DEG_MK3[] = {88.88888888, 111.1111111, 111.1111111,
-                                         99.55555555, 43.72000000, 44.44444444};
+const float MOTOR_STEPS_PER_DEG_MK3[] = {88.8888, 111.5, 111.5,
+                                         86.21, 43.146, 43.146};
 
 // set encoder pins
 Encoder encPos[6] = {Encoder(14, 15), Encoder(17, 16), Encoder(19, 18),
@@ -54,7 +54,7 @@ int JOINT_LIMIT_MAX_MK3[] = {170, 90, 52, 180, 105, 180};
 std::map<String, const int*> REST_MOTOR_STEPS;
 const int REST_MOTOR_STEPS_MK1[] = {7555, 2333, 4944, 7049, 2295, 3431};
 const int REST_MOTOR_STEPS_MK2[] = {7555, 2333, 4944, 7049, 2295, 3431};
-const int REST_MOTOR_STEPS_MK3[] = {15111, 4667, 9889, 17920, 4591, 8000};
+const int REST_MOTOR_STEPS_MK3[] = {7555, 2333, 4944, 7049, 2295, 3431};
 
 enum SM { STATE_TRAJ, STATE_ERR };
 SM STATE = STATE_TRAJ;
@@ -67,7 +67,7 @@ const int DEBOUNCE_INTERVAL = 10;  // ms
 // calibration settings
 const int LIMIT_SWITCH_HIGH[] = {
     1, 1, 1, 1, 1, 1};  // to account for both NC and NO limit switches
-const int CAL_DIR[] = {-1, -1, 1,
+const int CAL_DIR[] = {1, -1, 1,
                        -1, -1, 1};  // joint rotation direction to limit switch
 const int CAL_SPEED = 500;          // motor steps per second
 const float CAL_SPEED_MULT[] = {
@@ -176,22 +176,25 @@ void setupSteppersMK2() {
   // initialise AccelStepper instance
   for (int i = 0; i < NUM_JOINTS; ++i) {
     stepperJoints[i] = AccelStepper(1, STEP_PINS[i], DIR_PINS[i]);
-    stepperJoints[i].setPinsInverted(false, false,
-                                     false);  // DM320T / DM332T --> CW
+    stepperJoints[i].setPinsInverted(true, false, false);
     stepperJoints[i].setAcceleration(JOINT_MAX_ACCEL[i] *
                                      MOTOR_STEPS_PER_DEG[MODEL][i]);
     stepperJoints[i].setMaxSpeed(JOINT_MAX_SPEED[i] *
                                  MOTOR_STEPS_PER_DEG[MODEL][i]);
     stepperJoints[i].setMinPulseWidth(10);
   }
+  stepperJoints[3].setPinsInverted(false, false, false);
 }
 
 void setupSteppersMK3() {
   // initialise AccelStepper instance
   for (int i = 0; i < NUM_JOINTS; ++i) {
     stepperJoints[i] = AccelStepper(1, STEP_PINS[i], DIR_PINS[i]);
-    stepperJoints[i].setPinsInverted(false, false,
-                                     false);  // DM320T / DM332T --> CW
+    // J1:0, J2:0, J3:0, J4:1, J5:0, J6:0 (0=Normal, 1=Inverted)
+    // AccelStepper setPinsInverted(bool directionInvert, bool stepInvert, bool enableInvert)
+    bool invert = (i == 3); // Only J4 is 1 (Inverted)
+    stepperJoints[i].setPinsInverted(invert, false, false);
+    
     stepperJoints[i].setAcceleration(JOINT_MAX_ACCEL[i] *
                                      MOTOR_STEPS_PER_DEG[MODEL][i]);
     stepperJoints[i].setMaxSpeed(JOINT_MAX_SPEED[i] *
@@ -570,6 +573,9 @@ bool doCalibrationRoutine(String& outputMsg, int calJoints[NUM_JOINTS],
   int curMotorSteps[NUM_JOINTS];
   readMotorSteps(curMotorSteps);
 
+  // Move to rest position once
+  MoveTo(REST_MOTOR_STEPS[MODEL], curMotorSteps);
+
   while (!AtPosition(REST_MOTOR_STEPS[MODEL], curMotorSteps, 5)) {
     if (millis() - startTime > 12000) {
       // Note: this occasionally happens but doesn't affect calibration result
@@ -579,14 +585,13 @@ bool doCalibrationRoutine(String& outputMsg, int calJoints[NUM_JOINTS],
     }
 
     readMotorSteps(curMotorSteps);
+    // Note: MoveTo removed from here to prevent target accumulation
+    
     for (int i = 0; i < NUM_JOINTS; ++i) {
       if (!calJoints[i]) {
-        curMotorSteps[i] = REST_MOTOR_STEPS[MODEL][i];
+        // Stop joints not being calibrated
+        continue;
       }
-    }
-    MoveTo(REST_MOTOR_STEPS[MODEL], curMotorSteps);
-
-    for (int i = 0; i < NUM_JOINTS; ++i) {
       safeRun(stepperJoints[i]);
     }
   }

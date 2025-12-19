@@ -1,0 +1,33 @@
+# AR4 Original Firmware Settings (Reference)
+
+## Microstepping (Steps/Revolution)
+- J1: 800
+- J2: 800
+- J3: 800
+- J4: 800
+- J5: 1600
+- J6: 800
+
+## Motor Directions (Binary)
+- J1: 0 (Normal)
+- J2: 0 (Normal)
+- J3: 0 (Normal)
+- J4: 1 (Inverted)
+- J5: 0 (Normal)
+- J6: 0 (Normal)
+
+## Calibration Directions (Binary)
+- J1: 1 (Positive)
+- J2: 0 (Negative)
+- J3: 1 (Positive)
+- J4: 0 (Negative)
+- J5: 0 (Negative)
+- J6: 1 (Positive)
+
+## Steps / Degree
+- J1: 88.8888
+- J2: 111.5
+- J3: 111.5
+- J4: 86.21
+- J5: 43.146
+- J6: 43.146
