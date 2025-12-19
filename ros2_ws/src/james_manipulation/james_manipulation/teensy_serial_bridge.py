@@ -253,7 +253,7 @@ class TeensySerialBridge(Node):
             
             else:
                 # Log other messages for debugging
-                self.get_logger().debug(f'Teensy message: {message}')
+                self.get_logger().info(f'Teensy message: {message}')
                 
         except Exception as e:
             self.get_logger().warn(f'Error parsing Teensy message: {message} - {e}')

@@ -154,6 +154,8 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(ESTOP_PIN), estopPressed, FALLING);
 
   Serial.begin(115200);
+  delay(500);
+  Serial.println("DB: AR4 Teensy ROS Booting...");
 }
 
 void setupSteppersMK1() {
@@ -657,100 +659,75 @@ void stateTRAJ() {
 
   // start loop
   while (STATE == STATE_TRAJ) {
-    char received = '\0';
     // check for message from host
-    if (Serial.available()) {
-      received = Serial.read();
-      inData += received;
-    }
-
-    if (MODEL != "") {
-      readMotorSteps(curMotorSteps);
-      updateMotorVelocities(curMotorSteps, lastMotorSteps, checksteps,
-                            lastVelocityCalc, lastVelocity);
-    }
-
-    // process message when new line character is received
-    if (received == '\n') {
-      Serial.print("DB: Received: ");
-      Serial.println(inData);
-      String function = inData.substring(0, 2);
-      if (function == "ST") {
-        if (!initStateTraj(inData)) {
-          STATE = STATE_ERR;
-          return;
-        }
-      } else if (MODEL == "") {
-        // if model is not set, do not proceed with any other function
-        STATE = STATE_ERR;
-        return;
-      }
-
-      if (function == "MT") {
-        // clear speed counter
-        for (int i = 0; i < NUM_JOINTS; i++) {
-          if (stepperJoints[i].speed() == 0) {
-            lastVelocityCalc[i] = micros();
+    while (Serial.available()) {
+      char received = Serial.read();
+      
+      if (received == '\n' || received == '\r') {
+        if (inData.length() == 0) continue;
+        
+        Serial.print("DB: Processing: ");
+        Serial.println(inData);
+        
+        String function = inData.substring(0, 2);
+        if (function == "ST") {
+          if (!initStateTraj(inData)) {
+            STATE = STATE_ERR;
+            break;
           }
-        }
-
-        MoveTo(inData, curMotorSteps);
-
-        // update the host about estop state
-        String msg = String("ES") + estop_pressed;
-        Serial.println(msg);
-
-      } else if (function == "MV") {
-        // clear speed counter
-        for (int i = 0; i < NUM_JOINTS; i++) {
-          if (stepperJoints[i].speed() == 0) {
-            lastVelocityCalc[i] = micros();
+        } else if (MODEL == "") {
+          Serial.println("ER: Model not initialized. Send ST command first.");
+          inData = "";
+          continue; 
+        } else if (function == "MT") {
+          // ... (simplified for chunk, actual code follows logic)
+          for (int i = 0; i < NUM_JOINTS; i++) {
+            if (stepperJoints[i].speed() == 0) {
+              lastVelocityCalc[i] = micros();
+            }
           }
-        }
-
-        MoveVelocity(inData);
-
-        // update the host about estop state
-        String msg = String("ES") + estop_pressed;
-        Serial.println(msg);
-
-      } else if (function == "HM") {
-        // Simple homing for a single joint: HM J1
-        int jointIdx = inData.substring(4, 5).toInt() - 1;
-        if (jointIdx >= 0 && jointIdx < NUM_JOINTS) {
-           int calJoints[NUM_JOINTS] = {0};
-           calJoints[jointIdx] = 1;
-           int calSteps[NUM_JOINTS];
-           String outMsg;
-           doCalibrationRoutine(outMsg, calJoints, calSteps);
-           if (outMsg != "") Serial.println(outMsg);
+          MoveTo(inData, curMotorSteps);
+          Serial.println(String("ES") + estop_pressed);
+        } else if (function == "MV") {
+          for (int i = 0; i < NUM_JOINTS; i++) {
+            if (stepperJoints[i].speed() == 0) {
+              lastVelocityCalc[i] = micros();
+            }
+          }
+          MoveVelocity(inData);
+          Serial.println(String("ES") + estop_pressed);
+        } else if (function == "HM") {
+          int jointIdx = inData.substring(4, 5).toInt() - 1;
+          if (jointIdx >= 0 && jointIdx < NUM_JOINTS) {
+             int calJoints[NUM_JOINTS] = {0};
+             calJoints[jointIdx] = 1;
+             int calSteps[NUM_JOINTS];
+             String outMsg;
+             doCalibrationRoutine(outMsg, calJoints, calSteps);
+             if (outMsg != "") Serial.println(outMsg);
+          }
+        } else if (function == "JP") {
+          readMotorSteps(curMotorSteps);
+          encStepsToJointPos(curMotorSteps, curJointPos);
+          Serial.println(String("JP") + JointPosToString(curJointPos));
+        } else if (function == "JV") {
+          Serial.println(String("JV") + JointVelToString(lastVelocity));
+        } else if (function == "JC") {
+          String msg, inputMsg;
+          inputMsg = inData.substring(2, 9);
+          if (!doCalibrationRoutineSequence(msg, inputMsg)) {
+            for (int i = 0; i < NUM_JOINTS; ++i) stepperJoints[i].setSpeed(0);
+          }
+          Serial.println(msg);
+        } else if (function == "RE") {
+          resetEstop();
+          Serial.println(String("ES") + estop_pressed);
         }
         
-      } else if (function == "JP") {
-        readMotorSteps(curMotorSteps);
-        encStepsToJointPos(curMotorSteps, curJointPos);
-        String msg = String("JP") + JointPosToString(curJointPos);
-        Serial.println(msg);
-      } else if (function == "JV") {
-        String msg = String("JV") + JointVelToString(lastVelocity);
-        Serial.println(msg);
-      } else if (function == "JC") {
-        String msg, inputMsg;
-        inputMsg = inData.substring(2, 9);
-        if (!doCalibrationRoutineSequence(msg, inputMsg)) {
-          for (int i = 0; i < NUM_JOINTS; ++i) {
-            stepperJoints[i].setSpeed(0);
-          }
-        }
-        Serial.println(msg);
-      } else if (function == "RE") {
-        resetEstop();
-        // update host with Estop status after trying to reset it
-        String msg = String("ES") + estop_pressed;
-        Serial.println(msg);
+        inData = ""; 
+      } else {
+        inData += received;
       }
-
-      inData = "";  // clear message
     }
 
     for (int i = 0; i < NUM_JOINTS; ++i) {
