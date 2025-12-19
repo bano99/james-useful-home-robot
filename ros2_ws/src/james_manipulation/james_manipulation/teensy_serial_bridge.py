@@ -37,6 +37,23 @@ class TeensySerialBridge(Node):
         self.declare_parameter('command_timeout', 0.5)
         self.declare_parameter('mock_hardware', False)
         
+        # Default config path
+        import os
+        from ament_index_python.packages import get_package_share_directory
+        # We try to find the src path for development or share path for install
+        # For now, default to the one we just created in src if running from source context, 
+        # or we can use a fixed path. 
+        # Let's set a default that points to the expected location in the workspace
+        default_config_path = os.path.join(
+            os.getcwd(), 'src', 'james_manipulation', 'james_manipulation', 'config', 'ARconfig.json'
+        ) 
+        # Adjust for redundancy if needed, but better to allow override
+        if not os.path.exists(default_config_path):
+             # Try absolute path based on known workspace structure
+             default_config_path = "c:\\Users\\denis\\Documents\\James_Useful_Home_Robot\\ros2_ws\\src\\james_manipulation\\config\\ARconfig.json"
+
+        self.declare_parameter('config_file', default_config_path)
+
         # Get parameters
         self.serial_port = self.get_parameter('serial_port').value
         self.baud_rate = self.get_parameter('baud_rate').value
@@ -44,6 +61,11 @@ class TeensySerialBridge(Node):
         self.publish_rate = self.get_parameter('publish_rate').value
         self.command_timeout = self.get_parameter('command_timeout').value
         self.mock_hardware = self.get_parameter('mock_hardware').value
+        self.config_file = self.get_parameter('config_file').value
+        
+        # Load configuration
+        self.config = {}
+        self.load_config()
         
         # Initialize serial connection
         self.serial_conn = None
@@ -144,47 +166,115 @@ class TeensySerialBridge(Node):
                 self.connected = False
                 time.sleep(1.0)
 
+    def destroy_node(self):
+        if self.serial_conn and self.serial_conn.is_open:
+            self.serial_conn.close()
+        super().destroy_node()
+        
+    def load_config(self):
+        """Load configuration from JSON file"""
+        try:
+            with open(self.config_file, 'r') as f:
+                self.config = json.load(f)
+            self.get_logger().info(f'Loaded configuration from {self.config_file}')
+        except Exception as e:
+            self.get_logger().error(f'Failed to load config file {self.config_file}: {e}')
+            self.config = {}
+
     def send_configuration(self):
-        """Send the UP command to configure motor directions and parameters"""
-        # Values extracted from AR4.py defaults
+        """Send the UP command to configure motor directions and parameters from loaded config"""
+        if not self.config:
+            self.get_logger().warn('No configuration loaded, skipping initialization command.')
+            return
+
+        def get_val(key, default, cast=int):
+            try:
+                val = self.config.get(key, default)
+                return cast(val)
+            except:
+                return default
+
         # Motor Directions (G-O)
-        J1MotDir = 0
-        J2MotDir = 1
-        J3MotDir = 1
-        J4MotDir = 1
-        J5MotDir = 1
-        J6MotDir = 1
-        J7MotDir = 1
-        J8MotDir = 1
-        J9MotDir = 1
+        J1MotDir = get_val('J1MotDir', 0)
+        J2MotDir = get_val('J2MotDir', 1)
+        J3MotDir = get_val('J3MotDir', 1)
+        J4MotDir = get_val('J4MotDir', 1)
+        J5MotDir = get_val('J5MotDir', 1)
+        J6MotDir = get_val('J6MotDir', 1)
+        J7MotDir = get_val('J7MotDir', 1)
+        J8MotDir = get_val('J8MotDir', 1)
+        J9MotDir = get_val('J9MotDir', 1)
         
         # Calibration Directions (P-X)
-        J1CalDir = 0
-        J2CalDir = 1
-        J3CalDir = 1
-        J4CalDir = 1
-        J5CalDir = 1
-        J6CalDir = 1
-        J7CalDir = 1
-        J8CalDir = 1
-        J9CalDir = 1
+        J1CalDir = get_val('J1CalDir', 0)
+        J2CalDir = get_val('J2CalDir', 1)
+        J3CalDir = get_val('J3CalDir', 1)
+        J4CalDir = get_val('J4CalDir', 1)
+        J5CalDir = get_val('J5CalDir', 1)
+        J6CalDir = get_val('J6CalDir', 1)
+        J7CalDir = get_val('J7CalDir', 1)
+        J8CalDir = get_val('J8CalDir', 1)
+        J9CalDir = get_val('J9CalDir', 1)
         
-        # Limits (Using generic defaults, user might need to tune these)
-        J1PosLim, J1NegLim = 150, -150
-        J2PosLim, J2NegLim = 100, -100
-        J3PosLim, J3NegLim = 100, -100
-        J4PosLim, J4NegLim = 165, -165
-        J5PosLim, J5NegLim = 105, -105
-        J6PosLim, J6NegLim = 1000, -1000 # J6 has wide range usually
+        # Limits
+        J1PosLim = get_val('J1PosLim', 150)
+        J1NegLim = get_val('J1NegLim', -150)
+        J2PosLim = get_val('J2PosLim', 100)
+        J2NegLim = get_val('J2NegLim', -100)
+        J3PosLim = get_val('J3PosLim', 100)
+        J3NegLim = get_val('J3NegLim', -100)
+        J4PosLim = get_val('J4PosLim', 165)
+        J4NegLim = get_val('J4NegLim', -165)
+        J5PosLim = get_val('J5PosLim', 105)
+        J5NegLim = get_val('J5NegLim', -105)
+        J6PosLim = get_val('J6PosLim', 1000)
+        J6NegLim = get_val('J6NegLim', -1000)
         
-        # Steps/Deg (k-p) - Copied from typical AR4 config
-        J1StepDeg = 88.888
-        J2StepDeg = 55.555
-        J3StepDeg = 55.555
-        J4StepDeg = 48.888
-        J5StepDeg = 43.720
-        J6StepDeg = 44.444
-        
+        # Steps/Deg (k-p) - Use float for precision
+        J1StepDeg = get_val('J1StepDeg', 88.888, float)
+        J2StepDeg = get_val('J2StepDeg', 55.555, float)
+        J3StepDeg = get_val('J3StepDeg', 55.555, float)
+        J4StepDeg = get_val('J4StepDeg', 48.888, float)
+        J5StepDeg = get_val('J5StepDeg', 43.720, float)
+        J6StepDeg = get_val('J6StepDeg', 44.444, float)
+
+        # Encoder Multipliers (q-v)
+        J1EncMult = get_val('J1EncMult', 1)
+        J2EncMult = get_val('J2EncMult', 1)
+        J3EncMult = get_val('J3EncMult', 1)
+        J4EncMult = get_val('J4EncMult', 1)
+        J5EncMult = get_val('J5EncMult', 1)
+        J6EncMult = get_val('J6EncMult', 1)
+
+        # DH Parameters (w-~)
+        J1tDH = get_val('J1\u0398DHpar', 0, float)
+        J2tDH = get_val('J2\u0398DHpar', -90, float)
+        J3tDH = get_val('J3\u0398DHpar', 0, float)
+        J4tDH = get_val('J4\u0398DHpar', 0, float)
+        J5tDH = get_val('J5\u0398DHpar', 0, float)
+        J6tDH = get_val('J6\u0398DHpar', 180, float)
+
+        J1aDH = get_val('J1\u03b1DHpar', 0, float)
+        J2aDH = get_val('J2\u03b1DHpar', -90, float)
+        J3aDH = get_val('J3\u03b1DHpar', 0, float)
+        J4aDH = get_val('J4\u03b1DHpar', -90, float)
+        J5aDH = get_val('J5\u03b1DHpar', 90, float)
+        J6aDH = get_val('J6\u03b1DHpar', -90, float)
+
+        J1dDH = get_val('J1dDHpar', 0, float)
+        J2dDH = get_val('J2dDHpar', 0, float)
+        J3dDH = get_val('J3dDHpar', 0, float)
+        J4dDH = get_val('J4dDHpar', 0, float)
+        J5dDH = get_val('J5dDHpar', 0, float)
+        J6dDH = get_val('J6dDHpar', 0, float)
+
+        J1lDH = get_val('J1aDHpar', 0, float) # 'a' param or link length
+        J2lDH = get_val('J2aDHpar', 0, float)
+        J3lDH = get_val('J3aDHpar', 0, float)
+        J4lDH = get_val('J4aDHpar', 0, float)
+        J5lDH = get_val('J5aDHpar', 0, float)
+        J6lDH = get_val('J6aDHpar', 0, float)
+
         # Construct UP string
         # A-F: Tool transform (0 default)
         cmd = "UP"
@@ -194,19 +284,22 @@ class TeensySerialBridge(Node):
         cmd += f"Y{J1PosLim}Z{J1NegLim}a{J2PosLim}b{J2NegLim}c{J3PosLim}d{J3NegLim}e{J4PosLim}f{J4NegLim}g{J5PosLim}h{J5NegLim}i{J6PosLim}j{J6NegLim}"
         cmd += f"k{J1StepDeg:.3f}l{J2StepDeg:.3f}m{J3StepDeg:.3f}n{J4StepDeg:.3f}o{J5StepDeg:.3f}p{J6StepDeg:.3f}"
         
-        # Remainder (Encoders, DH) - sending defaults 
-        cmd += "q1r1s1t1u1v1" # Encoder multipliers
-        cmd += "w0x0y0z0!0@0" # theta DH
-        cmd += "#0$0%0^0&0*0" # alpha DH
-        cmd += "(0)0+0=0,0_0" # d DH
-        cmd += "<0>0?0{0}0~0" # a DH
+        # Encoders
+        cmd += f"q{J1EncMult}r{J2EncMult}s{J3EncMult}t{J4EncMult}u{J5EncMult}v{J6EncMult}"
+        
+        # DH Parameters
+        cmd += f"w{J1tDH}x{J2tDH}y{J3tDH}z{J4tDH}!{J5tDH}@{J6tDH}" # Theta
+        cmd += f"#{J1aDH}${J2aDH}%{J3aDH}^{J4aDH}&{J5aDH}*{J6aDH}" # Alpha
+        cmd += f"({J1dDH}){J2dDH}+{J3dDH}={J4dDH},{J5dDH}_{J6dDH}" # D
+        cmd += f"<{J1lDH}>{J2lDH}?{J3lDH}{{{J4lDH}}}{J5lDH}~{J6lDH}" # A (Link Length)
+        
         cmd += "\n"
         
         with self.serial_lock:
             if self.connected and self.serial_conn:
                 self.serial_conn.write(cmd.encode('utf-8'))
                 self.get_logger().info('Sent UP configuration command to Teensy')
-    
+
     def process_teensy_message(self, message):
         """Process incoming message from Teensy (Joint state: A...B...C...)"""
         try:
