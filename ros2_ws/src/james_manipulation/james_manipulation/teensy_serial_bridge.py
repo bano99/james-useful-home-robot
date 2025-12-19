@@ -224,8 +224,12 @@ class TeensySerialBridge(Node):
             # Parse AR4 joint state response format (ycheng517 protocol)
             # JP initialization ack: "STA1B1C2.1.0Dmk3"
             if message.startswith('ST'):
-                self.initialized = True
-                self.get_logger().info(f'Handshake complete: {message}')
+                if 'A1' in message and 'C1' in message:
+                    self.initialized = True
+                    self.get_logger().info(f'Handshake complete: {message}')
+                else:
+                    self.get_logger().error(f'Handshake failed (Version/Model mismatch): {message}')
+                    self.initialized = False
             
             # Joint position update: "JPA<val>B<val>C<val>D<val>E<val>F<val>"
             elif message.startswith('JP'):

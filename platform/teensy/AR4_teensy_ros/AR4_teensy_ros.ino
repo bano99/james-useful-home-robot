@@ -208,8 +208,8 @@ bool initStateTraj(String inData) {
   int idxModel = inData.indexOf('B');
   String softwareVersion = inData.substring(idxVersion + 1, idxModel);
   int versionMatches = (softwareVersion == VERSION);
-
-  String model = inData.substring(idxModel + 1, inData.length() - 1);
+  String model = inData.substring(idxModel + 1);
+  model.trim();
   int modelMatches = false;
   if (model == "mk1" || model == "mk2" || model == "mk3") {
     modelMatches = true;
