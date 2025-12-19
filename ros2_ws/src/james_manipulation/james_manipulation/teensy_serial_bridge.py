@@ -114,7 +114,8 @@ class TeensySerialBridge(Node):
             try:
                 if not self.connected:
                     if self.connect_serial():
-                        time.sleep(1.0) # Wait for boot logs
+                        time.sleep(2.0) # Wait for boot logs
+                        self.send_configuration() # Critical for setting motor directions!
                     else:
                         time.sleep(1.0)
                         continue
@@ -142,6 +143,69 @@ class TeensySerialBridge(Node):
                 self.get_logger().error(f'Serial error: {e}')
                 self.connected = False
                 time.sleep(1.0)
+
+    def send_configuration(self):
+        """Send the UP command to configure motor directions and parameters"""
+        # Values extracted from AR4.py defaults
+        # Motor Directions (G-O)
+        J1MotDir = 0
+        J2MotDir = 1
+        J3MotDir = 1
+        J4MotDir = 1
+        J5MotDir = 1
+        J6MotDir = 1
+        J7MotDir = 1
+        J8MotDir = 1
+        J9MotDir = 1
+        
+        # Calibration Directions (P-X)
+        J1CalDir = 0
+        J2CalDir = 1
+        J3CalDir = 1
+        J4CalDir = 1
+        J5CalDir = 1
+        J6CalDir = 1
+        J7CalDir = 1
+        J8CalDir = 1
+        J9CalDir = 1
+        
+        # Limits (Using generic defaults, user might need to tune these)
+        J1PosLim, J1NegLim = 150, -150
+        J2PosLim, J2NegLim = 100, -100
+        J3PosLim, J3NegLim = 100, -100
+        J4PosLim, J4NegLim = 165, -165
+        J5PosLim, J5NegLim = 105, -105
+        J6PosLim, J6NegLim = 1000, -1000 # J6 has wide range usually
+        
+        # Steps/Deg (k-p) - Copied from typical AR4 config
+        J1StepDeg = 88.888
+        J2StepDeg = 55.555
+        J3StepDeg = 55.555
+        J4StepDeg = 48.888
+        J5StepDeg = 43.720
+        J6StepDeg = 44.444
+        
+        # Construct UP string
+        # A-F: Tool transform (0 default)
+        cmd = "UP"
+        cmd += "A0B0C0D0E0F0" 
+        cmd += f"G{J1MotDir}H{J2MotDir}I{J3MotDir}J{J4MotDir}K{J5MotDir}L{J6MotDir}M{J7MotDir}N{J8MotDir}O{J9MotDir}"
+        cmd += f"P{J1CalDir}Q{J2CalDir}R{J3CalDir}S{J4CalDir}T{J5CalDir}U{J6CalDir}V{J7CalDir}W{J8CalDir}X{J9CalDir}" 
+        cmd += f"Y{J1PosLim}Z{J1NegLim}a{J2PosLim}b{J2NegLim}c{J3PosLim}d{J3NegLim}e{J4PosLim}f{J4NegLim}g{J5PosLim}h{J5NegLim}i{J6PosLim}j{J6NegLim}"
+        cmd += f"k{J1StepDeg:.3f}l{J2StepDeg:.3f}m{J3StepDeg:.3f}n{J4StepDeg:.3f}o{J5StepDeg:.3f}p{J6StepDeg:.3f}"
+        
+        # Remainder (Encoders, DH) - sending defaults 
+        cmd += "q1r1s1t1u1v1" # Encoder multipliers
+        cmd += "w0x0y0z0!0@0" # theta DH
+        cmd += "#0$0%0^0&0*0" # alpha DH
+        cmd += "(0)0+0=0,0_0" # d DH
+        cmd += "<0>0?0{0}0~0" # a DH
+        cmd += "\n"
+        
+        with self.serial_lock:
+            if self.connected and self.serial_conn:
+                self.serial_conn.write(cmd.encode('utf-8'))
+                self.get_logger().info('Sent UP configuration command to Teensy')
     
     def process_teensy_message(self, message):
         """Process incoming message from Teensy (Joint state: A...B...C...)"""
