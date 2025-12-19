@@ -66,85 +66,58 @@ class ArmCalibrator(Node):
             self.get_logger().info(f'Proceeding...')
 
     def run_calibration(self):
-        self.get_logger().info('Starting Custom Homing Sequence...')
-        if self.step_by_step:
-            self.get_logger().info('STEP-BY-STEP MODE ACTIVE')
+        self.get_logger().info('Starting Commercial Firmware Calibration Sequence (LL)...')
         
-        # Wait for first joint state
-        while rclpy.ok() and not self.received_state:
-            self.get_logger().info('Waiting for initial joint states...', throttle_duration_sec=2.0)
-            rclpy.spin_once(self, timeout_sec=0.1)
-
-        # 1. Joint 6 Home
-        self.confirm_step('Home Joint 6')
-        self.send_raw('HM J6')
-        time.sleep(2.0) # Buffer for homing to start
-        # Wait for J6 to be approx 0 (assuming HM resets to 0)
-        self.wait_for_joints([None, None, None, None, None, 0.0], timeout=60.0)
+        # Calibration strings for each joint (LL protocol)
+        # Sequence: J6 -> J5 -> J4 -> J3 -> J1 -> Move J1 -> J2 -> Zeroing
         
-        # Move J6 to -90
-        self.confirm_step('Move J6 to -90 degrees')
-        self.send_raw('MTA0B0C0D0E0F-90')
-        self.wait_for_joints([None, None, None, None, None, math.radians(-90)])
-
-        # 2. Joint 5 Home
-        self.confirm_step('Home Joint 5')
-        self.send_raw('HM J5')
-        time.sleep(2.0)
-        self.wait_for_joints([None, None, None, None, 0.0, None])
+        # 1. Joint 6
+        self.confirm_step('Calibrate Joint 6')
+        self.send_raw('LLA0B0C0D0E0F1G0H0I0J0K0L90M0N45O-90P0Q0R0')
+        # Wait for J6 to settle at its calibration position (usually -90 unless offset)
+        # Firmware moveJ response/sendRobotPos will update state
+        time.sleep(5.0) 
         
-        # Move J5 to 45
-        self.confirm_step('Move J5 to 45 degrees')
-        self.send_raw('MTA0B0C0D0E45F-90')
-        self.wait_for_joints([None, None, None, None, math.radians(45), math.radians(-90)])
+        # 2. Joint 5
+        self.confirm_step('Calibrate Joint 5')
+        self.send_raw('LLA0B0C0D0E1F0G0H0I0J0K0L90M0N45O-90P0Q0R0')
+        time.sleep(5.0)
 
-        # 3. Joint 4 Home
-        self.confirm_step('Home Joint 4')
-        self.send_raw('HM J4')
-        time.sleep(2.0)
-        self.wait_for_joints([None, None, None, 0.0, None, None])
+        # 3. Joint 4
+        self.confirm_step('Calibrate Joint 4')
+        self.send_raw('LLA0B0C0D1E0F0G0H0I0J0K0L90M0N45O-90P0Q0R0')
+        time.sleep(5.0)
 
-        # 4. Joint 3 Home
-        self.confirm_step('Home Joint 3')
-        self.send_raw('HM J3')
-        time.sleep(2.0)
-        self.wait_for_joints([None, None, 0.0, None, None, None])
-        
-        # Move J3 to 90
-        self.confirm_step('Move Joint 3 to 90 degrees')
-        self.send_raw('MTA0B0C90D0E45F-90')
-        self.wait_for_joints([None, None, math.radians(90), None, None, None])
+        # 4. Joint 3
+        self.confirm_step('Calibrate Joint 3')
+        self.send_raw('LLA0B0C1D0E0F0G0H0I0J0K0L90M0N45O-90P0Q0R0')
+        time.sleep(5.0)
 
-        # 5. Joint 1 Home
-        self.confirm_step('Home Joint 1')
-        self.send_raw('HM J1')
-        time.sleep(2.0)
-        self.wait_for_joints([0.0, None, None, None, None, None])
-        
-        # Move J1 to 90
-        self.confirm_step('Move Joint 1 to 90 degrees')
-        self.send_raw('MTA90B0C90D0E45F-90')
-        self.wait_for_joints([math.radians(90), None, None, None, None, None])
+        # 5. Joint 1
+        self.confirm_step('Calibrate Joint 1')
+        self.send_raw('LLA1B0C0D0E0F0G0H0I0J0K0L90M0N45O-90P0Q0R0')
+        time.sleep(5.0)
 
-        # 6. Joint 2 Home
-        self.confirm_step('Home Joint 2 (Final Joint)')
-        self.get_logger().info('Initializing Joint 2 (last one)...')
-        self.send_raw('HM J2')
-        time.sleep(2.0)
-        self.wait_for_joints([None, 0.0, None, None, None, None])
+        # INTERMEDIATE MOVE: J1 to 45 deg
+        self.confirm_step('Move J1 to 45 degrees before J2 calibration')
+        # We use a raw RJ command here to be precise
+        # Format: RJ A45.0B<cur>C<cur>D<cur>E<cur>F<cur>J7...
+        # For simplicity, we can just send the move to 45 while keeping others at their current known safe calibration angles
+        # J1=45, J2=0, J3=90, J4=0, J5=45, J6=-90 (Standard calibration pose targets)
+        self.send_raw('RJ A45.0000B0.0000C90.0000D0.0000E45.0000F-90.0000J70.0000J80.0000J90.0000Sp10.00Ac10.00Dc10.00Rm10.00W0Lm000000')
+        self.wait_for_joints([math.radians(45), None, None, None, None, None], timeout=30.0)
 
-        # 7. Move Joint 1 and 3 back to 0
-        self.confirm_step('Move Joint 1 and 3 back to 0')
-        self.get_logger().info('Moving Joint 1 and 3 back to 0...')
-        self.send_raw('MTA0B0C0D0E45F-90') # Keeping J5/J6 safe
-        self.wait_for_joints([0.0, None, 0.0, None, None, None])
-        
-        # Final Move to Default 0
-        self.confirm_step('Return all joints to zero')
-        self.send_raw('MTA0B0C0D0E0F0')
-        self.wait_for_joints([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+        # 6. Joint 2
+        self.confirm_step('Calibrate Joint 2')
+        self.send_raw('LLA0B1C0D0E0F0G0H0I0J0K0L90M0N45O-90P0Q0R0')
+        time.sleep(5.0)
 
-        self.get_logger().info('Calibration Sequence Complete!')
+        # 7. Final Zeroing
+        self.confirm_step('Move all joints to zero position')
+        self.send_raw('RJ A0.0000B0.0000C0.0000D0.0000E0.0000F0.0000J70.0000J80.0000J90.0000Sp10.00Ac10.00Dc10.00Rm10.00W0Lm000000')
+        self.wait_for_joints([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], timeout=60.0)
+
+        self.get_logger().info('Commercial Calibration Sequence Complete!')
 
 def main(args=None):
     rclpy.init(args=args)
