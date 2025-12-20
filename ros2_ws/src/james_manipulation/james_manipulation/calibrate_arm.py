@@ -161,6 +161,10 @@ class ArmCalibrator(Node):
         self.confirm_step('Calibrate Joint 2')
         self.send_raw('LLA0B1C0D0E0F0G0H-25I0J0K0L0M0N0O0P0Q0R0')
         time.sleep(5.0)
+        
+        self.confirm_step('Move J2 to 0 degrees')
+        self.move_joints(j2=0.0)
+        self.wait_for_joints([None, math.radians(0), None, None, None, None], timeout=15.0)
         cal_positions['J2'] = 0.0
 
         # 8. Move J1 to 0 deg (final safe position)
