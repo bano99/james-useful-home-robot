@@ -84,7 +84,7 @@ class ArmCalibrator(Node):
         j6_target = j6 if j6 is not None else current_deg[5]
         
         cmd = f'RJA{j1_target:.3f}B{j2_target:.3f}C{j3_target:.3f}D{j4_target:.3f}E{j5_target:.3f}F{j6_target:.3f}'
-        cmd += f'J70.00J80.00J90.00Sp{speed}Ac{accel}Dc{decel}Rm{ramp}WFLm111000'
+        cmd += f'J70.00J80.00J90.00Sp{speed}Ac{accel}Dc{decel}Rm{ramp}W0Lm111000'
         self.send_raw(cmd)
 
     def run_calibration(self):
