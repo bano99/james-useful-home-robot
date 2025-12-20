@@ -79,7 +79,7 @@
     "VisEndYpix": "VisPicYPEntryField",
     "VisEndYmm": "VisPicYMEntryField",
     "J1calOff": 0.0,
-    "J2calOff": -45.0,
+    "J2calOff": -26.7,
     "J3calOff": 0.0,
     "J4calOff": 0.0,
     "J5calOff": 0.0,

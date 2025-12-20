@@ -107,7 +107,7 @@ class ArmCalibrator(Node):
         
         # 1. Calibrate Joint 6, then move to 90 deg
         self.confirm_step('Calibrate Joint 6')
-        self.send_raw('LLA0B0C0D0E0F1G0H-25I0J0K0L0M0N0O0P0Q0R0')
+        self.send_raw('LLA0B0C0D0E0F1G0H0I0J0.0K-26.7L0.0M0.0N0.0O0.0P0.0Q0.0R0.0')
         time.sleep(5.0)
         
         self.confirm_step('Move J6 to 90 degrees')
@@ -117,7 +117,7 @@ class ArmCalibrator(Node):
         
         # 2. Calibrate Joint 5, then move to 0 deg
         self.confirm_step('Calibrate Joint 5')
-        self.send_raw('LLA0B0C0D0E1F0G0H-25I0J0K0L0M0N0O0P0Q0R0')
+        self.send_raw('LLA0B0C0D0E1F0G0H0I0J0.0K-26.7L0.0M0.0N0.0O0.0P0.0Q0.0R0.0')
         time.sleep(5.0)
         
         self.confirm_step('Move J5 to 0 degrees')
@@ -127,13 +127,13 @@ class ArmCalibrator(Node):
 
         # 3. Calibrate Joint 4
         self.confirm_step('Calibrate Joint 4')
-        self.send_raw('LLA0B0C0D1E0F0G0H-25I0J0K0L0M0N0O0P0Q0R0')
+        self.send_raw('LLA0B0C0D1E0F0G0H0I0J0.0K-26.7L0.0M0.0N0.0O0.0P0.0Q0.0R0.0')
         time.sleep(5.0)
         cal_positions['J4'] = 0.0
 
         # 4. Calibrate Joint 3, then move to -85 deg
         self.confirm_step('Calibrate Joint 3')
-        self.send_raw('LLA0B0C1D0E0F0G0H-25I0J0K0L0M0N0O0P0Q0R0')
+        self.send_raw('LLA0B0C1D0E0F0G0H0I0J0.0K-26.7L0.0M0.0N0.0O0.0P0.0Q0.0R0.0')
         time.sleep(5.0)
         
         self.confirm_step('Move J3 to -85 degrees')
@@ -143,7 +143,7 @@ class ArmCalibrator(Node):
 
         # 5. Calibrate Joint 1, then move to -45 deg
         self.confirm_step('Calibrate Joint 1')
-        self.send_raw('LLA1B0C0D0E0F0G0H-25I0J0K0L0M0N0O0P0Q0R0')
+        self.send_raw('LLA1B0C0D0E0F0G0H0I0J0.0K-26.7L0.0M0.0N0.0O0.0P0.0Q0.0R0.0')
         time.sleep(5.0)
         
         self.confirm_step('Move J1 to -45 degrees')
@@ -159,7 +159,7 @@ class ArmCalibrator(Node):
 
         # 7. Calibrate Joint 2
         self.confirm_step('Calibrate Joint 2')
-        self.send_raw('LLA0B1C0D0E0F0G0H-45I0J0K0L0M0N0O0P0Q0R0')
+        self.send_raw('LLA0B1C0D0E0F0G0H0I0J0.0K-26.7L0.0M0.0N0.0O0.0P0.0Q0.0R0.0')
         time.sleep(5.0)
         
         self.confirm_step('Move J2 to 0 degrees')
