@@ -19,6 +19,7 @@ import time
 import re
 import math
 import json
+from datetime import datetime
 
 
 class TeensySerialBridge(Node):
@@ -76,6 +77,17 @@ class TeensySerialBridge(Node):
         self.last_joint_state = JointState()
         self.last_command_time = time.time()
         self.serial_lock = threading.Lock()
+        
+        # Setup logging
+        import os
+        log_dir = os.path.expanduser('~/teensy_logs')
+        os.makedirs(log_dir, exist_ok=True)
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        log_file = os.path.join(log_dir, f'teensy_serial_{timestamp}.log')
+        self.log_file = open(log_file, 'w', buffering=1)  # Line buffered
+        self.get_logger().info(f'Logging serial communication to: {log_file}')
+        self.log_file.write(f'=== Teensy Serial Bridge Log Started at {datetime.now()} ===\n')
+        self.log_file.write(f'Port: {self.serial_port}, Baud: {self.baud_rate}\n\n')
         
         # Joint labels used by commercial firmware (A-F for J1-J6, P-R for J7-J9)
         self.joint_labels = ['A', 'B', 'C', 'D', 'E', 'F']
@@ -150,6 +162,8 @@ class TeensySerialBridge(Node):
                         try:
                             line = self.serial_conn.readline().decode('utf-8').strip()
                             if line:
+                                # Log received data
+                                self.log_file.write(f'[{datetime.now().strftime("%H:%M:%S.%f")[:-3]}] RX: {line}\n')
                                 self.process_teensy_message(line)
                         except UnicodeDecodeError:
                             pass
@@ -300,6 +314,8 @@ class TeensySerialBridge(Node):
         with self.serial_lock:
             if self.connected and self.serial_conn:
                 self.serial_conn.write(cmd.encode('utf-8'))
+                # Log sent data
+                self.log_file.write(f'[{datetime.now().strftime("%H:%M:%S.%f")[:-3]}] TX: {cmd.strip()}\n')
                 self.get_logger().info('Sent UP configuration command to Teensy')
 
     def process_teensy_message(self, message):
@@ -400,6 +416,8 @@ class TeensySerialBridge(Node):
         self.get_logger().info(f'Sending raw command: {command.strip()}')
         with self.serial_lock:
             self.serial_conn.write(command.encode('utf-8'))
+            # Log sent data
+            self.log_file.write(f'[{datetime.now().strftime("%H:%M:%S.%f")[:-3]}] TX: {command.strip()}\n')
     
     def publish_joint_state(self):
         """Publish current joint state"""
@@ -420,6 +438,9 @@ class TeensySerialBridge(Node):
         self.status_pub.publish(msg)
     
     def destroy_node(self):
+        if self.log_file:
+            self.log_file.write(f'\n=== Log Ended at {datetime.now()} ===\n')
+            self.log_file.close()
         if self.serial_conn and self.serial_conn.is_open:
             self.serial_conn.close()
         super().destroy_node()
