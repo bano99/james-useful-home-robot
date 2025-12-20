@@ -324,6 +324,11 @@ class TeensySerialBridge(Node):
             # Commercial firmware broadcasts position automatically 
             # Format: A<J1>B<J2>C<J3>D<J4>E<J5>F<J6>G<X>H<Y>I<Z>J<Rz>K<Ry>L<Rx>M<SV>N<DB>O<FG>P<J7>Q<J8>R<J9>
             if message.startswith('A') and 'B' in message and 'C' in message:
+                # Check for error codes
+                if 'EC' in message:
+                    error_start = message.find('EC')
+                    error_code = message[error_start:error_start+8] if len(message) >= error_start+8 else message[error_start:]
+                    self.get_logger().warn(f'Teensy firmware error: {error_code}')
                 self.parse_commercial_feedback(message)
             
             # Internal debug: "DB: ..."

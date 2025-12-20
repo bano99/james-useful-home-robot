@@ -108,7 +108,7 @@ class ArmCalibrator(Node):
         # 1. Calibrate Joint 6, then move to 90 deg
         self.confirm_step('Calibrate Joint 6')
         self.send_raw('LLA0B0C0D0E0F1G0H0I0J0.0K-26.7L0.0M0.0N0.0O0.0P0.0Q0.0R0.0')
-        time.sleep(5.0)
+        time.sleep(8.0)  # Longer delay for firmware to settle after calibration
         
         self.confirm_step('Move J6 to 90 degrees')
         self.move_joints(j6=90.0, speed=50)
@@ -118,7 +118,7 @@ class ArmCalibrator(Node):
         # 2. Calibrate Joint 5, then move to 0 deg
         self.confirm_step('Calibrate Joint 5')
         self.send_raw('LLA0B0C0D0E1F0G0H0I0J0.0K-26.7L0.0M0.0N0.0O0.0P0.0Q0.0R0.0')
-        time.sleep(5.0)
+        time.sleep(8.0)  # Longer delay for firmware to settle after calibration
         
         self.confirm_step('Move J5 to 0 degrees')
         self.move_joints(j5=0.0, speed=50)
