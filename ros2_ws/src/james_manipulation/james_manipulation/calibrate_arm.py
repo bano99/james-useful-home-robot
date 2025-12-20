@@ -149,7 +149,7 @@ class ArmCalibrator(Node):
         time.sleep(5.0)
         
         self.confirm_step('Move J3 to -85 degrees')
-        self.move_joints(j3=-85.0, speed=25)
+        self.move_joints(j3=-85.0, speed=40)
         self.wait_for_joints([None, None, math.radians(-85), None, None, None], timeout=15.0)
         cal_positions['J3'] = -85.0
 
@@ -165,7 +165,7 @@ class ArmCalibrator(Node):
 
         # 6. Move J3 to 35 deg
         self.confirm_step('Move J3 to 35 degrees')
-        self.move_joints(j3=35.0, speed=25)
+        self.move_joints(j3=35.0, speed=40)
         self.wait_for_joints([None, None, math.radians(35), None, None, None], timeout=15.0)
         cal_positions['J3'] = 35.0
 
