@@ -111,7 +111,7 @@ class ArmCalibrator(Node):
         time.sleep(5.0)
         
         self.confirm_step('Move J6 to 90 degrees')
-        self.move_joints(j6=90.0)
+        self.move_joints(j6=90.0, speed=50)
         self.wait_for_joints([None, None, None, None, None, math.radians(90)], timeout=15.0)
         cal_positions['J6'] = 90.0
         
@@ -121,7 +121,7 @@ class ArmCalibrator(Node):
         time.sleep(5.0)
         
         self.confirm_step('Move J5 to 0 degrees')
-        self.move_joints(j5=0.0)
+        self.move_joints(j5=0.0, speed=50)
         self.wait_for_joints([None, None, None, None, math.radians(0), None], timeout=15.0)
         cal_positions['J5'] = 0.0
 
@@ -137,7 +137,7 @@ class ArmCalibrator(Node):
         time.sleep(5.0)
         
         self.confirm_step('Move J3 to -85 degrees')
-        self.move_joints(j3=-85.0)
+        self.move_joints(j3=-85.0, speed=50)
         self.wait_for_joints([None, None, math.radians(-85), None, None, None], timeout=15.0)
         cal_positions['J3'] = -85.0
 
@@ -151,11 +151,11 @@ class ArmCalibrator(Node):
         self.wait_for_joints([math.radians(-45), None, None, None, None, None], timeout=15.0)
         cal_positions['J1'] = -45.0
 
-        # 6. Move J3 to 45 deg
-        self.confirm_step('Move J3 to 45 degrees')
-        self.move_joints(j3=45.0)
-        self.wait_for_joints([None, None, math.radians(45), None, None, None], timeout=15.0)
-        cal_positions['J3'] = 45.0
+        # 6. Move J3 to 35 deg
+        self.confirm_step('Move J3 to 35 degrees')
+        self.move_joints(j3=35.0, speed=50)
+        self.wait_for_joints([None, None, math.radians(35), None, None, None], timeout=15.0)
+        cal_positions['J3'] = 35.0
 
         # 7. Calibrate Joint 2
         self.confirm_step('Calibrate Joint 2')
