@@ -65,9 +65,25 @@ class ArmCalibrator(Node):
             input("Press ENTER to proceed or Ctrl+C to stop...")
             self.get_logger().info(f'Proceeding...')
 
-    def move_joints(self, j1, j2, j3, j4, j5, j6, speed=25, accel=15, decel=15, ramp=80):
-        """Send RJ command with all 6 joint positions in degrees"""
-        cmd = f'RJA{j1:.3f}B{j2:.3f}C{j3:.3f}D{j4:.3f}E{j5:.3f}F{j6:.3f}'
+    def move_joints(self, j1=None, j2=None, j3=None, j4=None, j5=None, j6=None, speed=25, accel=15, decel=15, ramp=80):
+        """Send RJ command with all 6 joint positions in degrees
+        Use current position for any joint set to None"""
+        
+        # Wait a moment for latest feedback
+        rclpy.spin_once(self, timeout_sec=0.1)
+        
+        # Convert current positions from radians to degrees
+        current_deg = [math.degrees(pos) for pos in self.current_positions]
+        
+        # Use provided values or fall back to current position
+        j1_target = j1 if j1 is not None else current_deg[0]
+        j2_target = j2 if j2 is not None else current_deg[1]
+        j3_target = j3 if j3 is not None else current_deg[2]
+        j4_target = j4 if j4 is not None else current_deg[3]
+        j5_target = j5 if j5 is not None else current_deg[4]
+        j6_target = j6 if j6 is not None else current_deg[5]
+        
+        cmd = f'RJA{j1_target:.3f}B{j2_target:.3f}C{j3_target:.3f}D{j4_target:.3f}E{j5_target:.3f}F{j6_target:.3f}'
         cmd += f'J70.00J80.00J90.00Sp{speed}Ac{accel}Dc{decel}Rm{ramp}WFLm111000'
         self.send_raw(cmd)
 
@@ -95,8 +111,7 @@ class ArmCalibrator(Node):
         time.sleep(5.0)
         
         self.confirm_step('Move J6 to 90 degrees')
-        self.move_joints(cal_positions['J1'], cal_positions['J2'], cal_positions['J3'], 
-                        cal_positions['J4'], cal_positions['J5'], 90.0)
+        self.move_joints(j6=90.0)
         self.wait_for_joints([None, None, None, None, None, math.radians(90)], timeout=15.0)
         cal_positions['J6'] = 90.0
         
@@ -106,8 +121,7 @@ class ArmCalibrator(Node):
         time.sleep(5.0)
         
         self.confirm_step('Move J5 to 0 degrees')
-        self.move_joints(cal_positions['J1'], cal_positions['J2'], cal_positions['J3'], 
-                        cal_positions['J4'], 0.0, cal_positions['J6'])
+        self.move_joints(j5=0.0)
         self.wait_for_joints([None, None, None, None, math.radians(0), None], timeout=15.0)
         cal_positions['J5'] = 0.0
 
@@ -123,8 +137,7 @@ class ArmCalibrator(Node):
         time.sleep(5.0)
         
         self.confirm_step('Move J3 to -85 degrees')
-        self.move_joints(cal_positions['J1'], cal_positions['J2'], -85.0, 
-                        cal_positions['J4'], cal_positions['J5'], cal_positions['J6'])
+        self.move_joints(j3=-85.0)
         self.wait_for_joints([None, None, math.radians(-85), None, None, None], timeout=15.0)
         cal_positions['J3'] = -85.0
 
@@ -134,15 +147,13 @@ class ArmCalibrator(Node):
         time.sleep(5.0)
         
         self.confirm_step('Move J1 to -45 degrees')
-        self.move_joints(-45.0, cal_positions['J2'], cal_positions['J3'], 
-                        cal_positions['J4'], cal_positions['J5'], cal_positions['J6'])
+        self.move_joints(j1=-45.0)
         self.wait_for_joints([math.radians(-45), None, None, None, None, None], timeout=15.0)
         cal_positions['J1'] = -45.0
 
         # 6. Move J3 to 45 deg
         self.confirm_step('Move J3 to 45 degrees')
-        self.move_joints(cal_positions['J1'], cal_positions['J2'], 45.0, 
-                        cal_positions['J4'], cal_positions['J5'], cal_positions['J6'])
+        self.move_joints(j3=45.0)
         self.wait_for_joints([None, None, math.radians(45), None, None, None], timeout=15.0)
         cal_positions['J3'] = 45.0
 
@@ -154,8 +165,7 @@ class ArmCalibrator(Node):
 
         # 8. Move J1 to 0 deg (final safe position)
         self.confirm_step('Move J1 to 0 degrees (final safe position)')
-        self.move_joints(0.0, cal_positions['J2'], cal_positions['J3'], 
-                        cal_positions['J4'], cal_positions['J5'], cal_positions['J6'])
+        self.move_joints(j1=0.0)
         self.wait_for_joints([math.radians(0), None, None, None, None, None], timeout=15.0)
 
         self.get_logger().info('Calibration Sequence Complete!')
