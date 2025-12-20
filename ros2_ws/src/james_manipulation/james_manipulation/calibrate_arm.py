@@ -159,7 +159,7 @@ class ArmCalibrator(Node):
 
         # 7. Calibrate Joint 2
         self.confirm_step('Calibrate Joint 2')
-        self.send_raw('LLA0B1C0D0E0F0G0H-25I0J0K0L0M0N0O0P0Q0R0')
+        self.send_raw('LLA0B1C0D0E0F0G0H-45I0J0K0L0M0N0O0P0Q0R0')
         time.sleep(5.0)
         
         self.confirm_step('Move J2 to 0 degrees')
