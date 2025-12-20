@@ -78,6 +78,9 @@ class TeensySerialBridge(Node):
         self.last_command_time = time.time()
         self.serial_lock = threading.Lock()
         
+        # Publishers
+        self.collision_pub = self.create_publisher(String, '/teensy/collision_status', 10)
+        
         # Setup logging
         import os
         log_dir = os.path.expanduser('~/teensy_logs')
@@ -324,11 +327,6 @@ class TeensySerialBridge(Node):
             # Commercial firmware broadcasts position automatically 
             # Format: A<J1>B<J2>C<J3>D<J4>E<J5>F<J6>G<X>H<Y>I<Z>J<Rz>K<Ry>L<Rx>M<SV>N<DB>O<FG>P<J7>Q<J8>R<J9>
             if message.startswith('A') and 'B' in message and 'C' in message:
-                # Check for error codes
-                if 'EC' in message:
-                    error_start = message.find('EC')
-                    error_code = message[error_start:error_start+8] if len(message) >= error_start+8 else message[error_start:]
-                    self.get_logger().warn(f'Teensy firmware error: {error_code}')
                 self.parse_commercial_feedback(message)
             
             # Internal debug: "DB: ..."
@@ -382,6 +380,28 @@ class TeensySerialBridge(Node):
                 self.last_joint_state.position[6+i] = val # Linear or deg? Usually 6-8 are linear?
             except ValueError: pass
 
+        # Parse Status/Collision flag 'O'
+        o_start = data.find('O')
+        if o_start != -1:
+            # The O field is usually ONO or OECXXXXXX
+            # Markers after O are P, Q, R or end
+            next_markers = ['P', 'Q', 'R']
+            o_end = -1
+            for m in next_markers:
+                m_pos = data.find(m, o_start + 1)
+                if m_pos != -1:
+                    if o_end == -1 or m_pos < o_end:
+                        o_end = m_pos
+            
+            o_val = data[o_start+1:o_end] if o_end != -1 else data[o_start+1:]
+            o_val = o_val.strip()
+            
+            if o_val.startswith('EC'):
+                collision_msg = String()
+                collision_msg.data = o_val
+                self.collision_pub.publish(collision_msg)
+                self.get_logger().warning(f'COLLISION DETECTED: {o_val}')
+
     def joint_command_callback(self, msg):
         """Send Joint commands via RJ prefix"""
         if not self.connected or not self.serial_conn: return
@@ -405,7 +425,8 @@ class TeensySerialBridge(Node):
         cmd += f"J7{j7:.4f}J8{j8:.4f}J9{j9:.4f}"
         
         # Speed/Accel params
-        cmd += f"Sp{speed:.2f}Ac{accel:.2f}Dc{decel:.2f}Rm{ramp:.2f}W0Lm000000\n"
+        # Using Open Loop (Lm111111) for all joints as requested to prevent position resets
+        cmd += f"Sp{speed:.2f}Ac{accel:.2f}Dc{decel:.2f}Rm{ramp:.2f}W0Lm111111\n"
         
         with self.serial_lock:
             self.serial_conn.write(cmd.encode('utf-8'))
