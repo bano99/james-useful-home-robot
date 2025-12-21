@@ -67,8 +67,19 @@ class TeensySerialBridge(Node):
         self.command_timeout = self.get_parameter('command_timeout').value
         self.mock_hardware = self.get_parameter('mock_hardware').value
         self.config_file = self.get_parameter('config_file').value
-        self.enable_auto_detect = self.declare_parameter('enable_auto_detect', True).value
-        self.send_up_on_startup = self.declare_parameter('send_up_on_startup', True).value
+        
+        # Handle parameters that might come as strings from launch arguments
+        enable_auto_detect_raw = self.declare_parameter('enable_auto_detect', True).value
+        if isinstance(enable_auto_detect_raw, str):
+            self.enable_auto_detect = enable_auto_detect_raw.lower() == 'true'
+        else:
+            self.enable_auto_detect = enable_auto_detect_raw
+
+        send_up_raw = self.declare_parameter('send_up_on_startup', True).value
+        if isinstance(send_up_raw, str):
+            self.send_up_on_startup = send_up_raw.lower() == 'true'
+        else:
+            self.send_up_on_startup = send_up_raw
         
         # Load configuration
         self.config = {}

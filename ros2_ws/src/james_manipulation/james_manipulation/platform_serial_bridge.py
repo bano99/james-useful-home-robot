@@ -42,7 +42,12 @@ class PlatformSerialBridge(Node):
         self.timeout = self.get_parameter('timeout').value
         self.publish_rate = self.get_parameter('publish_rate').value
         self.connection_timeout = self.get_parameter('connection_timeout').value
-        self.enable_auto_detect = self.declare_parameter('enable_auto_detect', True).value
+        # Handle parameters that might come as strings from launch arguments
+        enable_auto_detect_raw = self.declare_parameter('enable_auto_detect', True).value
+        if isinstance(enable_auto_detect_raw, str):
+            self.enable_auto_detect = enable_auto_detect_raw.lower() == 'true'
+        else:
+            self.enable_auto_detect = enable_auto_detect_raw
         
         # Initialize serial connection
         self.serial_conn = None
