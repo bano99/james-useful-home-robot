@@ -10,7 +10,7 @@ platform_serial_bridge:
     enable_auto_detect: true
     
     # Communication settings
-    publish_rate: 50.0  # Hz - rate to publish received commands
+    publish_rate: 10.0  # Hz - rate to publish received commands
     connection_timeout: 1.0  # seconds - timeout for connection status
 
 teensy_serial_bridge:
@@ -22,7 +22,7 @@ teensy_serial_bridge:
     enable_auto_detect: true
     
     # Communication settings
-    publish_rate: 20.0  # Hz - rate to publish joint states (match heartbeat)
+    publish_rate: 10.0  # Hz - rate to publish joint states
     command_timeout: 0.5  # seconds - timeout for joint commands
 
 arm_cartesian_controller:
@@ -32,9 +32,9 @@ arm_cartesian_controller:
     rotation_scale: 0.01       # rad/s per joystick unit
     
     # Control loop settings
-    control_rate: 50.0         # Hz - main control loop rate
-    command_timeout: 0.5       # seconds - timeout for manual commands
-    ik_timeout: 0.05          # seconds - timeout for IK solver (50ms)
+    control_rate: 5.0          # Hz - throttled for 9600 baud serial
+    command_timeout: 1.0       # seconds - increased for slower loop
+    ik_timeout: 0.05           # seconds - timeout for IK solver (50ms)
     
     # Workspace safety limits (meters)
     workspace_limits:

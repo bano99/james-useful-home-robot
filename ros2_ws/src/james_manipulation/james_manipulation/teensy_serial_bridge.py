@@ -459,9 +459,13 @@ class TeensySerialBridge(Node):
             val = math.degrees(msg.position[i])
             cmd += f"{self.joint_labels[i]}{val:.4f}"
         
+        # Add J7-J9 dummy values to satisfy the Teensy firmware's fragile parser
+        cmd += "J70.0000J80.0000J90.0000"
+        
         # Speed/Accel params
-        # Using Open Loop (Lm111111) for all joints as requested to prevent position resets
-        cmd += f"Sp{speed:.2f}Ac{accel:.2f}Dc{decel:.2f}Rm{ramp:.2f}W0Lm111111\n"
+        # Using Open Loop (Lm111111111) for ALL joints to prevent axis limit/collision resets
+        # Lm string must be 9 digits for this firmware version
+        cmd += f"Sp{speed:.2f}Ac{accel:.2f}Dc{decel:.2f}Rm{ramp:.2f}W0Lm111111111\n"
         
         with self.serial_lock:
             self.serial_conn.write(cmd.encode('utf-8'))
