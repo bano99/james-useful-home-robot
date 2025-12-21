@@ -99,7 +99,6 @@ class TeensySerialBridge(Node):
         self.collision_pub = self.create_publisher(String, '/teensy/collision_status', 10)
         
         # Setup logging
-        import os
         log_dir = os.path.expanduser('~/teensy_logs')
         os.makedirs(log_dir, exist_ok=True)
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
