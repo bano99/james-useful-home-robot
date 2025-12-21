@@ -95,20 +95,18 @@ class TeensySerialBridge(Node):
         self.log_file.write(f'=== Teensy Serial Bridge Log Started at {datetime.now()} ===\n')
         self.log_file.write(f'Port: {self.serial_port}, Baud: {self.baud_rate}\n\n')
         
-        # Joint labels used by commercial firmware (A-F for J1-J6, P-R for J7-J9)
+        # Joint labels used by commercial firmware (A-F for J1-J6)
         self.joint_labels = ['A', 'B', 'C', 'D', 'E', 'F']
-        self.aux_labels = ['P', 'Q', 'R'] # J7, J8, J9 indices
         self.joint_names = [
             'arm_joint_1', 'arm_joint_2', 'arm_joint_3', 
-            'arm_joint_4', 'arm_joint_5', 'arm_joint_6',
-            'aux_joint_7', 'aux_joint_8', 'aux_joint_9'
+            'arm_joint_4', 'arm_joint_5', 'arm_joint_6'
         ]
         
         # Initialize joint state message
         self.last_joint_state.name = self.joint_names
-        self.last_joint_state.position = [0.0] * 9
-        self.last_joint_state.velocity = [0.0] * 9
-        self.last_joint_state.effort = [0.0] * 9
+        self.last_joint_state.position = [0.0] * 6
+        self.last_joint_state.velocity = [0.0] * 6
+        self.last_joint_state.effort = [0.0] * 6
         self.first_data_received = False
         
         # ROS2 publishers and subscribers
@@ -399,7 +397,7 @@ class TeensySerialBridge(Node):
         self.last_joint_state.header.stamp = self.get_clock().now().to_msg()
         
         # Mapping markers to joint indices
-        # A=0, B=1, C=2, D=3, E=4, F=5, G=X, H=Y, I=Z, J=Rz, K=Ry, L=Rx, M=SV, N=DB, O=FG, P=6, Q=7, R=8
+        # A=0, B=1, C=2, D=3, E=4, F=5, G=X, H=Y, I=Z, J=Rz, K=Ry, L=Rx, M=SV, N=DB, O=FG
         
         # Standard joints A-F
         markers = ['A', 'B', 'C', 'D', 'E', 'F', 'G']
@@ -411,21 +409,6 @@ class TeensySerialBridge(Node):
                     val = float(data[m_start+1:m_end])
                     self.last_joint_state.position[i] = math.radians(val)
                 except ValueError: pass
-
-        # Aux joints P-R (J7-J9)
-        aux_markers = ['P', 'Q', 'R']
-        for i, m in enumerate(aux_markers):
-            m_start = data.find(m)
-            if m_start == -1: continue
-            # Find next if exists
-            next_m = -1
-            if i < 2: next_m = data.find(aux_markers[i+1])
-            
-            val_str = data[m_start+1:next_m] if next_m != -1 else data[m_start+1:]
-            try:
-                val = float(val_str)
-                self.last_joint_state.position[6+i] = val # Linear or deg? Usually 6-8 are linear?
-            except ValueError: pass
 
         # Parse Status/Collision flag 'O'
         o_start = data.find('O')
@@ -475,12 +458,6 @@ class TeensySerialBridge(Node):
         for i in range(min(len(msg.position), 6)):
             val = math.degrees(msg.position[i])
             cmd += f"{self.joint_labels[i]}{val:.4f}"
-        
-        # J7-J9
-        j7 = msg.position[6] if len(msg.position) > 6 else 0.0
-        j8 = msg.position[7] if len(msg.position) > 7 else 0.0
-        j9 = msg.position[8] if len(msg.position) > 8 else 0.0
-        cmd += f"J7{j7:.4f}J8{j8:.4f}J9{j9:.4f}"
         
         # Speed/Accel params
         # Using Open Loop (Lm111111) for all joints as requested to prevent position resets
