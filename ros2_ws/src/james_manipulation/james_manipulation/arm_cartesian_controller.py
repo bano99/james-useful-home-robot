@@ -65,6 +65,8 @@ class ArmCartesianController(Node):
         self.current_target_pose = Pose()
         self.current_joint_state = JointState()
         self.manual_control_active = False
+        self.tf_synced = False
+        self.joint_state_received = False
         self.ik_success = False
         
         # TF2 setup
@@ -128,9 +130,16 @@ class ArmCartesianController(Node):
             data = json.loads(msg.data)
             
             if data.get('type') == 'manual_control':
-                # If this is the start of manual control, re-sync target pose to actual current pose
-                if not self.manual_control_active:
-                    self.sync_pose_to_actual()
+                # Critical: Safety checks before activating control
+                if not self.joint_state_received:
+                    self.get_logger().warn('Ignoring manual command: Joint states not yet received', throttle_duration_sec=2.0)
+                    return
+
+                # If this is the start of manual control, or not yet synced, try to sync
+                if not self.tf_synced:
+                    if not self.sync_pose_to_actual():
+                        # Don't activate if we can't sync Current Pose
+                        return
                 
                 self.last_command_time = self.get_clock().now().nanoseconds / 1e9
                 self.manual_control_active = True
@@ -168,6 +177,7 @@ class ArmCartesianController(Node):
     def joint_state_callback(self, msg):
         """Update current joint state from bridge feedback"""
         self.current_joint_state = msg
+        self.joint_state_received = True
 
     def sync_pose_to_actual(self):
         """Initialize current_target_pose from the actual arm position via TF"""
@@ -177,7 +187,7 @@ class ArmCartesianController(Node):
                 self.planning_frame,
                 self.ee_link,
                 now,
-                timeout=rclpy.duration.Duration(seconds=0.1)
+                timeout=rclpy.duration.Duration(seconds=0.2)
             )
             
             self.current_target_pose.position.x = transform.transform.translation.x
@@ -185,11 +195,13 @@ class ArmCartesianController(Node):
             self.current_target_pose.position.z = transform.transform.translation.z
             self.current_target_pose.orientation = transform.transform.rotation
             
-            self.get_logger().info('Synchronized target pose to actual arm position')
+            self.tf_synced = True
+            self.get_logger().info(f'Synchronized target pose to actual arm position: {self.current_target_pose.position.x:.3f}, {self.current_target_pose.position.y:.3f}, {self.current_target_pose.position.z:.3f}')
+            return True
         except Exception as e:
-            self.get_logger().warn(f'Could not sync pose from TF: {e}')
-            # Fallback to defaults if TF fails
-            pass
+            self.get_logger().warn(f'Could not sync pose from TF: {e}', throttle_duration_sec=1.0)
+            self.tf_synced = False
+            return False
 
     def control_loop(self):
         """Main control loop at control_rate"""

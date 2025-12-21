@@ -20,6 +20,7 @@ teensy_serial_bridge:
     baud_rate: 9600
     timeout: 0.1
     enable_auto_detect: true
+    send_up_on_startup: false
     
     # Communication settings
     publish_rate: 10.0  # Hz - rate to publish joint states

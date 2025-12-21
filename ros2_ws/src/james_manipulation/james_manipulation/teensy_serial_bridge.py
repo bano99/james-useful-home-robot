@@ -68,6 +68,7 @@ class TeensySerialBridge(Node):
         self.mock_hardware = self.get_parameter('mock_hardware').value
         self.config_file = self.get_parameter('config_file').value
         self.enable_auto_detect = self.declare_parameter('enable_auto_detect', True).value
+        self.send_up_on_startup = self.declare_parameter('send_up_on_startup', True).value
         
         # Load configuration
         self.config = {}
@@ -199,7 +200,10 @@ class TeensySerialBridge(Node):
                 if not self.connected:
                     if self.connect_serial():
                         time.sleep(2.0) # Wait for boot logs
-                        self.send_configuration() # Critical for setting motor directions!
+                        if self.send_up_on_startup:
+                            self.send_configuration() # Critical for setting motor directions!
+                        else:
+                            self.get_logger().info('Skipping automatic UP configuration command as requested')
                     else:
                         time.sleep(1.0)
                         continue
