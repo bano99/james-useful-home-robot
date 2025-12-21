@@ -224,40 +224,31 @@ class ArmCalibrator(Node):
             return
         cal_positions['J3'] = -85.0
 
-        # 5. Calibrate Joint 1, then move to -45 deg
+        # 5. Calibrate Joint 1, then move J1 and J3 simultaneously
         self.confirm_step('Calibrate Joint 1')
         self.send_raw('LLA1B0C0D0E0F0G0H0I0J0.0K-26.7L0.0M0.0N0.0O0.0P0.0Q0.0R0.0')
         if not self.wait_for_ready(timeout=20.0): return
         
-        self.confirm_step('Move J1 to -45 degrees')
-        self.move_joints(j1=-45.0, speed=40)
-        if not self.wait_for_joints([math.radians(-45), None, None, None, None, None], timeout=35.0):
+        self.confirm_step('Move J1 to -45 and J3 to 35 degrees')
+        self.move_joints(j1=-45.0, j3=35.0, speed=40)
+        if not self.wait_for_joints([math.radians(-45), None, math.radians(35), None, None, None], timeout=40.0):
             return
         cal_positions['J1'] = -45.0
-
-        # 6. Move J3 to 35 deg
-        self.confirm_step('Move J3 to 35 degrees')
-        self.move_joints(j3=35.0, speed=40)
-        if not self.wait_for_joints([None, None, math.radians(35), None, None, None], timeout=30.0):
-            return
         cal_positions['J3'] = 35.0
 
-        # 7. Calibrate Joint 2
+        # Step 6 was merged into Step 5
+
+        # 6. Calibrate Joint 2, then move J2 and J1 to 0 (final position)
         self.confirm_step('Calibrate Joint 2')
         self.send_raw('LLA0B1C0D0E0F0G0H0I0J0.0K-26.7L0.0M0.0N0.0O0.0P0.0Q0.0R0.0')
         if not self.wait_for_ready(timeout=20.0): return
         
-        self.confirm_step('Move J2 to 0 degrees')
-        self.move_joints(j2=0.0, speed=40)
-        if not self.wait_for_joints([None, math.radians(0), None, None, None, None], timeout=30.0):
+        self.confirm_step('Move J1 and J2 to 0 degrees (final safe position)')
+        self.move_joints(j1=0.0, j2=0.0, speed=40)
+        if not self.wait_for_joints([math.radians(0), math.radians(0), None, None, None, None], timeout=40.0):
             return
         cal_positions['J2'] = 0.0
-
-        # 8. Move J1 to 0 deg (final safe position)
-        self.confirm_step('Move J1 to 0 degrees (final safe position)')
-        self.move_joints(j1=0.0, speed=40)
-        if not self.wait_for_joints([math.radians(0), None, None, None, None, None], timeout=35.0):
-            return
+        cal_positions['J1'] = 0.0
 
         self.get_logger().info('Calibration Sequence Complete!')
         self.get_logger().info(f'Final position: J1=0°, J2={cal_positions["J2"]}°, J3={cal_positions["J3"]}°, J4={cal_positions["J4"]}°, J5={cal_positions["J5"]}°, J6={cal_positions["J6"]}°')
