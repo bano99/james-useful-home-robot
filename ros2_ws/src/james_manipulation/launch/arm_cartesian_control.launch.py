@@ -2,7 +2,7 @@ import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, TextSubstitution
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 
@@ -65,14 +65,15 @@ def generate_launch_description():
         package='james_manipulation',
         executable='platform_serial_bridge',
         name='platform_serial_bridge',
-        parameters=[config_file],
-        arguments=[
-            '--ros-args', 
-            '--log-level', log_level,
-            '-p', 'serial_port:=', platform_port,
-            '-p', 'enable_auto_detect:=', enable_auto_detect,
-            '-p', 'use_sim_time:=', use_sim_time
+        parameters=[
+            config_file,
+            {
+                'serial_port': platform_port,
+                'enable_auto_detect': enable_auto_detect,
+                'use_sim_time': use_sim_time
+            }
         ],
+        arguments=['--ros-args', '--log-level', log_level],
         output='screen',
         respawn=True,
         respawn_delay=2.0
@@ -83,12 +84,11 @@ def generate_launch_description():
         package='james_manipulation',
         executable='arm_cartesian_controller',
         name='arm_cartesian_controller',
-        parameters=[config_file],
-        arguments=[
-            '--ros-args', 
-            '--log-level', log_level,
-            '-p', 'use_sim_time:=', use_sim_time
+        parameters=[
+            config_file,
+            {'use_sim_time': use_sim_time}
         ],
+        arguments=['--ros-args', '--log-level', log_level],
         output='screen',
         respawn=True,
         respawn_delay=2.0
@@ -99,14 +99,15 @@ def generate_launch_description():
         package='james_manipulation',
         executable='teensy_serial_bridge',
         name='teensy_serial_bridge',
-        parameters=[config_file],
-        arguments=[
-            '--ros-args', 
-            '--log-level', log_level,
-            '-p', 'serial_port:=', teensy_port,
-            '-p', 'enable_auto_detect:=', enable_auto_detect,
-            '-p', 'use_sim_time:=', use_sim_time
+        parameters=[
+            config_file,
+            {
+                'serial_port': teensy_port,
+                'enable_auto_detect': enable_auto_detect,
+                'use_sim_time': use_sim_time
+            }
         ],
+        arguments=['--ros-args', '--log-level', log_level],
         output='screen',
         respawn=True,
         respawn_delay=2.0
