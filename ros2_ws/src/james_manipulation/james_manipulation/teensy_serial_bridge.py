@@ -240,8 +240,10 @@ class TeensySerialBridge(Node):
         cmd += f"q{get_val('J1EncMult', 1)}r{get_val('J2EncMult', 1)}s{get_val('J3EncMult', 1)}t{get_val('J4EncMult', 1)}u{get_val('J5EncMult', 1)}v{get_val('J6EncMult', 1)}"
         
         # DH Parameters
-        cmd += f"w{get_val('J1\u0398DHpar', 0, float)}x{get_val('J2\u0398DHpar', -90, float)}y{get_val('J3\u0398DHpar', 0, float)}z{get_val('J4\u0398DHpar', 0, float)}!{get_val('J5\u0398DHpar', 0, float)}@{get_val('J6\u0398DHpar', 180, float)}"
-        cmd += f"#{get_val('J1\u03b1DHpar', 0, float)}${get_val('J2\u03b1DHpar', -90, float)}%{get_val('J3\u03b1DHpar', 0, float)}^{get_val('J4\u03b1DHpar', -90, float)}&{get_val('J5\u03b1DHpar', 90, float)}*{get_val('J6\u03b1DHpar', -90, float)}"
+        theta_key = '\u0398DHpar'
+        alpha_key = '\u03b1DHpar'
+        cmd += f"w{get_val('J1'+theta_key, 0, float)}x{get_val('J2'+theta_key, -90, float)}y{get_val('J3'+theta_key, 0, float)}z{get_val('J4'+theta_key, 0, float)}!{get_val('J5'+theta_key, 0, float)}@{get_val('J6'+theta_key, 180, float)}"
+        cmd += f"#{get_val('J1'+alpha_key, 0, float)}${get_val('J2'+alpha_key, -90, float)}%{get_val('J3'+alpha_key, 0, float)}^{get_val('J4'+alpha_key, -90, float)}&{get_val('J5'+alpha_key, 90, float)}*{get_val('J6'+alpha_key, -90, float)}"
         cmd += f"({get_val('J1dDHpar', 0, float)}){get_val('J2dDHpar', 0, float)}+{get_val('J3dDHpar', 0, float)}={get_val('J4dDHpar', 0, float)},{get_val('J5dDHpar', 0, float)}_{get_val('J6dDHpar', 0, float)}"
         cmd += f"<{get_val('J1aDHpar', 0, float)}>{get_val('J2aDHpar', 0, float)}?{get_val('J3aDHpar', 0, float)}{{{get_val('J4aDHpar', 0, float)}}}{get_val('J5aDHpar', 0, float)}~{get_val('J6aDHpar', 0, float)}"
         cmd += "\n"
