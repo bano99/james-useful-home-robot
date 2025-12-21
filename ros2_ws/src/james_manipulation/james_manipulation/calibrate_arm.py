@@ -2,7 +2,7 @@
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
-from std_msgs.msg import String
+from std_msgs.msg import String, Int32
 import time
 import math
 
@@ -22,7 +22,9 @@ class ArmCalibrator(Node):
         
         self.collision_sub = self.create_subscription(String, '/teensy/collision_status', self.collision_callback, 10)
         self.last_collision = None
-        self.msg_count = 0
+        self.packet_count_sub = self.create_subscription(Int32, '/teensy/packet_count', self.packet_count_callback, 10)
+        self.packet_count = 0
+        self.msg_count = 0 
         
         self.get_logger().info('Arm Calibrator Node Started')
 
@@ -34,6 +36,9 @@ class ArmCalibrator(Node):
         self.received_state = True
         self.msg_count += 1
 
+    def packet_count_callback(self, msg):
+        self.packet_count = msg.data
+
     def collision_callback(self, msg):
         self.last_collision = msg.data
         self.get_logger().error(f'TEENSY COLLISION REPORTED: {msg.data}')
@@ -41,12 +46,15 @@ class ArmCalibrator(Node):
     def wait_for_joints(self, target_positions, tolerance=0.05, timeout=30.0, wait_for_new=True):
         """Wait until joints reach target positions (in radians)"""
         if wait_for_new:
-            # Record current msg count and wait for at least one update to ensure we aren't looking at stale data
-            start_count = self.msg_count
+            # Record current hardware packet count and wait for at least one update to ensure we aren't looking at stale data
+            start_count = self.packet_count
             start_wait = time.time()
-            while self.msg_count == start_count and time.time() - start_wait < 2.0:
+            self.get_logger().info('Waiting for fresh hardware feedback...')
+            while self.packet_count <= start_count and time.time() - start_wait < 5.0:
                 rclpy.spin_once(self, timeout_sec=0.1)
                 if not rclpy.ok(): return False
+            if self.packet_count <= start_count:
+                self.get_logger().warn('Proceeding without fresh feedback (timeout while waiting for sync)')
 
         self.get_logger().info(f'Waiting for joints to reach target...')
         self.last_collision = None # Reset before wait
@@ -116,9 +124,9 @@ class ArmCalibrator(Node):
             self.get_logger().info("Waiting for first joint state feedback...")
             self.wait_for_ready(timeout=5.0)
 
-        start_count = self.msg_count
+        start_count = self.packet_count
         start_wait = time.time()
-        while self.msg_count <= start_count and time.time() - start_wait < 1.0:
+        while self.packet_count <= start_count and time.time() - start_wait < 1.0:
             rclpy.spin_once(self, timeout_sec=0.05)
 
         if not self.received_state or any(p is None for p in self.current_positions):
@@ -142,12 +150,12 @@ class ArmCalibrator(Node):
         self.send_raw(cmd)
 
     def wait_for_ready(self, timeout=10.0):
-        """Wait for at least one new message to arrive from Teensy"""
-        start_count = self.msg_count
+        """Wait for at least one new hardware packet to arrive from Teensy"""
+        start_count = self.packet_count
         start_time = time.time()
-        while self.msg_count <= start_count:
+        while self.packet_count <= start_count:
             if time.time() - start_time > timeout:
-                self.get_logger().error('Timeout waiting for feedback from Teensy!')
+                self.get_logger().error('Timeout waiting for hardware feedback from Teensy!')
                 return False
             rclpy.spin_once(self, timeout_sec=0.1)
         return True
@@ -155,6 +163,9 @@ class ArmCalibrator(Node):
     def run_calibration(self):
         self.get_logger().info('Starting Commercial Firmware Calibration Sequence...')
         self.get_logger().info('New Sequence: J6→90°, J5→0°, J4, J3→-85°, J1→-45°, J3→45°, J2, J1→0°')
+        
+        # Trigger initial feedback by sending safe 'SS' (Spline Stop) command
+        self.send_raw('SS')
         
         # Wait for initial feedback
         if not self.wait_for_ready(timeout=5.0):

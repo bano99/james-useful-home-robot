@@ -12,7 +12,7 @@ Date: December 2024
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
-from std_msgs.msg import String
+from std_msgs.msg import String, Int32
 import serial
 import threading
 import time
@@ -112,10 +112,16 @@ class TeensySerialBridge(Node):
         self.joint_state_pub = self.create_publisher(JointState, '/joint_states', 10)
         self.joint_cmd_sub = self.create_subscription(JointState, '/arm/joint_commands', self.joint_command_callback, 10)
         self.raw_cmd_sub = self.create_subscription(String, '/arm/teensy_raw_cmd', self.raw_command_callback, 10)
-        self.status_pub = self.create_publisher(String, '/teensy_bridge/status', 10)
+        # Timer for publishing joint states (Heartbeat)
+        self.publish_rate = 20.0
+        self.joint_state_timer = self.create_timer(1.0 / self.publish_rate, self.publish_joint_state)
         
         # Timer for status publishing
         self.status_timer = self.create_timer(1.0, self.publish_status)
+        
+        # Packet count for synchronization
+        self.packet_count_pub = self.create_publisher(Int32, '/teensy/packet_count', 10)
+        self.packet_count = 0
         
         # Start serial communication thread
         self.serial_thread = threading.Thread(target=self.serial_communication_loop)
@@ -401,7 +407,14 @@ class TeensySerialBridge(Node):
                 self.get_logger().warning(f'COLLISION DETECTED: {o_val}')
         
         self.first_data_received = True
-        # Publish the state immediately after parsing fresh data
+        self.packet_count += 1
+        
+        # Publish hardware packet count for synchronization
+        pc_msg = Int32()
+        pc_msg.data = self.packet_count
+        self.packet_count_pub.publish(pc_msg)
+
+        # Also publish joint state immediately
         self.publish_joint_state()
 
     def joint_command_callback(self, msg):
@@ -448,8 +461,8 @@ class TeensySerialBridge(Node):
             self.log_file.write(f'[{datetime.now().strftime("%H:%M:%S.%f")[:-3]}] TX: {command.strip()}\n')
     
     def publish_joint_state(self):
-        """Publish current joint state if valid data has been received"""
-        if self.connected and self.first_data_received:
+        """Publish current joint state (Heartbeat)"""
+        if self.connected:
             self.last_joint_state.header.stamp = self.get_clock().now().to_msg()
             self.joint_state_pub.publish(self.last_joint_state)
     
