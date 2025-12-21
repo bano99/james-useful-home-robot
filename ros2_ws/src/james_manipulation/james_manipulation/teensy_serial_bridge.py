@@ -20,8 +20,9 @@ import re
 import math
 import json
 from datetime import datetime
-import glob
 import os
+import glob
+from ament_index_python.packages import get_package_share_directory
 
 
 class TeensySerialBridge(Node):
@@ -33,7 +34,6 @@ class TeensySerialBridge(Node):
         super().__init__('teensy_serial_bridge')
         
         # Default config path - use ROS2 package share directory
-        from ament_index_python.packages import get_package_share_directory
         try:
             package_share_dir = get_package_share_directory('james_manipulation')
             default_config_path = os.path.join(package_share_dir, 'config', 'ARconfig.json')
