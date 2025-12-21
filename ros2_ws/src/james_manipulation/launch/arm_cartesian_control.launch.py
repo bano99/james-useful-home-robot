@@ -8,6 +8,11 @@ from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
+    # UNMISSABLE VERSION CHECK FOR DEBUGGING
+    print("\n" + "="*60)
+    print("  LAUNCHING ARM CARTESIAN CONTROL - VERSION: 2024-12-21-V5-ATOMIC")
+    print("="*60 + "\n")
+
     # Define directories
     pkg_james_manipulation = get_package_share_directory('james_manipulation')
     
@@ -66,12 +71,12 @@ def generate_launch_description():
         executable='platform_serial_bridge',
         name='platform_serial_bridge',
         parameters=[
-            config_file,
             {
                 'serial_port': platform_port,
                 'enable_auto_detect': enable_auto_detect,
                 'use_sim_time': use_sim_time
-            }
+            },
+            config_file  # YAML file goes second to allow individual overrides above
         ],
         arguments=['--ros-args', '--log-level', log_level],
         output='screen',
@@ -85,8 +90,8 @@ def generate_launch_description():
         executable='arm_cartesian_controller',
         name='arm_cartesian_controller',
         parameters=[
-            config_file,
-            {'use_sim_time': use_sim_time}
+            {'use_sim_time': use_sim_time},
+            config_file
         ],
         arguments=['--ros-args', '--log-level', log_level],
         output='screen',
@@ -100,12 +105,12 @@ def generate_launch_description():
         executable='teensy_serial_bridge',
         name='teensy_serial_bridge',
         parameters=[
-            config_file,
             {
                 'serial_port': teensy_port,
                 'enable_auto_detect': enable_auto_detect,
                 'use_sim_time': use_sim_time
-            }
+            },
+            config_file
         ],
         arguments=['--ros-args', '--log-level', log_level],
         output='screen',
