@@ -112,6 +112,8 @@ class TeensySerialBridge(Node):
         self.joint_state_pub = self.create_publisher(JointState, '/joint_states', 10)
         self.joint_cmd_sub = self.create_subscription(JointState, '/arm/joint_commands', self.joint_command_callback, 10)
         self.raw_cmd_sub = self.create_subscription(String, '/arm/teensy_raw_cmd', self.raw_command_callback, 10)
+        self.status_pub = self.create_publisher(String, '/teensy_bridge/status', 10)
+        self.collision_pub = self.create_publisher(String, '/teensy/collision_status', 10)
         # Timer for publishing joint states (Heartbeat)
         self.publish_rate = 20.0
         self.joint_state_timer = self.create_timer(1.0 / self.publish_rate, self.publish_joint_state)
