@@ -206,8 +206,9 @@ class ArmCartesianController(Node):
     def control_loop(self):
         """Main control loop at control_rate"""
         if not self.manual_control_active:
-            # Maybe keep syncing to actual when inactive to avoid jump on start
-            # But only if TF is available
+            # Continuously sync target pose to actual robot pose when idle
+            # This ensures "bumpless transfer" when control is engaged
+            self.sync_pose_to_actual()
             return
 
         current_time = self.get_clock().now().nanoseconds / 1e9
