@@ -72,13 +72,13 @@ class TeensySerialBridge(Node):
         
         enable_raw = self.get_parameter('enable_auto_detect').value
         if isinstance(enable_raw, str):
-            self.enable_auto_detect = enable_raw.lower() == 'true'
+            self.enable_auto_detect = enable_raw.lower() in ('true', '1', 'yes', 'on')
         else:
             self.enable_auto_detect = bool(enable_raw)
 
         send_up_raw = self.get_parameter('send_up_on_startup').value
         if isinstance(send_up_raw, str):
-            self.send_up_on_startup = send_up_raw.lower() == 'true'
+            self.send_up_on_startup = send_up_raw.lower() in ('true', '1', 'yes', 'on')
         else:
             self.send_up_on_startup = bool(send_up_raw)
             
