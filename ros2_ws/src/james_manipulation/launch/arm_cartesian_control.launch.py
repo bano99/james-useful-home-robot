@@ -1,23 +1,16 @@
-#!/usr/bin/env python3
-"""
-Launch file for James Robot Arm Cartesian Control
-
-This launch file starts all nodes required for manual Cartesian control
-of the AR4-MK3 robot arm via remote control.
-
-Author: James Robot Team
-Date: December 2024
-"""
-
+import os
+from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch_ros.actions import Node
 from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
-import os
 
 
 def generate_launch_description():
+    # Define directories
+    pkg_james_manipulation = get_package_share_directory('james_manipulation')
+    
     # Declare launch arguments
     config_file_arg = DeclareLaunchArgument(
         'config_file',
@@ -29,6 +22,24 @@ def generate_launch_description():
         description='Path to the configuration file'
     )
     
+    platform_port_arg = DeclareLaunchArgument(
+        'platform_port',
+        default_value='/dev/ttyACM0',
+        description='Serial port for Platform Controller'
+    )
+
+    teensy_port_arg = DeclareLaunchArgument(
+        'teensy_port',
+        default_value='/dev/ttyACM1',
+        description='Serial port for Teensy (AR4)'
+    )
+
+    enable_auto_detect_arg = DeclareLaunchArgument(
+        'enable_auto_detect',
+        default_value='true',
+        description='Enable serial port auto-detection'
+    )
+
     use_sim_time_arg = DeclareLaunchArgument(
         'use_sim_time',
         default_value='false',
@@ -45,6 +56,9 @@ def generate_launch_description():
     config_file = LaunchConfiguration('config_file')
     use_sim_time = LaunchConfiguration('use_sim_time')
     log_level = LaunchConfiguration('log_level')
+    platform_port = LaunchConfiguration('platform_port')
+    teensy_port = LaunchConfiguration('teensy_port')
+    enable_auto_detect = LaunchConfiguration('enable_auto_detect')
     
     # Platform Serial Bridge Node
     platform_bridge_node = Node(
@@ -53,7 +67,11 @@ def generate_launch_description():
         name='platform_serial_bridge',
         parameters=[
             config_file,
-            {'use_sim_time': use_sim_time}
+            {
+                'use_sim_time': use_sim_time,
+                'serial_port': platform_port,
+                'enable_auto_detect': enable_auto_detect
+            }
         ],
         arguments=['--ros-args', '--log-level', log_level],
         output='screen',
@@ -83,7 +101,11 @@ def generate_launch_description():
         name='teensy_serial_bridge',
         parameters=[
             config_file,
-            {'use_sim_time': use_sim_time}
+            {
+                'use_sim_time': use_sim_time,
+                'serial_port': teensy_port,
+                'enable_auto_detect': enable_auto_detect
+            }
         ],
         arguments=['--ros-args', '--log-level', log_level],
         output='screen',
@@ -94,6 +116,9 @@ def generate_launch_description():
     return LaunchDescription([
         # Launch arguments
         config_file_arg,
+        platform_port_arg,
+        teensy_port_arg,
+        enable_auto_detect_arg,
         use_sim_time_arg,
         log_level_arg,
         
@@ -102,7 +127,3 @@ def generate_launch_description():
         arm_controller_node,
         teensy_bridge_node,
     ])
-
-
-if __name__ == '__main__':
-    generate_launch_description()
