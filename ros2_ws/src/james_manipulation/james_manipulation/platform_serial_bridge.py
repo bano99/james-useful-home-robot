@@ -17,6 +17,8 @@ import json
 import threading
 import time
 import struct
+import glob
+import os
 
 
 class PlatformSerialBridge(Node):
@@ -40,6 +42,7 @@ class PlatformSerialBridge(Node):
         self.timeout = self.get_parameter('timeout').value
         self.publish_rate = self.get_parameter('publish_rate').value
         self.connection_timeout = self.get_parameter('connection_timeout').value
+        self.enable_auto_detect = self.declare_parameter('enable_auto_detect', True).value
         
         # Initialize serial connection
         self.serial_conn = None
@@ -89,7 +92,16 @@ class PlatformSerialBridge(Node):
         self.get_logger().info(f'Platform Serial Bridge started on {self.serial_port}')
     
     def connect_serial(self):
-        """Establish serial connection to Platform Controller"""
+        """Establish serial connection with optional auto-detection"""
+        if self.enable_auto_detect:
+            self.get_logger().info("Auto-detect enabled. Searching for Platform Controller...")
+            discovered_port = self.discover_port()
+            if discovered_port:
+                self.serial_port = discovered_port
+                self.get_logger().info(f"Platform Controller discovered on {self.serial_port}")
+            else:
+                self.get_logger().warn(f"Auto-detection failed, falling back to {self.serial_port}")
+
         try:
             if self.serial_conn and self.serial_conn.is_open:
                 self.serial_conn.close()
@@ -108,6 +120,39 @@ class PlatformSerialBridge(Node):
             self.connected = False
             self.get_logger().warn(f'Failed to connect to {self.serial_port}: {e}')
             return False
+
+    def discover_port(self):
+        """Scan available serial ports to identify the Platform Controller"""
+        # Look for /dev/ttyACM* or COM ports on Windows
+        if os.name == 'nt':
+            candidate_ports = [f'COM{i}' for i in range(1, 21)]
+        else:
+            candidate_ports = glob.glob('/dev/ttyACM*') + glob.glob('/dev/ttyUSB*')
+            
+        for port in candidate_ports:
+            self.get_logger().info(f"Probing port {port}...")
+            try:
+                # Try opening port with a short timeout
+                test_conn = serial.Serial(port, self.baud_rate, timeout=0.5)
+                
+                # Sniff for 0xAA packet start
+                start_time = time.time()
+                while time.time() - start_time < 1.0: # Probe for 1 second
+                    if test_conn.in_waiting >= self.PACKET_SIZE:
+                        sample = test_conn.read(test_conn.in_waiting)
+                        # Look for start byte followed by valid-looking data
+                        idx = sample.find(self.PACKET_START)
+                        if idx != -1 and (idx + self.PACKET_SIZE) <= len(sample):
+                            packet = sample[idx:idx + self.PACKET_SIZE]
+                            # Verify checksum
+                            calc_checksum = sum(packet[:-1]) & 0xFF
+                            if calc_checksum == packet[self.PACKET_SIZE-1]:
+                                test_conn.close()
+                                return port
+                test_conn.close()
+            except Exception:
+                continue
+        return None
     
     def serial_communication_loop(self):
         """Main serial communication loop running in separate thread"""

@@ -20,6 +20,8 @@ import re
 import math
 import json
 from datetime import datetime
+import glob
+import os
 
 
 class TeensySerialBridge(Node):
@@ -65,6 +67,7 @@ class TeensySerialBridge(Node):
         self.command_timeout = self.get_parameter('command_timeout').value
         self.mock_hardware = self.get_parameter('mock_hardware').value
         self.config_file = self.get_parameter('config_file').value
+        self.enable_auto_detect = self.declare_parameter('enable_auto_detect', True).value
         
         # Load configuration
         self.config = {}
@@ -133,7 +136,16 @@ class TeensySerialBridge(Node):
         self.get_logger().info(f'Teensy Serial Bridge (Commercial v6.3) started on {self.serial_port} at {self.baud_rate} baud')
     
     def connect_serial(self):
-        """Establish serial connection to Teensy 4.1"""
+        """Establish serial connection with optional auto-detection"""
+        if self.enable_auto_detect:
+            self.get_logger().info("Auto-detect enabled. Searching for Teensy (AR4 Firmware)...")
+            discovered_port = self.discover_port()
+            if discovered_port:
+                self.serial_port = discovered_port
+                self.get_logger().info(f"Teensy discovered on {self.serial_port}")
+            else:
+                self.get_logger().warn(f"Auto-detection failed, falling back to {self.serial_port}")
+
         try:
             if self.serial_conn and self.serial_conn.is_open:
                 self.serial_conn.close()
@@ -145,13 +157,42 @@ class TeensySerialBridge(Node):
             )
             
             self.connected = True
-            self.get_logger().info(f'Connected to Teensy on {self.serial_port}')
+            self.get_logger().info(f'Connected to Teensy on {self.serial_port} at {self.baud_rate} baud')
             return True
             
         except Exception as e:
             self.connected = False
             self.get_logger().warn(f'Failed to connect to {self.serial_port}: {e}')
             return False
+
+    def discover_port(self):
+        """Scan available serial ports to identify the Teensy (AR4 Firmware)"""
+        if os.name == 'nt':
+            candidate_ports = [f'COM{i}' for i in range(1, 21)]
+        else:
+            candidate_ports = glob.glob('/dev/ttyACM*') + glob.glob('/dev/ttyUSB*')
+            
+        for port in candidate_ports:
+            self.get_logger().info(f"Probing port {port}...")
+            try:
+                # Ar4 firmware usually broadcasts at 9600. 
+                # Some custom versions might be at 115200.
+                for br in [9600, 115200]:
+                    test_conn = serial.Serial(port, br, timeout=0.1)
+                    start_time = time.time()
+                    while time.time() - start_time < 0.5:
+                        if test_conn.in_waiting > 0:
+                            line = test_conn.readline().decode('utf-8', errors='ignore').strip()
+                            # Look for position broadcast starting with A and containing B,C markers
+                            if line.startswith('A') and 'B' in line and 'C' in line:
+                                self.get_logger().info(f"Identified Teensy on {port} at {br} baud")
+                                self.baud_rate = br  # Update baud rate if different
+                                test_conn.close()
+                                return port
+                    test_conn.close()
+            except Exception:
+                continue
+        return None
 
     def serial_communication_loop(self):
         """Main serial communication loop running in separate thread"""

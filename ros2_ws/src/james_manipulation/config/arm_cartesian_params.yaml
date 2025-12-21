@@ -7,6 +7,7 @@ platform_serial_bridge:
     serial_port: "/dev/ttyACM0"
     baud_rate: 115200
     timeout: 0.1
+    enable_auto_detect: true
     
     # Communication settings
     publish_rate: 50.0  # Hz - rate to publish received commands
@@ -16,11 +17,12 @@ teensy_serial_bridge:
   ros__parameters:
     # USB Serial connection to Teensy 4.1 (AR4 controller)
     serial_port: "/dev/ttyACM1"
-    baud_rate: 115200
+    baud_rate: 9600
     timeout: 0.1
+    enable_auto_detect: true
     
     # Communication settings
-    publish_rate: 50.0  # Hz - rate to publish joint states
+    publish_rate: 20.0  # Hz - rate to publish joint states (match heartbeat)
     command_timeout: 0.5  # seconds - timeout for joint commands
 
 arm_cartesian_controller:

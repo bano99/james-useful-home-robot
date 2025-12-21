@@ -1,4 +1,4 @@
-//VERSION 6.2
+//VERSION 6.2.james
 
 /*  AR4 Robot Control Software
     Copyright (c) 2024, Chris Annin
@@ -3405,11 +3405,11 @@ void loop() {
         if (J5CalDir == 1) {
           J5StepM = ((J5axisLim) + J5calBaseOff + J5calOff) * J5StepDeg;
           J5stepCen = ((J5axisLimPos) + J5calBaseOff + J5calOff) * J5StepDeg;
-          J5step90 = (((J5axisLimNeg) + J5calBaseOff + J5calOff) - 90) * J5StepDeg;
+          J5step90 = (((J5axisLimNeg) + J5calBaseOff + J5calOff) - 1) * J5StepDeg; // changed to prevent collisions with a longer gripper
         } else {
           J5StepM = (0 + J5calBaseOff + J5calOff) * J5StepDeg;
           J5stepCen = ((J5axisLimNeg)-J5calBaseOff - J5calOff) * J5StepDeg;
-          J5step90 = (((J5axisLimNeg)-J5calBaseOff - J5calOff) + 90) * J5StepDeg;
+          J5step90 = (((J5axisLimNeg)-J5calBaseOff - J5calOff) + 1) * J5StepDeg; // changed to prevent collisions with a longer gripper
         }
       }
       if (J6req == 1) {
