@@ -71,12 +71,12 @@ def generate_launch_description():
         executable='platform_serial_bridge',
         name='platform_serial_bridge',
         parameters=[
+            config_file,
             {
                 'serial_port': platform_port,
                 'enable_auto_detect': enable_auto_detect,
                 'use_sim_time': use_sim_time
-            },
-            config_file  # YAML file goes second to allow individual overrides above
+            }
         ],
         arguments=['--ros-args', '--log-level', log_level],
         output='screen',
@@ -90,8 +90,8 @@ def generate_launch_description():
         executable='arm_cartesian_controller',
         name='arm_cartesian_controller',
         parameters=[
-            {'use_sim_time': use_sim_time},
-            config_file
+            config_file,
+            {'use_sim_time': use_sim_time}
         ],
         arguments=['--ros-args', '--log-level', log_level],
         output='screen',
@@ -105,12 +105,12 @@ def generate_launch_description():
         executable='teensy_serial_bridge',
         name='teensy_serial_bridge',
         parameters=[
+            config_file,
             {
                 'serial_port': teensy_port,
                 'enable_auto_detect': enable_auto_detect,
                 'use_sim_time': use_sim_time
-            },
-            config_file
+            }
         ],
         arguments=['--ros-args', '--log-level', log_level],
         output='screen',

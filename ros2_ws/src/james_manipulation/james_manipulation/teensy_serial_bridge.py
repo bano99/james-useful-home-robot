@@ -33,7 +33,7 @@ class TeensySerialBridge(Node):
     def __init__(self):
         super().__init__('teensy_serial_bridge')
         self.get_logger().info('=====================================================')
-        self.get_logger().info('Teensy Serial Bridge - VERSION: 2024-12-21-V4-FIXED')
+        self.get_logger().info('Teensy Serial Bridge - VERSION: 2024-12-21-V5-PARSED')
         self.get_logger().info('=====================================================')
         
         # Default config path - use ROS2 package share directory
