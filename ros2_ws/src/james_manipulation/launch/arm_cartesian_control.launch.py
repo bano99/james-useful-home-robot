@@ -67,11 +67,9 @@ def generate_launch_description():
         name='platform_serial_bridge',
         parameters=[
             config_file,
-            {
-                'use_sim_time': use_sim_time,
-                'serial_port': platform_port,
-                'enable_auto_detect': enable_auto_detect
-            }
+            {'use_sim_time': use_sim_time},
+            {'serial_port': platform_port},
+            {'enable_auto_detect': enable_auto_detect}
         ],
         arguments=['--ros-args', '--log-level', log_level],
         output='screen',
@@ -101,11 +99,9 @@ def generate_launch_description():
         name='teensy_serial_bridge',
         parameters=[
             config_file,
-            {
-                'use_sim_time': use_sim_time,
-                'serial_port': teensy_port,
-                'enable_auto_detect': enable_auto_detect
-            }
+            {'use_sim_time': use_sim_time},
+            {'serial_port': teensy_port},
+            {'enable_auto_detect': enable_auto_detect}
         ],
         arguments=['--ros-args', '--log-level', log_level],
         output='screen',

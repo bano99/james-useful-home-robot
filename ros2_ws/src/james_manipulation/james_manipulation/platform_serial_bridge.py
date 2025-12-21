@@ -29,25 +29,35 @@ class PlatformSerialBridge(Node):
     def __init__(self):
         super().__init__('platform_serial_bridge')
         
-        # Declare parameters
+        # Declare ALL parameters first
         self.declare_parameter('serial_port', '/dev/ttyACM0')
         self.declare_parameter('baud_rate', 115200)
         self.declare_parameter('timeout', 0.1)
         self.declare_parameter('publish_rate', 50.0)
         self.declare_parameter('connection_timeout', 1.0)
+        self.declare_parameter('enable_auto_detect', True)
         
-        # Get parameters
+        # Log raw parameter values for debugging
+        all_params = self._parameters
+        self.get_logger().info(f"--- PARAMETER DEBUG ---")
+        for name, param in all_params.items():
+            self.get_logger().info(f"Param '{name}': value={param.value}, type={param.type_}")
+        
+        # Get and process parameters
         self.serial_port = self.get_parameter('serial_port').value
         self.baud_rate = self.get_parameter('baud_rate').value
         self.timeout = self.get_parameter('timeout').value
         self.publish_rate = self.get_parameter('publish_rate').value
         self.connection_timeout = self.get_parameter('connection_timeout').value
-        # Handle parameters that might come as strings from launch arguments
-        enable_auto_detect_raw = self.declare_parameter('enable_auto_detect', True).value
-        if isinstance(enable_auto_detect_raw, str):
-            self.enable_auto_detect = enable_auto_detect_raw.lower() == 'true'
+        
+        enable_raw = self.get_parameter('enable_auto_detect').value
+        if isinstance(enable_raw, str):
+            self.enable_auto_detect = enable_raw.lower() == 'true'
         else:
-            self.enable_auto_detect = enable_auto_detect_raw
+            self.enable_auto_detect = bool(enable_raw)
+            
+        self.get_logger().info(f"Effective serial_port: {self.serial_port}")
+        self.get_logger().info(f"Effective enable_auto_detect: {self.enable_auto_detect}")
         
         # Initialize serial connection
         self.serial_conn = None

@@ -32,34 +32,33 @@ class TeensySerialBridge(Node):
     def __init__(self):
         super().__init__('teensy_serial_bridge')
         
-        # Declare parameters
-        self.declare_parameter('serial_port', '/dev/ttyACM0')
-        self.declare_parameter('baud_rate', 9600) # Default for commercial firmware
-        self.declare_parameter('timeout', 0.1)
-        self.declare_parameter('publish_rate', 20.0) # Lowered for 9600 baud
-        self.declare_parameter('command_timeout', 0.5)
-        self.declare_parameter('mock_hardware', False)
-        
         # Default config path - use ROS2 package share directory
-        import os
         from ament_index_python.packages import get_package_share_directory
-        
         try:
-            # Try to get the installed package share directory
             package_share_dir = get_package_share_directory('james_manipulation')
             default_config_path = os.path.join(package_share_dir, 'config', 'ARconfig.json')
         except Exception:
-            # Fallback for development: use relative to this file
             package_dir = os.path.dirname(os.path.abspath(__file__))
-            default_config_path = os.path.join(
-                os.path.dirname(package_dir),
-                'config',
-                'ARconfig.json'
-            )
+            default_config_path = os.path.join(os.path.dirname(package_dir), 'config', 'ARconfig.json')
 
+        # Declare ALL parameters first
+        self.declare_parameter('serial_port', '/dev/ttyACM0')
+        self.declare_parameter('baud_rate', 9600)
+        self.declare_parameter('timeout', 0.1)
+        self.declare_parameter('publish_rate', 20.0)
+        self.declare_parameter('command_timeout', 0.5)
+        self.declare_parameter('mock_hardware', False)
         self.declare_parameter('config_file', default_config_path)
-
-        # Get parameters
+        self.declare_parameter('enable_auto_detect', True)
+        self.declare_parameter('send_up_on_startup', True)
+        
+        # Log raw parameter values for debugging
+        all_params = self._parameters
+        self.get_logger().info(f"--- PARAMETER DEBUG ---")
+        for name, param in all_params.items():
+            self.get_logger().info(f"Param '{name}': value={param.value}, type={param.type_}")
+        
+        # Get and process parameters
         self.serial_port = self.get_parameter('serial_port').value
         self.baud_rate = self.get_parameter('baud_rate').value
         self.timeout = self.get_parameter('timeout').value
@@ -68,18 +67,21 @@ class TeensySerialBridge(Node):
         self.mock_hardware = self.get_parameter('mock_hardware').value
         self.config_file = self.get_parameter('config_file').value
         
-        # Handle parameters that might come as strings from launch arguments
-        enable_auto_detect_raw = self.declare_parameter('enable_auto_detect', True).value
-        if isinstance(enable_auto_detect_raw, str):
-            self.enable_auto_detect = enable_auto_detect_raw.lower() == 'true'
+        enable_raw = self.get_parameter('enable_auto_detect').value
+        if isinstance(enable_raw, str):
+            self.enable_auto_detect = enable_raw.lower() == 'true'
         else:
-            self.enable_auto_detect = enable_auto_detect_raw
+            self.enable_auto_detect = bool(enable_raw)
 
-        send_up_raw = self.declare_parameter('send_up_on_startup', True).value
+        send_up_raw = self.get_parameter('send_up_on_startup').value
         if isinstance(send_up_raw, str):
             self.send_up_on_startup = send_up_raw.lower() == 'true'
         else:
-            self.send_up_on_startup = send_up_raw
+            self.send_up_on_startup = bool(send_up_raw)
+            
+        self.get_logger().info(f"Effective serial_port: {self.serial_port}")
+        self.get_logger().info(f"Effective enable_auto_detect: {self.enable_auto_detect}")
+        self.get_logger().info(f"Effective send_up_on_startup: {self.send_up_on_startup}")
         
         # Load configuration
         self.config = {}
