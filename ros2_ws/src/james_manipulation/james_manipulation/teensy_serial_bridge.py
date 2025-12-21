@@ -106,15 +106,13 @@ class TeensySerialBridge(Node):
         self.last_joint_state.position = [0.0] * 9
         self.last_joint_state.velocity = [0.0] * 9
         self.last_joint_state.effort = [0.0] * 9
+        self.first_data_received = False
         
         # ROS2 publishers and subscribers
         self.joint_state_pub = self.create_publisher(JointState, '/joint_states', 10)
         self.joint_cmd_sub = self.create_subscription(JointState, '/arm/joint_commands', self.joint_command_callback, 10)
         self.raw_cmd_sub = self.create_subscription(String, '/arm/teensy_raw_cmd', self.raw_command_callback, 10)
         self.status_pub = self.create_publisher(String, '/teensy_bridge/status', 10)
-        
-        # Timer for publishing joint states
-        self.joint_state_timer = self.create_timer(1.0 / self.publish_rate, self.publish_joint_state)
         
         # Timer for status publishing
         self.status_timer = self.create_timer(1.0, self.publish_status)
@@ -401,6 +399,10 @@ class TeensySerialBridge(Node):
                 collision_msg.data = o_val
                 self.collision_pub.publish(collision_msg)
                 self.get_logger().warning(f'COLLISION DETECTED: {o_val}')
+        
+        self.first_data_received = True
+        # Publish the state immediately after parsing fresh data
+        self.publish_joint_state()
 
     def joint_command_callback(self, msg):
         """Send Joint commands via RJ prefix"""
@@ -446,8 +448,8 @@ class TeensySerialBridge(Node):
             self.log_file.write(f'[{datetime.now().strftime("%H:%M:%S.%f")[:-3]}] TX: {command.strip()}\n')
     
     def publish_joint_state(self):
-        """Publish current joint state"""
-        if self.connected:
+        """Publish current joint state if valid data has been received"""
+        if self.connected and self.first_data_received:
             self.last_joint_state.header.stamp = self.get_clock().now().to_msg()
             self.joint_state_pub.publish(self.last_joint_state)
     

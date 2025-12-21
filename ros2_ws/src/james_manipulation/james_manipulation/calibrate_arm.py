@@ -16,7 +16,7 @@ class ArmCalibrator(Node):
         self.raw_cmd_pub = self.create_publisher(String, '/arm/teensy_raw_cmd', 10)
         self.joint_state_sub = self.create_subscription(JointState, '/joint_states', self.joint_state_callback, 10)
         
-        self.current_positions = [0.0] * 6
+        self.current_positions = [None] * 6
         self.joint_names = ['arm_joint_1', 'arm_joint_2', 'arm_joint_3', 'arm_joint_4', 'arm_joint_5', 'arm_joint_6']
         self.received_state = False
         
@@ -57,11 +57,17 @@ class ArmCalibrator(Node):
                 return False
             
             reached = True
+            any_targets = False
             for i in range(len(target_positions)):
                 if target_positions[i] is not None:
-                    if abs(self.current_positions[i] - target_positions[i]) > tolerance:
+                    any_targets = True
+                    if self.current_positions[i] is None or abs(self.current_positions[i] - target_positions[i]) > tolerance:
                         reached = False
                         break
+            
+            # If no targets specified, we just wanted to wait for the message update
+            if not any_targets:
+                return True
             
             if reached:
                 self.get_logger().info('Target reached.')
@@ -106,10 +112,18 @@ class ArmCalibrator(Node):
         Use current position for any joint set to None"""
         
         # Ensure we have fresh feedback before composing the command
+        if not self.received_state:
+            self.get_logger().info("Waiting for first joint state feedback...")
+            self.wait_for_ready(timeout=5.0)
+
         start_count = self.msg_count
         start_wait = time.time()
         while self.msg_count <= start_count and time.time() - start_wait < 1.0:
             rclpy.spin_once(self, timeout_sec=0.05)
+
+        if not self.received_state or any(p is None for p in self.current_positions):
+            self.get_logger().error("Aborting move: No valid joint state received yet!")
+            return
 
         # Convert current positions from radians to degrees
         current_deg = [math.degrees(pos) for pos in self.current_positions]
