@@ -22,6 +22,7 @@ class ArmCalibrator(Node):
         
         self.collision_sub = self.create_subscription(String, '/teensy/collision_status', self.collision_callback, 10)
         self.last_collision = None
+        self.msg_count = 0
         
         self.get_logger().info('Arm Calibrator Node Started')
 
@@ -31,22 +32,28 @@ class ArmCalibrator(Node):
                 idx = msg.name.index(name)
                 self.current_positions[i] = msg.position[idx]
         self.received_state = True
+        self.msg_count += 1
 
     def collision_callback(self, msg):
         self.last_collision = msg.data
         self.get_logger().error(f'TEENSY COLLISION REPORTED: {msg.data}')
 
-    def wait_for_joints(self, target_positions, tolerance=0.05, timeout=30.0):
+    def wait_for_joints(self, target_positions, tolerance=0.05, timeout=30.0, wait_for_new=True):
         """Wait until joints reach target positions (in radians)"""
+        if wait_for_new:
+            # Record current msg count and wait for at least one update to ensure we aren't looking at stale data
+            start_count = self.msg_count
+            start_wait = time.time()
+            while self.msg_count == start_count and time.time() - start_wait < 2.0:
+                rclpy.spin_once(self, timeout_sec=0.1)
+                if not rclpy.ok(): return False
+
         self.get_logger().info(f'Waiting for joints to reach target...')
         self.last_collision = None # Reset before wait
         start_time = time.time()
         while rclpy.ok():
             if self.last_collision:
                 self.get_logger().error(f'Calibration ABORTED: Teensy reported collision {self.last_collision}')
-                return False
-            if time.time() - start_time > timeout:
-                self.get_logger().error('Timeout waiting for joints to reach target!')
                 return False
             
             reached = True
@@ -60,7 +67,25 @@ class ArmCalibrator(Node):
                 self.get_logger().info('Target reached.')
                 return True
             
+            if time.time() - start_time > timeout:
+                self.get_logger().error('Timeout waiting for joints to reach target!')
+                # Offer user choice on timeout
+                print("\n" + "="*40)
+                print(f"TIMEOUT: Joint(s) did not reach target within {timeout}s.")
+                print(f"Current: {[f'{math.degrees(p):.2f}' for p in self.current_positions]}")
+                print(f"Target: {[f'{math.degrees(p):.2f}' if p is not None else 'None' for p in target_positions]}")
+                print("="*40)
+                choice = input("Enter 'c' to CONTINUE anyway, 'r' to RETRY waiting, or 'q' to QUIT: ").lower()
+                if choice == 'c':
+                    return True
+                elif choice == 'r':
+                    start_time = time.time() # Reset timer
+                    continue
+                else:
+                    return False
+            
             rclpy.spin_once(self, timeout_sec=0.1)
+        return False
 
     def send_raw(self, cmd):
         msg = String()
@@ -80,9 +105,12 @@ class ArmCalibrator(Node):
         """Send RJ command with all 6 joint positions in degrees
         Use current position for any joint set to None"""
         
-        # Wait a moment for latest feedback
-        rclpy.spin_once(self, timeout_sec=0.1)
-        
+        # Ensure we have fresh feedback before composing the command
+        start_count = self.msg_count
+        start_wait = time.time()
+        while self.msg_count <= start_count and time.time() - start_wait < 1.0:
+            rclpy.spin_once(self, timeout_sec=0.05)
+
         # Convert current positions from radians to degrees
         current_deg = [math.degrees(pos) for pos in self.current_positions]
         
@@ -99,12 +127,25 @@ class ArmCalibrator(Node):
         cmd += f'J70.00J80.00J90.00Sp{speed}Ac{accel}Dc{decel}Rm{ramp}W0Lm111111'
         self.send_raw(cmd)
 
+    def wait_for_ready(self, timeout=10.0):
+        """Wait for at least one new message to arrive from Teensy"""
+        start_count = self.msg_count
+        start_time = time.time()
+        while self.msg_count <= start_count:
+            if time.time() - start_time > timeout:
+                self.get_logger().error('Timeout waiting for feedback from Teensy!')
+                return False
+            rclpy.spin_once(self, timeout_sec=0.1)
+        return True
+
     def run_calibration(self):
         self.get_logger().info('Starting Commercial Firmware Calibration Sequence...')
         self.get_logger().info('New Sequence: J6→90°, J5→0°, J4, J3→-85°, J1→-45°, J3→45°, J2, J1→0°')
         
-        # Wait a moment for joint state feedback to start
-        time.sleep(1.0)
+        # Wait for initial feedback
+        if not self.wait_for_ready(timeout=5.0):
+            self.get_logger().error('No feedback from Teensy. Is the bridge running?')
+            return
         
         # Track current known positions (in degrees) after each calibration
         # These are the calibration offsets from ARconfig.json
@@ -120,69 +161,78 @@ class ArmCalibrator(Node):
         # 1. Calibrate Joint 6, then move to 90 deg
         self.confirm_step('Calibrate Joint 6')
         self.send_raw('LLA0B0C0D0E0F1G0H0I0J0.0K-26.7L0.0M0.0N0.0O0.0P0.0Q0.0R0.0')
-        time.sleep(5.0)
+        # Wait for the Teensy to complete the calibration move
+        if not self.wait_for_joints([None, None, None, None, None, None], timeout=30.0, wait_for_new=True):
+            return
         
         self.confirm_step('Move J6 to 90 degrees')
         self.move_joints(j6=90.0, speed=25)
-        self.wait_for_joints([None, None, None, None, None, math.radians(90)], timeout=15.0)
+        if not self.wait_for_joints([None, None, None, None, None, math.radians(90)], timeout=15.0):
+            return
         cal_positions['J6'] = 90.0
         
         # 2. Calibrate Joint 5, then move to 0 deg
         self.confirm_step('Calibrate Joint 5')
         self.send_raw('LLA0B0C0D0E1F0G0H0I0J0.0K-26.7L0.0M0.0N0.0O0.0P0.0Q0.0R0.0')
-        time.sleep(5.0)
+        if not self.wait_for_ready(timeout=20.0): return # Wait for cal completion
         
         self.confirm_step('Move J5 to 0 degrees')
         self.move_joints(j5=0.0, speed=25)
-        self.wait_for_joints([None, None, None, None, math.radians(0), None], timeout=15.0)
+        if not self.wait_for_joints([None, None, None, None, math.radians(0), None], timeout=15.0):
+            return
         cal_positions['J5'] = 0.0
 
         # 3. Calibrate Joint 4
         self.confirm_step('Calibrate Joint 4')
         self.send_raw('LLA0B0C0D1E0F0G0H0I0J0.0K-26.7L0.0M0.0N0.0O0.0P0.0Q0.0R0.0')
-        time.sleep(5.0)
+        if not self.wait_for_ready(timeout=20.0): return
         cal_positions['J4'] = 0.0
 
         # 4. Calibrate Joint 3, then move to -85 deg
         self.confirm_step('Calibrate Joint 3')
         self.send_raw('LLA0B0C1D0E0F0G0H0I0J0.0K-26.7L0.0M0.0N0.0O0.0P0.0Q0.0R0.0')
-        time.sleep(5.0)
+        if not self.wait_for_ready(timeout=20.0): return
         
         self.confirm_step('Move J3 to -85 degrees')
         self.move_joints(j3=-85.0, speed=40)
-        self.wait_for_joints([None, None, math.radians(-85), None, None, None], timeout=15.0)
+        if not self.wait_for_joints([None, None, math.radians(-85), None, None, None], timeout=15.0):
+            return
         cal_positions['J3'] = -85.0
 
         # 5. Calibrate Joint 1, then move to -45 deg
         self.confirm_step('Calibrate Joint 1')
         self.send_raw('LLA1B0C0D0E0F0G0H0I0J0.0K-26.7L0.0M0.0N0.0O0.0P0.0Q0.0R0.0')
-        time.sleep(5.0)
+        if not self.wait_for_ready(timeout=20.0): return
         
         self.confirm_step('Move J1 to -45 degrees')
         self.move_joints(j1=-45.0, speed=25)
-        self.wait_for_joints([math.radians(-45), None, None, None, None, None], timeout=15.0)
+        if not self.wait_for_joints([math.radians(-45), None, None, None, None, None], timeout=15.0):
+            return
         cal_positions['J1'] = -45.0
 
         # 6. Move J3 to 35 deg
         self.confirm_step('Move J3 to 35 degrees')
         self.move_joints(j3=35.0, speed=40)
-        self.wait_for_joints([None, None, math.radians(35), None, None, None], timeout=15.0)
+        if not self.wait_for_joints([None, None, math.radians(35), None, None, None], timeout=15.0):
+            return
         cal_positions['J3'] = 35.0
 
         # 7. Calibrate Joint 2
         self.confirm_step('Calibrate Joint 2')
         self.send_raw('LLA0B1C0D0E0F0G0H0I0J0.0K-26.7L0.0M0.0N0.0O0.0P0.0Q0.0R0.0')
-        time.sleep(5.0)
+        if not self.wait_for_ready(timeout=20.0): return
         
         self.confirm_step('Move J2 to 0 degrees')
         self.move_joints(j2=0.0, speed=25)
-        self.wait_for_joints([None, math.radians(0), None, None, None, None], timeout=15.0)
+        if not self.wait_for_joints([None, math.radians(0), None, None, None, None], timeout=15.0):
+            return
         cal_positions['J2'] = 0.0
 
         # 8. Move J1 to 0 deg (final safe position)
         self.confirm_step('Move J1 to 0 degrees (final safe position)')
         self.move_joints(j1=0.0, speed=25)
-        self.wait_for_joints([math.radians(0), None, None, None, None, None], timeout=15.0)
+        if not self.wait_for_joints([math.radians(0), None, None, None, None, None], timeout=15.0):
+            return
 
         self.get_logger().info('Calibration Sequence Complete!')
         self.get_logger().info(f'Final position: J1=0°, J2={cal_positions["J2"]}°, J3={cal_positions["J3"]}°, J4={cal_positions["J4"]}°, J5={cal_positions["J5"]}°, J6={cal_positions["J6"]}°')
