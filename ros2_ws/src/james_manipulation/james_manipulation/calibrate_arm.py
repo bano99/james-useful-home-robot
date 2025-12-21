@@ -49,8 +49,8 @@ class ArmCalibrator(Node):
             # Record current hardware packet count and wait for at least one update to ensure we aren't looking at stale data
             start_count = self.packet_count
             start_wait = time.time()
-            self.get_logger().info('Waiting for fresh hardware feedback...')
-            while self.packet_count <= start_count and time.time() - start_wait < 5.0:
+            self.get_logger().info(f'Waiting for fresh hardware feedback (up to {timeout}s)...')
+            while self.packet_count <= start_count and time.time() - start_wait < timeout:
                 rclpy.spin_once(self, timeout_sec=0.1)
                 if not rclpy.ok(): return False
             if self.packet_count <= start_count:
@@ -191,8 +191,8 @@ class ArmCalibrator(Node):
             return
         
         self.confirm_step('Move J6 to 90 degrees')
-        self.move_joints(j6=90.0, speed=25)
-        if not self.wait_for_joints([None, None, None, None, None, math.radians(90)], timeout=15.0):
+        self.move_joints(j6=90.0, speed=40)
+        if not self.wait_for_joints([None, None, None, None, None, math.radians(90)], timeout=20.0):
             return
         cal_positions['J6'] = 90.0
         
@@ -202,8 +202,8 @@ class ArmCalibrator(Node):
         if not self.wait_for_ready(timeout=20.0): return # Wait for cal completion
         
         self.confirm_step('Move J5 to 0 degrees')
-        self.move_joints(j5=0.0, speed=25)
-        if not self.wait_for_joints([None, None, None, None, math.radians(0), None], timeout=15.0):
+        self.move_joints(j5=0.0)
+        if not self.wait_for_joints([None, None, None, None, math.radians(0), None], timeout=20.0):
             return
         cal_positions['J5'] = 0.0
 
@@ -220,7 +220,7 @@ class ArmCalibrator(Node):
         
         self.confirm_step('Move J3 to -85 degrees')
         self.move_joints(j3=-85.0, speed=40)
-        if not self.wait_for_joints([None, None, math.radians(-85), None, None, None], timeout=15.0):
+        if not self.wait_for_joints([None, None, math.radians(-85), None, None, None], timeout=30.0):
             return
         cal_positions['J3'] = -85.0
 
@@ -230,15 +230,15 @@ class ArmCalibrator(Node):
         if not self.wait_for_ready(timeout=20.0): return
         
         self.confirm_step('Move J1 to -45 degrees')
-        self.move_joints(j1=-45.0, speed=25)
-        if not self.wait_for_joints([math.radians(-45), None, None, None, None, None], timeout=15.0):
+        self.move_joints(j1=-45.0, speed=40)
+        if not self.wait_for_joints([math.radians(-45), None, None, None, None, None], timeout=35.0):
             return
         cal_positions['J1'] = -45.0
 
         # 6. Move J3 to 35 deg
         self.confirm_step('Move J3 to 35 degrees')
         self.move_joints(j3=35.0, speed=40)
-        if not self.wait_for_joints([None, None, math.radians(35), None, None, None], timeout=15.0):
+        if not self.wait_for_joints([None, None, math.radians(35), None, None, None], timeout=30.0):
             return
         cal_positions['J3'] = 35.0
 
@@ -248,15 +248,15 @@ class ArmCalibrator(Node):
         if not self.wait_for_ready(timeout=20.0): return
         
         self.confirm_step('Move J2 to 0 degrees')
-        self.move_joints(j2=0.0, speed=25)
-        if not self.wait_for_joints([None, math.radians(0), None, None, None, None], timeout=15.0):
+        self.move_joints(j2=0.0, speed=40)
+        if not self.wait_for_joints([None, math.radians(0), None, None, None, None], timeout=30.0):
             return
         cal_positions['J2'] = 0.0
 
         # 8. Move J1 to 0 deg (final safe position)
         self.confirm_step('Move J1 to 0 degrees (final safe position)')
-        self.move_joints(j1=0.0, speed=25)
-        if not self.wait_for_joints([math.radians(0), None, None, None, None, None], timeout=15.0):
+        self.move_joints(j1=0.0, speed=40)
+        if not self.wait_for_joints([math.radians(0), None, None, None, None, None], timeout=35.0):
             return
 
         self.get_logger().info('Calibration Sequence Complete!')
