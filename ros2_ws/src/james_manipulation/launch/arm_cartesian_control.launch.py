@@ -27,6 +27,16 @@ def generate_launch_description():
         description='Path to the configuration file'
     )
     
+    ar_config_arg = DeclareLaunchArgument(
+        'ar_config',
+        default_value=PathJoinSubstitution([
+            FindPackageShare('james_manipulation'),
+            'config',
+            'ARconfig.json'
+        ]),
+        description='Path to ARconfig.json'
+    )
+    
     platform_port_arg = DeclareLaunchArgument(
         'platform_port',
         default_value='/dev/ttyACM0',
@@ -64,6 +74,7 @@ def generate_launch_description():
     platform_port = LaunchConfiguration('platform_port')
     teensy_port = LaunchConfiguration('teensy_port')
     enable_auto_detect = LaunchConfiguration('enable_auto_detect')
+    ar_config = LaunchConfiguration('ar_config')
     
     # Platform Serial Bridge Node
     platform_bridge_node = Node(
@@ -109,7 +120,8 @@ def generate_launch_description():
             {
                 'serial_port': teensy_port,
                 'enable_auto_detect': enable_auto_detect,
-                'use_sim_time': use_sim_time
+                'use_sim_time': use_sim_time,
+                'config_file': ar_config
             }
         ],
         arguments=['--ros-args', '--log-level', log_level],
@@ -126,6 +138,7 @@ def generate_launch_description():
         enable_auto_detect_arg,
         use_sim_time_arg,
         log_level_arg,
+        ar_config_arg,
         
         # Nodes
         platform_bridge_node,
