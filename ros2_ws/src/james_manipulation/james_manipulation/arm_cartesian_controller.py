@@ -146,15 +146,18 @@ class ArmCartesianController(Node):
                 self.manual_control_active = True
                 self.last_command_time = self.get_clock().now().nanoseconds / 1e9
                 
-                # Extract and Apply Deadzone
-                joy_lx = self.apply_deadzone(data.get('left_x', 0))
-                joy_ly = self.apply_deadzone(data.get('left_y', 0))
-                joy_lz = self.apply_deadzone(data.get('left_z', 0))
-                joy_rx = self.apply_deadzone(data.get('right_x', 0))
-                joy_ry = self.apply_deadzone(data.get('right_y', 0))
-                joy_rr = self.apply_deadzone(data.get('right_rot', 0))
+                # Extract and Apply Deadzone (Support both key formats)
+                joy_lx = self.apply_deadzone(data.get('lx', data.get('left_x', 0)))
+                joy_ly = self.apply_deadzone(data.get('ly', data.get('left_y', 0)))
+                joy_lz = self.apply_deadzone(data.get('lz', data.get('left_z', 0)))
+                joy_rx = self.apply_deadzone(data.get('rx', data.get('right_x', 0)))
+                joy_ry = self.apply_deadzone(data.get('ry', data.get('right_y', 0)))
+                joy_rr = self.apply_deadzone(data.get('rr', data.get('right_rot', 0)))
                 
+                # Handle mode mapping
                 switch_mode = data.get('switch_mode', 'platform')
+                if 'mode' in data:
+                    switch_mode = 'vertical' if data['mode'] == 1 else 'platform'
                 
                 # Calculate velocity commands
                 self.pending_v_x = joy_ly * self.velocity_scale
