@@ -162,7 +162,7 @@ class TeensySerialBridge(Node):
             # Check Firmware State using GS command
             time.sleep(2.0) # Wait for reboot/init
             self.serial_conn.write(b'GS\n')
-            time.sleep(0.1)
+            time.sleep(0.1) 
             
             # Read state response
             is_configured = False
@@ -360,7 +360,7 @@ class TeensySerialBridge(Node):
         cmd = "RJ"
         for i in range(min(len(msg.position), 6)):
             cmd += f"{self.joint_labels[i]}{math.degrees(msg.position[i]):.4f}"
-        cmd += "J70.0000J80.0000J90.0000Sp10.00Ac10.00Dc10.00Rm10.00W0Lm111111111\n"
+        cmd += "J70.0000J80.0000J90.0000Sp40.00Ac100.00Dc100.00Rm80.00W0Lm111111111\n"
         with self.serial_lock:
             self.log_file.write(f'[{datetime.now().strftime("%H:%M:%S.%f")[:-3]}] TX: {cmd}')
             self.serial_conn.write(cmd.encode('utf-8'))

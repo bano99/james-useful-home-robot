@@ -160,7 +160,7 @@ class ArmCartesianController(Node):
                     switch_mode = 'vertical' if data['mode'] == 1 else 'platform'
                 
                 # Calculate velocity commands
-                self.pending_v_x = joy_ly * self.velocity_scale
+                self.pending_v_x = -joy_ly * self.velocity_scale # Inverted for correct Up=Forward
                 self.pending_v_y = joy_lx * self.velocity_scale
                 self.pending_v_z = joy_lz * self.velocity_scale
                 

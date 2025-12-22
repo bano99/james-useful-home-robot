@@ -251,6 +251,10 @@ class ArmCalibrator(Node):
         cal_positions['J1'] = 0.0
 
         self.get_logger().info('Calibration Sequence Complete!')
+        # Mark as Calibrated in Firmware (State[1] = 1)
+        self.send_raw('GSA1B1')
+        self.get_logger().info('Sent GSA1B1 to mark calibration complete in firmware')
+        
         self.get_logger().info(f'Final position: J1=0°, J2={cal_positions["J2"]}°, J3={cal_positions["J3"]}°, J4={cal_positions["J4"]}°, J5={cal_positions["J5"]}°, J6={cal_positions["J6"]}°')
 
 def main(args=None):
