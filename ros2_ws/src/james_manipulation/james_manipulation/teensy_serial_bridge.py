@@ -159,8 +159,43 @@ class TeensySerialBridge(Node):
             self.connected = True
             self.get_logger().info(f'CONNECTED to Teensy on {self.serial_port}')
             
-            # Send RP command to sync state (Read Position)
+            # Check Firmware State using GS command
             time.sleep(2.0) # Wait for reboot/init
+            self.serial_conn.write(b'GS\n')
+            time.sleep(0.1)
+            
+            # Read state response
+            is_configured = False
+            start_time = time.time()
+            while time.time() - start_time < 0.5:
+                if self.serial_conn.in_waiting:
+                    resp = self.serial_conn.readline().decode('utf-8', errors='ignore').strip()
+                    if resp.startswith("State:"):
+                        try:
+                            states = [int(v) for v in resp.replace("State:", "").split(',')]
+                            if len(states) > 0 and states[0] == 1:
+                                is_configured = True
+                                self.get_logger().info("Teensy ALREADY CONFIGURED (State[0]=1). Skipping UP command.")
+                            if len(states) > 1 and states[1] == 0:
+                                self.get_logger().warn("⚠️ ROBOT NOT CALIBRATED (State[1]=0) ⚠️")
+                        except ValueError: pass
+                    break
+                time.sleep(0.05)
+            
+            # Smart Configuration Logic
+            if is_configured:
+                self.send_up_on_startup = False
+            else:
+                self.get_logger().info("Teensy NOT configured. Will send UP command.")
+                # Ensure flag is True so main loop sends confirmation
+                # Note: parameter object is read-only, we rely on the instance var check in loop
+                # If param was false, we force it true here for this session?
+                # User preference 'send_up_on_startup' logic:
+                # If user said NO, we respect NO? Or do we enforce YES if unconfigured?
+                # Assuming safety: If unconfigured, we MUST send UP or robot is useless.
+                self.send_up_on_startup = True
+
+            # Send RP command to sync state (Read Position)
             self.serial_conn.write(b'RP\n')
             self.get_logger().info('Sent RP (Read Position) to sync state')
             
@@ -272,6 +307,12 @@ class TeensySerialBridge(Node):
                 self.log_file.write(f'[{datetime.now().strftime("%H:%M:%S.%f")[:-3]}] TX: {cmd}')
                 self.serial_conn.write(cmd.encode('utf-8'))
                 self.get_logger().info('Sent configuration (UP) to Teensy')
+                
+                # Mark as Configured (State[0] = 1)
+                time.sleep(0.1)
+                set_state_cmd = "GSA0B1\n"
+                self.serial_conn.write(set_state_cmd.encode('utf-8'))
+                self.get_logger().info('Sent GSA0B1 (Mark Configured)')
 
     def process_teensy_message(self, message):
         try:

@@ -84,6 +84,7 @@
 #define Table_Size 6
 typedef float Matrix4x4[16];
 typedef float tRobot[66];
+int robotState[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
 String cmdBuffer1;
 String cmdBuffer2;
@@ -2839,6 +2840,29 @@ void loop() {
     //-----------------------------------------------------------------------
     if (function == "CP") {
       correctRobotPos();
+    }
+
+    //-----COMMAND GET/SET STATE---------------------------------------------------
+    //-----------------------------------------------------------------------
+    if (function == "GS") {
+      // Set State if arguments provided
+      if (inData.indexOf('A') != -1 && inData.indexOf('B') != -1) {
+        int indexStart = inData.indexOf('A');
+        int valueStart = inData.indexOf('B');
+        int stateIndex = inData.substring(indexStart + 1, valueStart).toInt();
+        int stateValue = inData.substring(valueStart + 1).toInt();
+        if (stateIndex >= 0 && stateIndex < 10) {
+          robotState[stateIndex] = stateValue;
+        }
+      }
+      // Always return current state
+      String stateStr = "State:";
+      for (int i = 0; i < 10; i++) {
+        stateStr += String(robotState[i]);
+        if (i < 9) stateStr += ",";
+      }
+      delay(5);
+      Serial.println(stateStr);
     }
 
     //-----COMMAND UPDATE PARAMS---------------------------------------------------
