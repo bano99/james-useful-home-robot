@@ -29,8 +29,8 @@ teensy_serial_bridge:
 arm_cartesian_controller:
   ros__parameters:
     # Control scaling parameters
-    velocity_scale: 0.01       # m/s per joystick unit (increase to 5cm/s)
-    rotation_scale: 0.1        # rad/s per joystick unit
+    velocity_scale: 0.05       # m/s per joystick unit (increased to 5cm/s)
+    rotation_scale: 0.5        # rad/s per joystick unit
     
     # Control loop settings
     control_rate: 25.0         # Hz - increased from 5Hz for smoother motion
@@ -39,7 +39,7 @@ arm_cartesian_controller:
     
     # Workspace safety limits (meters)
     workspace_limits:
-      x_min: 0.2
+      x_min: 0.05
       x_max: 0.6
       y_min: -0.3
       y_max: 0.3

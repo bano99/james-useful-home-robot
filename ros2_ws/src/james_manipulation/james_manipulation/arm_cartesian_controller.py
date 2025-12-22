@@ -171,7 +171,7 @@ class ArmCartesianController(Node):
                     self.pending_v_yaw = 0.0
                 
                 # DEBUG: Log inputs and calculated velocities
-                # self.get_logger().info(f'INPUT: lx={joy_lx:.2f}, ly={joy_ly:.2f} -> Vx={self.pending_v_x:.3f}, Vy={self.pending_v_y:.3f}')
+                self.get_logger().info(f'INPUT: lx={joy_lx:.2f}, ly={joy_ly:.2f} -> Vx={self.pending_v_x:.3f}, Vy={self.pending_v_y:.3f}, Vz={self.pending_v_z:.3f} Mode={switch_mode}')
                 
         except Exception as e:
             self.get_logger().error(f'Error processing manual command: {e}')
@@ -220,18 +220,14 @@ class ArmCartesianController(Node):
         
         if not self.manual_control_active or is_idle:
             # BUMPLESS TRANSFER: Continuously sync target to actual
-            # This ensures that when the user DOES move the stick, we start from REALITY.
-            # We do NOT run IK or move the robot.
-            if self.manual_control_active: # Log only if active but idle (deadzone)
+            if self.manual_control_active: 
                  self.get_logger().info('Manual Active but IDLE (Deadzone?)', throttle_duration_sec=2.0)
             
             if not self.sync_pose_to_actual(loud=False):
                 self.get_logger().warn('Sync Pose Failed (TF issue?)', throttle_duration_sec=2.0)
             return
 
-        self.get_logger().info(f'ACTIVE MOVE: vx={self.pending_v_x:.3f}, vy={self.pending_v_y:.3f}', throttle_duration_sec=0.5)
-
-        # --- ACTIVE MOVEMENT LOGIC BELOW ---
+        self.get_logger().info(f'ACTIVE: Vx={self.pending_v_x:.3f} Vy={self.pending_v_y:.3f} Vz={self.pending_v_z:.3f} Yaw={self.pending_v_yaw:.3f}', throttle_duration_sec=0.2)
 
         # 1. Update target pose
         dt = 1.0 / self.control_rate

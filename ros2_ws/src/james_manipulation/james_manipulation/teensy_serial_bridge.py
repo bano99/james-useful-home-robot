@@ -126,6 +126,7 @@ class TeensySerialBridge(Node):
         self.status_pub = self.create_publisher(String, '/teensy_bridge/status', 10)
         self.collision_pub = self.create_publisher(String, '/teensy/collision_status', 10)
         self.packet_count_pub = self.create_publisher(Int32, '/teensy/packet_count', 10)
+        self.raw_rx_pub = self.create_publisher(String, '/arm/teensy_raw_rx', 10) # For debug CLI
         self.packet_count = 0
         
         # Timer for publishing joint states
@@ -262,6 +263,7 @@ class TeensySerialBridge(Node):
                             line = self.serial_conn.readline().decode('utf-8').strip()
                             if line:
                                 self.log_file.write(f'[{datetime.now().strftime("%H:%M:%S.%f")[:-3]}] RX: {line}\n')
+                                self.raw_rx_pub.publish(String(data=line)) # Publish raw for Debug CLI
                                 self.process_teensy_message(line)
                         except UnicodeDecodeError: pass
                 time.sleep(0.005)
