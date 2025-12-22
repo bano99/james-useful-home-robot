@@ -158,6 +158,12 @@ class TeensySerialBridge(Node):
             )
             self.connected = True
             self.get_logger().info(f'CONNECTED to Teensy on {self.serial_port}')
+            
+            # Send RP command to sync state (Read Position)
+            time.sleep(2.0) # Wait for reboot/init
+            self.serial_conn.write(b'RP\n')
+            self.get_logger().info('Sent RP (Read Position) to sync state')
+            
             return True
         except Exception as e:
             self.connected = False
@@ -283,10 +289,24 @@ class TeensySerialBridge(Node):
         markers = ['A', 'B', 'C', 'D', 'E', 'F', 'G']
         for i in range(6):
             m_s = data.find(markers[i])
-            m_e = data.find(markers[i+1])
-            if m_s != -1 and m_e != -1:
-                try: self.last_joint_state.position[i] = math.radians(float(data[m_s+1:m_e]))
-                except: pass
+            if m_s != -1:
+                # Find end marker
+                if i < 5:
+                    m_e = data.find(markers[i+1])
+                else:
+                    # For last element, search for G, if not found use end of string
+                    m_e = data.find(markers[i+1])
+                    if m_e == -1:
+                        m_e = len(data)
+                
+                # Extract value
+                if m_e != -1 and m_e > m_s:
+                    val_str = data[m_s+1:m_e]
+                    try: 
+                        self.last_joint_state.position[i] = math.radians(float(val_str))
+                    except ValueError: 
+                        self.get_logger().warn(f"Parse Error J{i+1}: '{val_str}'")
+        
         self.first_data_received = True
         self.packet_count += 1
         pc_msg = Int32()
