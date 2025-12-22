@@ -2,7 +2,7 @@ import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
-from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution, Command, FindExecutable
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 
@@ -15,6 +15,31 @@ def generate_launch_description():
 
     # Define directories
     pkg_james_manipulation = get_package_share_directory('james_manipulation')
+    pkg_james_description = get_package_share_directory('james_description')
+
+    # Get URDF via xacro
+    robot_description_content = Command(
+        [
+            PathJoinSubstitution([FindExecutable(name="xacro")]),
+            " ",
+            PathJoinSubstitution(
+                [FindPackageShare("james_description"), "urdf", "james.urdf.xacro"]
+            ),
+        ]
+    )
+    robot_description = {"robot_description": robot_description_content}
+
+    # Get URDF via xacro
+    robot_description_content = Command(
+        [
+            PathJoinSubstitution([FindExecutable(name="xacro")]),
+            " ",
+            PathJoinSubstitution(
+                [FindPackageShare("james_description"), "urdf", "james.urdf.xacro"]
+            ),
+        ]
+    )
+    robot_description = {"robot_description": robot_description_content}
     
     # Declare launch arguments
     config_file_arg = DeclareLaunchArgument(
@@ -144,4 +169,5 @@ def generate_launch_description():
         platform_bridge_node,
         arm_controller_node,
         teensy_bridge_node,
+        robot_state_publisher_node,
     ])
