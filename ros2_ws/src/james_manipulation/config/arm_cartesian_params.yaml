@@ -16,7 +16,7 @@ platform_serial_bridge:
 teensy_serial_bridge:
   ros__parameters:
     # USB Serial connection to Teensy 4.1 (AR4 controller)
-    serial_port: "/dev/ttyACM0"
+    serial_port: "/dev/ttyACM1"
     baud_rate: 9600
     timeout: 0.1
     enable_auto_detect: true
@@ -29,12 +29,12 @@ teensy_serial_bridge:
 arm_cartesian_controller:
   ros__parameters:
     # Control scaling parameters
-    velocity_scale: 0.001      # m/s per joystick unit (1mm/s at max)
-    rotation_scale: 0.01       # rad/s per joystick unit
+    velocity_scale: 0.01       # m/s per joystick unit (increase to 5cm/s)
+    rotation_scale: 0.1        # rad/s per joystick unit
     
     # Control loop settings
-    control_rate: 5.0          # Hz - throttled for 9600 baud serial
-    command_timeout: 1.0       # seconds - increased for slower loop
+    control_rate: 25.0         # Hz - increased from 5Hz for smoother motion
+    command_timeout: 0.5       # seconds - increased for slower loop
     ik_timeout: 0.05           # seconds - timeout for IK solver (50ms)
     
     # Workspace safety limits (meters)
