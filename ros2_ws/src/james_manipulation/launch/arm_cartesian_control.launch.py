@@ -10,7 +10,7 @@ from launch_ros.substitutions import FindPackageShare
 def generate_launch_description():
     # UNMISSABLE VERSION CHECK FOR DEBUGGING
     print("\n" + "="*60)
-    print("  LAUNCHING ARM CARTESIAN CONTROL - VERSION: 2024-12-21-V5-ATOMIC")
+    print("  LAUNCHING ARM CARTESIAN CONTROL - VERSION: 2024-12-21-V6-FIXED")
     print("="*60 + "\n")
 
     # Define directories
@@ -28,7 +28,7 @@ def generate_launch_description():
         ]
     )
     robot_description = {"robot_description": robot_description_content}
-
+    
     # Declare launch arguments
     config_file_arg = DeclareLaunchArgument(
         'config_file',
@@ -141,6 +141,14 @@ def generate_launch_description():
         output='screen',
         respawn=True,
         respawn_delay=2.0
+    )
+
+    # Robot State Publisher Node
+    robot_state_publisher_node = Node(
+        package="robot_state_publisher",
+        executable="robot_state_publisher",
+        output="both",
+        parameters=[robot_description],
     )
     
     return LaunchDescription([
