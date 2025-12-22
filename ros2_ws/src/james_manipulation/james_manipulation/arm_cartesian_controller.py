@@ -170,6 +170,9 @@ class ArmCartesianController(Node):
                 else:
                     self.pending_v_yaw = 0.0
                 
+                # DEBUG: Log inputs and calculated velocities
+                # self.get_logger().info(f'INPUT: lx={joy_lx:.2f}, ly={joy_ly:.2f} -> Vx={self.pending_v_x:.3f}, Vy={self.pending_v_y:.3f}')
+                
         except Exception as e:
             self.get_logger().error(f'Error processing manual command: {e}')
 
@@ -232,6 +235,10 @@ class ArmCartesianController(Node):
 
         # 1. Update target pose
         dt = 1.0 / self.control_rate
+        # DEBUG: Log target update
+        if abs(self.pending_v_x) > 0 or abs(self.pending_v_y) > 0 or abs(self.pending_v_z) > 0:
+             self.get_logger().info(f'UPDATE: Vx={self.pending_v_x:.3f} Vy={self.pending_v_y:.3f} | CurX={self.current_target_pose.position.x:.3f} -> NewX={self.current_target_pose.position.x + self.pending_v_x * dt:.3f}')
+
         self.current_target_pose.position.x += self.pending_v_x * dt
         self.current_target_pose.position.y += self.pending_v_y * dt
         self.current_target_pose.position.z += self.pending_v_z * dt
