@@ -35,13 +35,13 @@ def generate_launch_description():
 
     teensy_port_arg = DeclareLaunchArgument(
         'teensy_port',
-        default_value='/dev/ttyACM2',
+        default_value='/dev/ttyACM1',
         description='Serial port for Teensy (AR4)'
     )
 
     enable_auto_detect_arg = DeclareLaunchArgument(
         'enable_auto_detect',
-        default_value='false',
+        default_value='true',
         description='Enable serial port auto-detection'
     )
 
