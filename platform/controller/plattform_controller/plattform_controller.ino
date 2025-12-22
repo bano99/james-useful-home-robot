@@ -188,6 +188,10 @@ void processJetsonResponse() {
         // Could parse more detailed status here if needed
         // For now, just acknowledge connection
       }
+      
+      if (response.indexOf("PING") >= 0) {
+        Serial.println("PONG_PLATFORM");
+      }
     }
   }
 }

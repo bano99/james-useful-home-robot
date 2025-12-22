@@ -112,15 +112,28 @@ class PlatformSerialBridge(Node):
             
         for port in candidate_ports:
             try:
+                # Platform controller uses 115200
                 test_conn = serial.Serial(port, 115200, timeout=0.1)
+                
+                # Send PING command
+                test_conn.write(b"PING\n")
+                test_conn.flush()
+                
                 start_time = time.time()
-                while time.time() - start_time < 0.5:
-                    if test_conn.in_waiting >= self.PACKET_SIZE:
-                        byte = test_conn.read(1)
-                        if ord(byte) == self.PACKET_START:
-                            self.get_logger().info(f"Platform Controller found on {port}")
-                            test_conn.close()
-                            return port
+                buffer = ""
+                while time.time() - start_time < 1.0: # Wait up to 1s
+                    if test_conn.in_waiting > 0:
+                        try:
+                            chunk = test_conn.read(test_conn.in_waiting).decode('utf-8', errors='ignore')
+                            buffer += chunk
+                            if "PONG_PLATFORM" in buffer:
+                                self.get_logger().info(f"Platform Controller found on {port}")
+                                test_conn.close()
+                                return port
+                        except Exception:
+                            pass
+                    time.sleep(0.01)
+                    
                 test_conn.close()
             except Exception: continue
         return None

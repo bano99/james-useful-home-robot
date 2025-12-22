@@ -14,6 +14,7 @@ import threading
 class ArmCartesianController(Node):
     """
     ROS2 node for Cartesian control of AR4-MK3 robot arm using MoveIt2 IK
+    With robust Deadzone and Idle-Sync for bumpless transfer.
     """
     
     def __init__(self):
@@ -25,6 +26,7 @@ class ArmCartesianController(Node):
         self.declare_parameter('control_rate', 50.0)
         self.declare_parameter('command_timeout', 0.5)
         self.declare_parameter('ik_timeout', 0.05)
+        self.declare_parameter('joystick_deadzone', 0.05)
         
         # Workspace limits
         self.declare_parameter('workspace_limits.x_min', 0.2)
@@ -45,6 +47,7 @@ class ArmCartesianController(Node):
         self.control_rate = self.get_parameter('control_rate').value
         self.command_timeout = self.get_parameter('command_timeout').value
         self.ik_timeout = self.get_parameter('ik_timeout').value
+        self.deadzone = self.get_parameter('joystick_deadzone').value
         
         self.planning_frame = self.get_parameter('planning_frame').value
         self.ee_link = self.get_parameter('end_effector_link').value
@@ -121,8 +124,13 @@ class ArmCartesianController(Node):
         self.pending_v_z = 0.0
         self.pending_v_yaw = 0.0
         
-        self.get_logger().info('Arm Cartesian Controller initialized')
+        self.get_logger().info('Arm Cartesian Controller initialized (Idle-Sync Logic Enabled)')
         self.get_logger().info(f'EE Link: {self.ee_link}, Planning Frame: {self.planning_frame}')
+
+    def apply_deadzone(self, val):
+        if abs(val) < self.deadzone:
+            return 0.0
+        return val
 
     def manual_command_callback(self, msg):
         """Process manual control commands from platform bridge"""
@@ -130,31 +138,20 @@ class ArmCartesianController(Node):
             data = json.loads(msg.data)
             
             if data.get('type') == 'manual_control':
-                # Critical: Safety checks before activating control
                 if not self.joint_state_received:
-                    self.get_logger().warn('Ignoring manual command: Joint states not yet received', throttle_duration_sec=2.0)
                     return
 
-                # If this is the start of manual control, or not yet synced, try to sync
-                if not self.tf_synced:
-                    if not self.sync_pose_to_actual():
-                        # Don't activate if we can't sync Current Pose
-                        return
-                
-                self.last_command_time = self.get_clock().now().nanoseconds / 1e9
+                # Always active if receiving data, but velocities might be zero
                 self.manual_control_active = True
+                self.last_command_time = self.get_clock().now().nanoseconds / 1e9
                 
-                # Extract joystick values
-                # Left Joystick: arm forward/back (X), left/right (Y), up/down (Z)
-                # Map from Remote: left_y -> Cartesian X, left_x -> Cartesian Y, left_z -> Cartesian Z
-                joy_lx = data.get('left_x', 0)
-                joy_ly = data.get('left_y', 0)
-                joy_lz = data.get('left_z', 0)
-                
-                # Right Joystick: rotation or extra Z if in vertical mode
-                joy_rx = data.get('right_x', 0)
-                joy_ry = data.get('right_y', 0)
-                joy_rr = data.get('right_rot', 0)
+                # Extract and Apply Deadzone
+                joy_lx = self.apply_deadzone(data.get('left_x', 0))
+                joy_ly = self.apply_deadzone(data.get('left_y', 0))
+                joy_lz = self.apply_deadzone(data.get('left_z', 0))
+                joy_rx = self.apply_deadzone(data.get('right_x', 0))
+                joy_ry = self.apply_deadzone(data.get('right_y', 0))
+                joy_rr = self.apply_deadzone(data.get('right_rot', 0))
                 
                 switch_mode = data.get('switch_mode', 'platform')
                 
@@ -163,9 +160,7 @@ class ArmCartesianController(Node):
                 self.pending_v_y = joy_lx * self.velocity_scale
                 self.pending_v_z = joy_lz * self.velocity_scale
                 
-                # If switch is 'vertical' (OFF), Right joystick can also control arm
                 if switch_mode == 'vertical':
-                    # Add right_y to Z if desired, or use for rotation
                     self.pending_v_z += joy_ry * self.velocity_scale
                     self.pending_v_yaw = joy_rr * self.rotation_scale
                 else:
@@ -175,11 +170,10 @@ class ArmCartesianController(Node):
             self.get_logger().error(f'Error processing manual command: {e}')
 
     def joint_state_callback(self, msg):
-        """Update current joint state from bridge feedback"""
         self.current_joint_state = msg
         self.joint_state_received = True
 
-    def sync_pose_to_actual(self):
+    def sync_pose_to_actual(self, loud=False):
         """Initialize current_target_pose from the actual arm position via TF"""
         try:
             now = rclpy.time.Time()
@@ -196,38 +190,43 @@ class ArmCartesianController(Node):
             self.current_target_pose.orientation = transform.transform.rotation
             
             self.tf_synced = True
-            self.get_logger().info(f'Synchronized target pose to actual arm position: {self.current_target_pose.position.x:.3f}, {self.current_target_pose.position.y:.3f}, {self.current_target_pose.position.z:.3f}')
+            if loud:
+                self.get_logger().info(f'Synchronized target pose: {self.current_target_pose.position.x:.3f}, {self.current_target_pose.position.y:.3f}, {self.current_target_pose.position.z:.3f}')
             return True
         except Exception as e:
-            self.get_logger().warn(f'Could not sync pose from TF: {e}', throttle_duration_sec=1.0)
+            if loud:
+                self.get_logger().warn(f'Could not sync pose from TF: {e}')
             self.tf_synced = False
             return False
 
     def control_loop(self):
         """Main control loop at control_rate"""
-        if not self.manual_control_active:
-            # Continuously sync target pose to actual robot pose when idle
-            # This ensures "bumpless transfer" when control is engaged
-            self.sync_pose_to_actual()
-            return
-
         current_time = self.get_clock().now().nanoseconds / 1e9
         
-        # Check for command timeout
+        # Timeout Check
         if current_time - self.last_command_time > self.command_timeout:
             self.manual_control_active = False
-            self.get_logger().info('Manual control timeout - arm stationary')
+        
+        # IDLE CHECK: If not active OR velocities are zero (deadzone)
+        # We assume "Idle" if total velocity is negligible
+        is_idle = (abs(self.pending_v_x) + abs(self.pending_v_y) + abs(self.pending_v_z) + abs(self.pending_v_yaw)) < 1e-6
+        
+        if not self.manual_control_active or is_idle:
+            # BUMPLESS TRANSFER: Continuously sync target to actual
+            # This ensures that when the user DOES move the stick, we start from REALITY.
+            # We do NOT run IK or move the robot.
+            self.sync_pose_to_actual(loud=False)
             return
+
+        # --- ACTIVE MOVEMENT LOGIC BELOW ---
 
         # 1. Update target pose
         dt = 1.0 / self.control_rate
-        
         self.current_target_pose.position.x += self.pending_v_x * dt
         self.current_target_pose.position.y += self.pending_v_y * dt
         self.current_target_pose.position.z += self.pending_v_z * dt
         
-        # Apply rudimentary rotation (Yaw only) if needed
-        if abs(self.pending_v_yaw) > 0.001:
+        if abs(self.pending_v_yaw) > 1e-6:
             self.apply_yaw_step(self.pending_v_yaw * dt)
 
         # 2. Apply Workspace Limits
@@ -237,76 +236,51 @@ class ArmCartesianController(Node):
         self.call_ik_service_async()
 
     def apply_yaw_step(self, delta_yaw):
-        """Rudimentary Yaw rotation update (quaternion math)"""
-        # Approximating a small rotation around Z axis
-        # q_orig * q_delta
         cos_y = math.cos(delta_yaw / 2.0)
         sin_y = math.sin(delta_yaw / 2.0)
-        
-        # Delta quaternion (0, 0, sin, cos)
-        dqx = 0.0
-        dqy = 0.0
         dqz = sin_y
         dqw = cos_y
-        
-        # Current quaternion
         qx = self.current_target_pose.orientation.x
         qy = self.current_target_pose.orientation.y
         qz = self.current_target_pose.orientation.z
         qw = self.current_target_pose.orientation.w
-        
-        # Result = q * dq
-        self.current_target_pose.orientation.w = qw * dqw - qx * dqx - qy * dqy - qz * dqz
-        self.current_target_pose.orientation.x = qw * dqx + qx * dqw + qy * dqz - qz * dqy
-        self.current_target_pose.orientation.y = qw * dqy - qx * dqz + qy * dqw + qz * dqx
-        self.current_target_pose.orientation.z = qw * dqz + qx * dqy - qy * dqx + qz * dqw
-        
-        # Normalize
-        norm = math.sqrt(self.current_target_pose.orientation.x**2 + 
-                         self.current_target_pose.orientation.y**2 + 
-                         self.current_target_pose.orientation.z**2 + 
-                         self.current_target_pose.orientation.w**2)
+        self.current_target_pose.orientation.w = qw * dqw - qx * 0 - qy * 0 - qz * dqz
+        self.current_target_pose.orientation.x = qw * 0 + qx * dqw + qy * dqz - qz * 0
+        self.current_target_pose.orientation.y = qw * 0 - qx * dqz + qy * dqw + qz * 0
+        self.current_target_pose.orientation.z = qw * dqz + qx * 0 - qy * 0 + qz * dqw
+        norm = math.sqrt(self.current_target_pose.orientation.x**2 + self.current_target_pose.orientation.y**2 + self.current_target_pose.orientation.z**2 + self.current_target_pose.orientation.w**2)
         self.current_target_pose.orientation.x /= norm
         self.current_target_pose.orientation.y /= norm
         self.current_target_pose.orientation.z /= norm
         self.current_target_pose.orientation.w /= norm
 
     def apply_workspace_limits(self, pose):
-        """Clamp target pose within safe workspace"""
         pose.position.x = max(self.workspace_limits['x_min'], min(self.workspace_limits['x_max'], pose.position.x))
         pose.position.y = max(self.workspace_limits['y_min'], min(self.workspace_limits['y_max'], pose.position.y))
         pose.position.z = max(self.workspace_limits['z_min'], min(self.workspace_limits['z_max'], pose.position.z))
         return pose
 
     def call_ik_service_async(self):
-        """Asynchronously call MoveIt2 IK service"""
         if not self.ik_client.service_is_ready():
-            self.get_logger().debug('IK service not ready', throttle_duration_sec=1.0)
             return
-
         req = GetPositionIK.Request()
         req.ik_request.group_name = self.group_name
         req.ik_request.robot_state.joint_state = self.current_joint_state
         req.ik_request.avoid_collisions = True
-        
         pose_stamped = PoseStamped()
         pose_stamped.header.frame_id = self.planning_frame
         pose_stamped.header.stamp = self.get_clock().now().to_msg()
         pose_stamped.pose = self.current_target_pose
-        
         req.ik_request.pose_stamped = pose_stamped
         req.ik_request.timeout = rclpy.duration.Duration(seconds=self.ik_timeout).to_msg()
-        
         future = self.ik_client.call_async(req)
         future.add_done_callback(self.ik_callback)
 
     def ik_callback(self, future):
-        """Handle IK service response"""
         try:
             response = future.result()
             if response.error_code.val == response.error_code.SUCCESS:
                 self.ik_success = True
-                # Publish joint commands
                 cmd_msg = JointState()
                 cmd_msg.header.stamp = self.get_clock().now().to_msg()
                 cmd_msg.name = response.solution.joint_state.name
@@ -314,12 +288,10 @@ class ArmCartesianController(Node):
                 self.joint_cmd_pub.publish(cmd_msg)
             else:
                 self.ik_success = False
-                self.get_logger().debug(f'IK failed: {response.error_code.val}', throttle_duration_sec=1.0)
         except Exception as e:
             self.get_logger().error(f'IK service call failed: {e}')
 
     def publish_status(self):
-        """Publish node status for other nodes or telemetry"""
         status = {
             'type': 'arm_status',
             'manual_active': self.manual_control_active,
@@ -341,8 +313,7 @@ def main(args=None):
     node = ArmCartesianController()
     try:
         rclpy.spin(node)
-    except KeyboardInterrupt:
-        pass
+    except KeyboardInterrupt: pass
     finally:
         node.destroy_node()
         rclpy.shutdown()

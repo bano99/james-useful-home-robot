@@ -176,15 +176,28 @@ class TeensySerialBridge(Node):
             try:
                 for br in [9600, 115200]:
                     test_conn = serial.Serial(port, br, timeout=0.1)
+                    
+                    # Send Echo Test Message (TM)
+                    # The firmware echoes back the message after TM
+                    check_msg = "__TEENSY_CHECK__"
+                    test_conn.write(f"TM{check_msg}\n".encode())
+                    test_conn.flush()
+                    
                     start_time = time.time()
+                    buffer = ""
+                    
                     while time.time() - start_time < 0.5:
                         if test_conn.in_waiting > 0:
-                            line = test_conn.readline().decode('utf-8', errors='ignore').strip()
-                            if line.startswith('A') and 'B' in line and 'C' in line:
-                                self.get_logger().info(f"Teensy found on {port} at {br} baud")
-                                self.baud_rate = br
-                                test_conn.close()
-                                return port
+                            try:
+                                chunk = test_conn.read(test_conn.in_waiting).decode('utf-8', errors='ignore')
+                                buffer += chunk
+                                if check_msg in buffer:
+                                    self.get_logger().info(f"Teensy found on {port} at {br} baud")
+                                    self.baud_rate = br
+                                    test_conn.close()
+                                    return port
+                            except Exception: pass
+                        time.sleep(0.01)
                     test_conn.close()
             except Exception: continue
         return None
