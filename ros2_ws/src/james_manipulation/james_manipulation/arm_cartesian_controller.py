@@ -139,6 +139,7 @@ class ArmCartesianController(Node):
             
             if data.get('type') == 'manual_control':
                 if not self.joint_state_received:
+                    self.get_logger().warn('Manual cmd received but NO joint_state_received yet', throttle_duration_sec=2.0)
                     return
 
                 # Always active if receiving data, but velocities might be zero
@@ -215,8 +216,14 @@ class ArmCartesianController(Node):
             # BUMPLESS TRANSFER: Continuously sync target to actual
             # This ensures that when the user DOES move the stick, we start from REALITY.
             # We do NOT run IK or move the robot.
-            self.sync_pose_to_actual(loud=False)
+            if self.manual_control_active: # Log only if active but idle (deadzone)
+                 self.get_logger().info('Manual Active but IDLE (Deadzone?)', throttle_duration_sec=2.0)
+            
+            if not self.sync_pose_to_actual(loud=False):
+                self.get_logger().warn('Sync Pose Failed (TF issue?)', throttle_duration_sec=2.0)
             return
+
+        self.get_logger().info(f'ACTIVE MOVE: vx={self.pending_v_x:.3f}, vy={self.pending_v_y:.3f}', throttle_duration_sec=0.5)
 
         # --- ACTIVE MOVEMENT LOGIC BELOW ---
 
@@ -262,6 +269,7 @@ class ArmCartesianController(Node):
 
     def call_ik_service_async(self):
         if not self.ik_client.service_is_ready():
+            self.get_logger().error('IK Service /compute_ik NOT READY', throttle_duration_sec=2.0)
             return
         req = GetPositionIK.Request()
         req.ik_request.group_name = self.group_name
@@ -286,8 +294,10 @@ class ArmCartesianController(Node):
                 cmd_msg.name = response.solution.joint_state.name
                 cmd_msg.position = response.solution.joint_state.position
                 self.joint_cmd_pub.publish(cmd_msg)
+                self.get_logger().info('IK SUCCESS: Published joint command', throttle_duration_sec=0.5)
             else:
                 self.ik_success = False
+                self.get_logger().warn(f'IK FAILED with error code: {response.error_code.val}', throttle_duration_sec=1.0)
         except Exception as e:
             self.get_logger().error(f'IK service call failed: {e}')
 
