@@ -29,18 +29,6 @@ def generate_launch_description():
     )
     robot_description = {"robot_description": robot_description_content}
 
-    # Get URDF via xacro
-    robot_description_content = Command(
-        [
-            PathJoinSubstitution([FindExecutable(name="xacro")]),
-            " ",
-            PathJoinSubstitution(
-                [FindPackageShare("james_description"), "urdf", "james.urdf.xacro"]
-            ),
-        ]
-    )
-    robot_description = {"robot_description": robot_description_content}
-    
     # Declare launch arguments
     config_file_arg = DeclareLaunchArgument(
         'config_file',
