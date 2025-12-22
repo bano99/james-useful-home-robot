@@ -263,6 +263,7 @@ class TeensySerialBridge(Node):
         
         with self.serial_lock:
             if self.connected and self.serial_conn:
+                self.log_file.write(f'[{datetime.now().strftime("%H:%M:%S.%f")[:-3]}] TX: {cmd}')
                 self.serial_conn.write(cmd.encode('utf-8'))
                 self.get_logger().info('Sent configuration (UP) to Teensy')
 
@@ -300,12 +301,14 @@ class TeensySerialBridge(Node):
             cmd += f"{self.joint_labels[i]}{math.degrees(msg.position[i]):.4f}"
         cmd += "J70.0000J80.0000J90.0000Sp10.00Ac10.00Dc10.00Rm10.00W0Lm111111111\n"
         with self.serial_lock:
+            self.log_file.write(f'[{datetime.now().strftime("%H:%M:%S.%f")[:-3]}] TX: {cmd}')
             self.serial_conn.write(cmd.encode('utf-8'))
 
     def raw_command_callback(self, msg):
         if not self.connected or not self.serial_conn: return
         cmd = msg.data.strip() + "\n"
         with self.serial_lock:
+            self.log_file.write(f'[{datetime.now().strftime("%H:%M:%S.%f")[:-3]}] TX: {cmd}')
             self.serial_conn.write(cmd.encode('utf-8'))
 
     def publish_joint_state(self):
