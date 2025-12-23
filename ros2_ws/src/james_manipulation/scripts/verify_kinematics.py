@@ -22,24 +22,31 @@ class KinematicsVerifier(Node):
 
 def main():
     rclpy.init()
+    print("Initializing Node...", flush=True)
     node = KinematicsVerifier()
     
-    print("Waiting for Services...")
-    node.fk_client.wait_for_service()
-    node.ik_client.wait_for_service()
-    print("Services Available.")
+    print("Waiting for FK/IK Services...", flush=True)
+    if not node.fk_client.wait_for_service(timeout_sec=5.0):
+        print("Error: FK Service not available!", flush=True)
+        return
+    if not node.ik_client.wait_for_service(timeout_sec=5.0):
+        print("Error: IK Service not available!", flush=True)
+        return
+    print("Services Available.", flush=True)
 
     try:
         while rclpy.ok():
             # 1. Wait for data
-            print("Listening for Joint States...", end='\r')
+            print("Listening for Joint States...", flush=True)
             rclpy.spin_once(node, timeout_sec=1.0)
             if not node.current_joints:
+                print("  No joints received yet.", flush=True)
                 continue
                 
-            print(f"\nReceived Joints: {node.current_joints.name[0]}... (Total {len(node.current_joints.position)})")
+            print(f"Received Joints: {node.current_joints.name[0]}... (Total {len(node.current_joints.position)})", flush=True)
             
             # 2. Call FK
+            print("Calling FK Service...", flush=True)
             fk_req = GetPositionFK.Request()
             fk_req.header.frame_id = 'base_link'
             fk_req.fk_link_names = ['arm_ee_link']
