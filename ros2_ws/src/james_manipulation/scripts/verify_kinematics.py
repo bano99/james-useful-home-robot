@@ -1,19 +1,26 @@
 #!/usr/bin/env python3
-import rclpy
-from rclpy.node import Node
-from sensor_msgs.msg import JointState
-from moveit_msgs.srv import GetPositionFK, GetPositionIK
-from moveit_msgs.msg import RobotState
-from rclpy.qos import qos_profile_sensor_data
-import math
-import time
+print("--- Script Starting ---", flush=True)
+
+import sys
+try:
+    import rclpy
+    from rclpy.node import Node
+    from sensor_msgs.msg import JointState
+    from moveit_msgs.srv import GetPositionFK, GetPositionIK
+    from moveit_msgs.msg import RobotState
+    from rclpy.qos import qos_profile_sensor_data
+    import math
+    import time
+    print("Imports Successful.", flush=True)
+except Exception as e:
+    print(f"IMPORT ERROR: {e}", flush=True)
+    sys.exit(1)
 
 class KinematicsVerifier(Node):
     def __init__(self):
         super().__init__('kinematics_verifier')
         self.fk_client = self.create_client(GetPositionFK, '/compute_fk')
         self.ik_client = self.create_client(GetPositionIK, '/compute_ik')
-        # Best effort subscription for hardware joint states
         self.joint_sub = self.create_subscription(JointState, '/joint_states', self.joint_cb, qos_profile_sensor_data)
         self.current_joints = None
 
@@ -21,35 +28,42 @@ class KinematicsVerifier(Node):
         self.current_joints = msg
 
 def main():
-    rclpy.init()
-    print("Initializing Node...", flush=True)
-    node = KinematicsVerifier()
-    
-    print("Waiting for FK/IK Services...", flush=True)
-    if not node.fk_client.wait_for_service(timeout_sec=5.0):
-        print("Error: FK Service not available!", flush=True)
-        return
-    if not node.ik_client.wait_for_service(timeout_sec=5.0):
-        print("Error: IK Service not available!", flush=True)
-        return
-    print("Services Available.", flush=True)
-
     try:
-        while rclpy.ok():
-            # 1. Wait for data
-            print("Listening for Joint States...", flush=True)
-            rclpy.spin_once(node, timeout_sec=1.0)
-            if not node.current_joints:
-                print("  No joints received yet.", flush=True)
-                continue
-                
-            print(f"Received Joints: {node.current_joints.name[0]}... (Total {len(node.current_joints.position)})", flush=True)
+        rclpy.init()
+        print("Node Initialized.", flush=True)
+        node = KinematicsVerifier()
+        
+        print("Waiting for FK Service...", flush=True)
+        if not node.fk_client.wait_for_service(timeout_sec=5.0):
+            print("TIMEOUT: FK Service not found. Is MoveIt running?", flush=True)
+            return
+
+        print("Waiting for IK Service...", flush=True)
+        if not node.ik_client.wait_for_service(timeout_sec=5.0):
+            print("TIMEOUT: IK Service not found.", flush=True)
+            return
             
-            # 2. Call FK
-            print("Calling FK Service...", flush=True)
+        print("Services Connected. Starting Loop.", flush=True)
+
+        while rclpy.ok():
+            print("Listening for Joint States...", flush=True)
+            # Spin a bit to catch messages
+            for _ in range(10):
+                rclpy.spin_once(node, timeout_sec=0.1)
+                if node.current_joints:
+                    break
+            
+            if not node.current_joints:
+                print("  No joints received yet. (Check Namespace?)", flush=True)
+                time.sleep(1.0)
+                continue
+            
+            print(f"Received Joints: {node.current_joints.name[0]}... ({len(node.current_joints.position)} joints)", flush=True)
+            
+            # 1. FK
             fk_req = GetPositionFK.Request()
             fk_req.header.frame_id = 'base_link'
-            fk_req.fk_link_names = ['arm_ee_link']
+            fk_req.fk_link_names = ['arm_link_6']
             state = RobotState()
             state.joint_state = node.current_joints
             fk_req.robot_state = state
@@ -57,22 +71,21 @@ def main():
             future_fk = node.fk_client.call_async(fk_req)
             while rclpy.ok() and not future_fk.done():
                 rclpy.spin_once(node, timeout_sec=0.1)
-                
-            resp_fk = future_fk.result()
-            if not resp_fk or resp_fk.error_code.val != 1:
-                print(f"FK Failed! Code: {resp_fk.error_code.val if resp_fk else 'None'}")
-                time.sleep(1.0)
+            
+            if not future_fk.result() or future_fk.result().error_code.val != 1:
+                print("FK Computation Failed.", flush=True)
                 continue
-
-            pose = resp_fk.pose_stamped[0].pose
-            print(f"Current FK Pose: X={pose.position.x:.3f}, Y={pose.position.y:.3f}, Z={pose.position.z:.3f}")
-
-            # 3. Call IK
+                
+            pose = future_fk.result().pose_stamped[0]
+            print(f"Current Pose (link_6): X={pose.pose.position.x:.3f}, Y={pose.pose.position.y:.3f}, Z={pose.pose.position.z:.3f}", flush=True)
+            
+            # 2. IK
             ik_req = GetPositionIK.Request()
             ik_req.ik_request.group_name = 'manipulator'
-            ik_req.ik_request.robot_state = state # Seed = Current
+            ik_req.ik_request.robot_state = state
             ik_req.ik_request.avoid_collisions = True
-            ik_req.ik_request.pose_stamped = resp_fk.pose_stamped[0]
+            ik_req.ik_request.ik_link_name = 'arm_link_6'
+            ik_req.ik_request.pose_stamped = pose
             ik_req.ik_request.timeout.sec = 0
             ik_req.ik_request.timeout.nanosec = 100000000 # 0.1s
             
@@ -80,31 +93,51 @@ def main():
             while rclpy.ok() and not future_ik.done():
                 rclpy.spin_once(node, timeout_sec=0.1)
                 
-            resp_ik = future_ik.result()
-            if not resp_ik or resp_ik.error_code.val != 1:
-                print(f"IK Failed (Invalid Pose for Solver?) Code: {resp_ik.error_code.val if resp_ik else 'None'}")
-            else:
-                # 4. Compare
+            if not future_ik.result() or future_ik.result().error_code.val != 1:
+                print(f"IK Failed with Collisions Enabled! (Code: {future_ik.result().error_code.val if future_ik.result() else 'None'})", flush=True)
+                print("Retrying with collision avoidance DISABLED...", flush=True)
+                
+                ik_req.ik_request.avoid_collisions = False
+                future_ik_retry = node.ik_client.call_async(ik_req)
+                while rclpy.ok() and not future_ik_retry.done():
+                    rclpy.spin_once(node, timeout_sec=0.1)
+                
+                if not future_ik_retry.result() or future_ik_retry.result().error_code.val != 1:
+                     print("FULL FAILURE: Even without collisions, IK cannot solve this pose. (Limits?)", flush=True)
+                     # Print Joint Values
+                     print("Current Joints (Deg):", flush=True)
+                     for n, p in zip(node.current_joints.name, node.current_joints.position):
+                         print(f"  {n}: {math.degrees(p):.2f}", flush=True)
+                     continue
+                else:
+                     print("SUCCESS (No Collision): The pose is valid but requires ignoring collisions.", flush=True)
+                     future_ik = future_ik_retry # Use this result for comparison
+            
+            # Compare logic continues...
+            if True: #Indent block equivalent
+                # Compare
+                sol = future_ik.result().solution.joint_state
                 j_in = dict(zip(node.current_joints.name, node.current_joints.position))
-                j_out = dict(zip(resp_ik.solution.joint_state.name, resp_ik.solution.joint_state.position))
+                j_out = dict(zip(sol.name, sol.position))
                 
                 deltas = []
-                for k, v in j_in.items():
-                    if k in j_out:
-                         diff = math.degrees(j_out[k] - v)
-                         if abs(diff) > 2.0:
-                             deltas.append(f"{k}: {diff:.1f} deg")
+                for name, val in j_in.items():
+                    if name in j_out:
+                        diff = math.degrees(j_out[name] - val)
+                        if abs(diff) > 2.0:
+                            deltas.append(f"{name}: {diff:.1f}")
                 
                 if deltas:
-                     print(f"!!! STABILITY FAILURE !!! Solver moved joints: {', '.join(deltas)}")
+                    print(f"!!! INSTABILITY DETECTED !!! Solver Jumped: {', '.join(deltas)}", flush=True)
                 else:
-                     print("STABLE: IK Solution matches Current State.")
+                    print("STABLE: Solution matches current state.", flush=True)
             
             time.sleep(2.0)
-            
+
     except KeyboardInterrupt:
-        pass
+        print("\nExiting...", flush=True)
     finally:
-        node.destroy_node()
         rclpy.shutdown()
 
+if __name__ == '__main__':
+    main()
