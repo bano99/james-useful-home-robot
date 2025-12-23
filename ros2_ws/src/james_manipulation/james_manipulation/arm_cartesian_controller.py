@@ -170,7 +170,7 @@ class ArmCartesianController(Node):
                     self.pending_v_yaw = 0.0
                 
                 # DEBUG: Log inputs and calculated velocities
-                self.get_logger().info(f'INPUT: lx={joy_lx:.2f}, ly={joy_ly:.2f} -> Vx={self.pending_v_x:.3f}, Vy={self.pending_v_y:.3f}, Vz={self.pending_v_z:.3f} Mode={switch_mode}')
+                # self.get_logger().info(f'INPUT: lx={joy_lx:.2f}, ly={joy_ly:.2f} -> Vx={self.pending_v_x:.3f}, Vy={self.pending_v_y:.3f}, Vz={self.pending_v_z:.3f} Mode={switch_mode}')
                 
         except Exception as e:
             self.get_logger().error(f'Error processing manual command: {e}')
@@ -196,8 +196,11 @@ class ArmCartesianController(Node):
             self.current_target_pose.orientation = transform.transform.rotation
             
             self.tf_synced = True
+            # Log synchronization periodically to verify we have the correct starting pose
             if loud:
-                self.get_logger().info(f'Synchronized target pose: {self.current_target_pose.position.x:.3f}, {self.current_target_pose.position.y:.3f}, {self.current_target_pose.position.z:.3f}')
+                self.get_logger().info(f'SYNC: TF Pose -> X={self.current_target_pose.position.x:.3f}, Y={self.current_target_pose.position.y:.3f}, Z={self.current_target_pose.position.z:.3f}')
+            else:
+                 self.get_logger().info(f'SYNC: TF Pose -> X={self.current_target_pose.position.x:.3f}, Y={self.current_target_pose.position.y:.3f}, Z={self.current_target_pose.position.z:.3f}', throttle_duration_sec=2.0)
             return True
         except Exception as e:
             if loud:
@@ -219,8 +222,8 @@ class ArmCartesianController(Node):
         
         if not self.manual_control_active or is_idle:
             # BUMPLESS TRANSFER: Continuously sync target to actual
-            if self.manual_control_active: 
-                 self.get_logger().info('Manual Active but IDLE (Deadzone?)', throttle_duration_sec=2.0)
+            # if self.manual_control_active: 
+            #      self.get_logger().info('Manual Active but IDLE (Deadzone?)', throttle_duration_sec=2.0)
             
             if not self.sync_pose_to_actual(loud=False):
                 self.get_logger().warn('Sync Pose Failed (TF issue?)', throttle_duration_sec=2.0)
