@@ -33,7 +33,7 @@ arm_cartesian_controller:
     rotation_scale: 0.5        # rad/s per joystick unit
     
     # Control loop settings
-    control_rate: 25.0         # Hz - increased from 5Hz for smoother motion
+    control_rate: 5.0          # Hz - reduced to prevent command buffer buildup
     command_timeout: 0.5       # seconds - increased for slower loop
     ik_timeout: 0.05           # seconds - timeout for IK solver (50ms)
     
