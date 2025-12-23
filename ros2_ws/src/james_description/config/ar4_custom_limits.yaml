@@ -10,8 +10,8 @@ j1_limit_max: !degrees 170
 
 # J2 limit: User noted this is coupled with J1.
 # Setting to a conservative -30 to 90 for now.
-j2_limit_min: !degrees -90
-j2_limit_max: !degrees 30
+j2_limit_min: !degrees -20
+j2_limit_max: !degrees 122
 
 j3_limit_min: !degrees -89
 j3_limit_max: !degrees 52

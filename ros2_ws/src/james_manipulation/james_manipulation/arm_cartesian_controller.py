@@ -289,7 +289,7 @@ class ArmCartesianController(Node):
         req = GetPositionIK.Request()
         req.ik_request.group_name = self.group_name
         req.ik_request.robot_state.joint_state = self.current_joint_state
-        req.ik_request.avoid_collisions = False
+        req.ik_request.avoid_collisions = True
         pose_stamped = PoseStamped()
         pose_stamped.header.frame_id = self.planning_frame
         pose_stamped.header.stamp = self.get_clock().now().to_msg()
@@ -314,7 +314,7 @@ class ArmCartesianController(Node):
                          diffs = [math.degrees(t - c) for t, c in zip(tgt, cur)]
                          # Log if any joint moves more than 2 degrees
                          if any(abs(d) > 2.0 for d in diffs):
-                             self.get_logger().info(f'KINEMATICS DEBUG: JoyV(x={self.pending_v_x:.3f},y={self.pending_v_y:.3f}) -> LARGE JUMP: J1={diffs[0]:.1f}, J2={diffs[1]:.1f}, J3={diffs[2]:.1f}')
+                             self.get_logger().info(f'KINEMATICS DEBUG: JoyV(x={self.pending_v_x:.3f},y={self.pending_v_y:.3f}) -> LARGE JUMP: J1={diffs[0]:.1f}, J2={diffs[1]:.1f} (Cur={math.degrees(cur[1]):.1f}), J3={diffs[2]:.1f}')
 
                 cmd_msg = JointState()
                 cmd_msg.header.stamp = self.get_clock().now().to_msg()
