@@ -362,7 +362,7 @@ class TeensySerialBridge(Node):
         cmd = "RJ"
         for i in range(min(len(msg.position), 6)):
             cmd += f"{self.joint_labels[i]}{math.degrees(msg.position[i]):.4f}"
-        cmd += "J70.0000J80.0000J90.0000Sp40.00Ac100.00Dc100.00Rm80.00W0Lm111111111\n"
+        cmd += "J70.0000J80.0000J90.0000Sp60.00Ac200.00Dc200.00Rm80.00W0Lm111111111\n"
         with self.serial_lock:
             self.log_file.write(f'[{datetime.now().strftime("%H:%M:%S.%f")[:-3]}] TX: {cmd}')
             self.serial_conn.write(cmd.encode('utf-8'))
