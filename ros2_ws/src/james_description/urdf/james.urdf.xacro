@@ -60,7 +60,7 @@
   <joint name="camera_tower_joint" type="fixed">
     <parent link="base_link"/>
     <child link="camera_tower_link"/>
-    <origin xyz="-0.2 0 0.05" rpy="0 0 0"/> <!-- Positioned at back of base -->
+    <origin xyz="0 0.35 0.05" rpy="0 0 0"/> <!-- Positioned at back of base (Y+) -->
   </joint>
 
   <!-- Instantiate AR4 Robot Arm -->
@@ -81,6 +81,11 @@
         <color rgba="0.5 0.5 0.5 1"/>
       </material>
     </visual>
+    <collision>
+      <geometry>
+        <box size="0.05 0.08 0.1"/>
+      </geometry>
+    </collision>
   </link>
 
   <joint name="gripper_joint" type="fixed">
