@@ -97,7 +97,7 @@
       <origin rpy="1.5708 0 -1.5708" xyz="0 0.0642 -0.16977"/>
       <parent link="${tf_prefix}link_1"/>
       <child link="${tf_prefix}link_2"/>
-      <axis xyz="0 0 -1"/>
+      <axis xyz="0 0 1"/>
       <limit 
         lower="${robot_parameters['j2_limit_min']}"
         upper="${robot_parameters['j2_limit_max']}"
