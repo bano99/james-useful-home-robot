@@ -170,7 +170,7 @@ class ArmCartesianController(Node):
                     self.pending_v_yaw = 0.0
                 
                 # DEBUG: Log inputs and calculated velocities
-                # self.get_logger().info(f'INPUT: lx={joy_lx:.2f}, ly={joy_ly:.2f} -> Vx={self.pending_v_x:.3f}, Vy={self.pending_v_y:.3f}, Vz={self.pending_v_z:.3f} Mode={switch_mode}')
+                self.get_logger().info(f'INPUT: lx={joy_lx:.2f}, ly={joy_ly:.2f} -> Vx={self.pending_v_x:.3f}, Vy={self.pending_v_y:.3f}, Vz={self.pending_v_z:.3f} Mode={switch_mode}')
                 
         except Exception as e:
             self.get_logger().error(f'Error processing manual command: {e}')
