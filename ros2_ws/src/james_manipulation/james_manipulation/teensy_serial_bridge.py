@@ -118,6 +118,7 @@ class TeensySerialBridge(Node):
         self.last_joint_state.velocity = [0.0] * 6
         self.last_joint_state.effort = [0.0] * 6
         self.first_data_received = False
+        self.is_calibrated = False
         
         # ROS2 publishers and subscribers
         self.joint_state_pub = self.create_publisher(JointState, '/joint_states', 10)
@@ -177,8 +178,13 @@ class TeensySerialBridge(Node):
                             if len(states) > 0 and states[0] == 1:
                                 is_configured = True
                                 self.get_logger().info("Teensy ALREADY CONFIGURED (State[0]=1). Skipping UP command.")
-                            if len(states) > 1 and states[1] == 0:
-                                self.get_logger().warn("⚠️ ROBOT NOT CALIBRATED (State[1]=0) ⚠️")
+                            if len(states) > 1:
+                                if states[1] == 1:
+                                    self.is_calibrated = True
+                                    self.get_logger().info("Robot is CALIBRATED (State[1]=1)")
+                                else:
+                                    self.is_calibrated = False
+                                    self.get_logger().warn("⚠️ ROBOT NOT CALIBRATED (State[1]=0) - Waiting for calibration ⚠️")
                         except ValueError: pass
                     break
                 time.sleep(0.05)
@@ -375,7 +381,7 @@ class TeensySerialBridge(Node):
             self.serial_conn.write(cmd.encode('utf-8'))
 
     def publish_joint_state(self):
-        if self.connected:
+        if self.connected and self.first_data_received:
             self.last_joint_state.header.stamp = self.get_clock().now().to_msg()
             self.joint_state_pub.publish(self.last_joint_state)
     

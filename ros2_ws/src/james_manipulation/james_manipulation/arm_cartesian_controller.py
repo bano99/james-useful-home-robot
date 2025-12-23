@@ -228,6 +228,13 @@ class ArmCartesianController(Node):
 
         self.get_logger().info(f'ACTIVE: Vx={self.pending_v_x:.3f} Vy={self.pending_v_y:.3f} Vz={self.pending_v_z:.3f} Yaw={self.pending_v_yaw:.3f}', throttle_duration_sec=0.2)
 
+        if not self.tf_synced:
+            self.get_logger().warn('Cannot move: Target Pose not synced with TF', throttle_duration_sec=1.0)
+            # Try to sync again
+            self.sync_pose_to_actual(loud=True)
+            return
+
+
         # 1. Update target pose
         dt = 1.0 / self.control_rate
         # DEBUG: Log target update
