@@ -8,6 +8,8 @@ from moveit_msgs.msg import RobotState
 import math
 import time
 
+from rclpy.qos import qos_profile_sensor_data
+
 class KinematicsVerifier(Node):
     def __init__(self):
         super().__init__('kinematics_verifier')
@@ -22,8 +24,8 @@ class KinematicsVerifier(Node):
         self.ik_client.wait_for_service()
         self.get_logger().info('Services available.')
         
-        # Subscription
-        self.joint_sub = self.create_subscription(JointState, '/joint_states', self.joint_cb, 10)
+        # Subscription with Sensor Data QoS (Best Effort)
+        self.joint_sub = self.create_subscription(JointState, '/joint_states', self.joint_cb, qos_profile_sensor_data)
         self.current_joints = None
         
         # Timer
@@ -34,7 +36,12 @@ class KinematicsVerifier(Node):
 
     def verify_loop(self):
         if not self.current_joints:
-            self.get_logger().info('Waiting for joint states...')
+            self.get_logger().info('Waiting for joint states... (Topic: /joint_states)')
+            # Debug: List topics
+            topics = self.get_topic_names_and_types()
+            found = [t for t, _ in topics if 'joint_states' in t]
+            if found:
+                self.get_logger().info(f'Found joint state topics: {found}. Please update script if needed.')
             return
             
         # 1. Compute FK
