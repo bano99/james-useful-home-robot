@@ -160,9 +160,8 @@ class ArmCartesianController(Node):
                     switch_mode = 'vertical' if data['mode'] == 1 else 'platform'
                 
                 # Calculate velocity commands
-                self.pending_v_x = -joy_ly * self.velocity_scale # Inverted for correct Up=Forward
-                self.pending_v_y = joy_lx * self.velocity_scale
-                self.pending_v_z = joy_lz * self.velocity_scale
+                self.pending_v_x = -joy_lx * self.velocity_scale # Swapped: Joy Left/Right -> Vx (Turn/Base?)
+                self.pending_v_y = -joy_ly * self.velocity_scale # Swapped: Joy Fwd/Back -> Vy (Reach/J2?)
                 
                 if switch_mode == 'vertical':
                     self.pending_v_z += joy_ry * self.velocity_scale
@@ -233,7 +232,7 @@ class ArmCartesianController(Node):
         dt = 1.0 / self.control_rate
         # DEBUG: Log target update
         if abs(self.pending_v_x) > 0 or abs(self.pending_v_y) > 0 or abs(self.pending_v_z) > 0:
-             self.get_logger().info(f'UPDATE: Vx={self.pending_v_x:.3f} Vy={self.pending_v_y:.3f} | CurX={self.current_target_pose.position.x:.3f} -> NewX={self.current_target_pose.position.x + self.pending_v_x * dt:.3f}')
+             self.get_logger().info(f'UPDATE: Vx={self.pending_v_x:.3f} Vy={self.pending_v_y:.3f} | CurX={self.current_target_pose.position.x:.3f} Y={self.current_target_pose.position.y:.3f} Z={self.current_target_pose.position.z:.3f}')
 
         self.current_target_pose.position.x += self.pending_v_x * dt
         self.current_target_pose.position.y += self.pending_v_y * dt
