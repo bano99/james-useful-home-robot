@@ -103,8 +103,8 @@ class KinematicsVerifier(Node):
 def main():
     rclpy.init()
     node = KinematicsVerifier()
-    node.verify_loop() # Run once or loop
-    # rclpy.spin(node) # Use internal spin loop
+    # node.verify_loop() # Removed manual call
+    rclpy.spin(node) # Use internal spin loop to allow callbacks to process
     rclpy.shutdown()
 
 if __name__ == '__main__':
