@@ -289,7 +289,7 @@ class ArmCartesianController(Node):
         req = GetPositionIK.Request()
         req.ik_request.group_name = self.group_name
         req.ik_request.robot_state.joint_state = self.current_joint_state
-        req.ik_request.avoid_collisions = True
+        req.ik_request.avoid_collisions = False
         pose_stamped = PoseStamped()
         pose_stamped.header.frame_id = self.planning_frame
         pose_stamped.header.stamp = self.get_clock().now().to_msg()
