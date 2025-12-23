@@ -39,10 +39,10 @@ arm_cartesian_controller:
     
     # Workspace safety limits (meters)
     workspace_limits:
-      x_min: 0.05
-      x_max: 0.6
-      y_min: -0.3
-      y_max: 0.3
+      x_min: -0.8 # Widened to prevent clamping
+      x_max: 0.8
+      y_min: -0.8 # Widened (Was -0.3, causing jump since robot starts at -0.5)
+      y_max: 0.8
       z_min: 0.1
       z_max: 0.8
     
