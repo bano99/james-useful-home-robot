@@ -304,12 +304,24 @@ class ArmCartesianController(Node):
             response = future.result()
             if response.error_code.val == response.error_code.SUCCESS:
                 self.ik_success = True
+
+                # KINEMATICS DEBUG: Measure the jump
+                if self.current_joint_state:
+                    tgt = response.solution.joint_state.position
+                    cur = self.current_joint_state.position
+                    # Safe zip (names might not match order, but usually do in MoveIt)
+                    if len(tgt) == len(cur):
+                         diffs = [math.degrees(t - c) for t, c in zip(tgt, cur)]
+                         # Log if any joint moves more than 2 degrees
+                         if any(abs(d) > 2.0 for d in diffs):
+                             self.get_logger().info(f'KINEMATICS DEBUG: JoyV(x={self.pending_v_x:.3f},y={self.pending_v_y:.3f}) -> LARGE JUMP: J1={diffs[0]:.1f}, J2={diffs[1]:.1f}, J3={diffs[2]:.1f}')
+
                 cmd_msg = JointState()
                 cmd_msg.header.stamp = self.get_clock().now().to_msg()
                 cmd_msg.name = response.solution.joint_state.name
                 cmd_msg.position = response.solution.joint_state.position
                 self.joint_cmd_pub.publish(cmd_msg)
-                self.get_logger().info('IK SUCCESS: Published joint command', throttle_duration_sec=0.5)
+                # self.get_logger().info('IK SUCCESS: Published joint command', throttle_duration_sec=0.5)
             else:
                 self.ik_success = False
                 self.get_logger().warn(f'IK FAILED with error code: {response.error_code.val}', throttle_duration_sec=1.0)
