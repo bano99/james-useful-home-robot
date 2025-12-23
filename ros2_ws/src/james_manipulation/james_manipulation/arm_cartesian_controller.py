@@ -161,7 +161,7 @@ class ArmCartesianController(Node):
                 
                 # Calculate velocity commands
                 self.pending_v_x = -joy_lx * self.velocity_scale # Final: Joy Left -> Robot Left (X-)
-                self.pending_v_y = -joy_ly * self.velocity_scale # Final: Joy Forward -> Robot Forward (Y-)
+                self.pending_v_y = joy_ly * self.velocity_scale # Final Fix: Joy Forward -> Robot Forward (Y-)
                 
                 if switch_mode == 'vertical':
                     self.pending_v_z += joy_ry * self.velocity_scale
