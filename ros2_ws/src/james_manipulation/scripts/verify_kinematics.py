@@ -81,7 +81,7 @@ def main():
             
             # 2. IK
             ik_req = GetPositionIK.Request()
-            ik_req.ik_request.group_name = 'manipulator'
+            ik_req.ik_request.group_name = 'ar_manipulator'
             ik_req.ik_request.robot_state = state
             ik_req.ik_request.avoid_collisions = True
             ik_req.ik_request.ik_link_name = 'arm_link_6'

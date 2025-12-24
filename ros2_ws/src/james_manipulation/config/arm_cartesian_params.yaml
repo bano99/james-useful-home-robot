@@ -35,7 +35,7 @@ arm_cartesian_controller:
     # Control loop settings
     control_rate: 5.0          # Hz - reduced to prevent command buffer buildup
     command_timeout: 0.5       # seconds - increased for slower loop
-    ik_timeout: 0.05           # seconds - timeout for IK solver (50ms)
+    ik_timeout: 0.1            # seconds - increased for Jetson Nano (KDL Solver)
     
     # Workspace safety limits (meters)
     workspace_limits:
@@ -64,7 +64,7 @@ arm_cartesian_controller:
     # MoveIt configuration
     move_group_name: "ar_manipulator"
     planning_frame: "base_link"
-    end_effector_link: "gripper_link"
+    end_effector_link: "arm_link_6"
     
     # Control mode settings
     default_mode: "manual"  # "manual" or "autonomous"
