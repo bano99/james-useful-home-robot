@@ -1307,6 +1307,25 @@ void sendRobotPosSpline() {
   speedViolation = "0";
 }
 
+// [JAMES:MOD] Fast Joint-Only Position Reporting
+void updatePosFast() {
+  JangleIn[0] = (J1StepM - J1zeroStep) / J1StepDeg;
+  JangleIn[1] = (J2StepM - J2zeroStep) / J2StepDeg;
+  JangleIn[2] = (J3StepM - J3zeroStep) / J3StepDeg;
+  JangleIn[3] = (J4StepM - J4zeroStep) / J4StepDeg;
+  JangleIn[4] = (J5StepM - J5zeroStep) / J5StepDeg;
+  JangleIn[5] = (J6StepM - J6zeroStep) / J6StepDeg;
+}
+
+void sendRobotPosFast() {
+  updatePosFast();
+  // Simplified string for speed: only A-F, no G-L (FK), no delay
+  // Add 'G' as a terminator for 'F' to satisfy bridge parser
+  String sendPos = "A" + String(JangleIn[0], 3) + "B" + String(JangleIn[1], 3) + "C" + String(JangleIn[2], 3) + "D" + String(JangleIn[3], 3) + "E" + String(JangleIn[4], 3) + "F" + String(JangleIn[5], 3) + "G";
+  Serial.println(sendPos);
+  flag = "";
+}
+
 void updatePos() {
 
   JangleIn[0] = (J1StepM - J1zeroStep) / J1StepDeg;
@@ -1690,11 +1709,14 @@ void driveMotorsJ(int J1step, int J2step, int J3step, int J4step, int J5step, in
     ////DELAY CALC/////
     if (highStepCur <= ACCStep && !rndTrue) {
       // During accel, move from startDelay down to cruise
-      curDelay -= calcACCstepInc;  // since calcACCstepInc = (start - cruise)/ACCStep > 0
-    } else if (highStepCur >= (HighStep - DCCStep)) {
+      curDelay -= calcACCstepInc;
+    } else if (highStepCur >= (HighStep - (int)DCCStep)) {
       // [JAMES:MOD] Deceleration Phase with Blending
       if (blendingEnabled && cmdBuffer2 != "") {
-        curDelay = calcStepGap; // Stay at cruise speed
+        curDelay = calcStepGap; 
+        rndTrue = true;
+        rndSpeed = curDelay;
+        return; // Handover to next command at cruise speed
       } else {
         curDelay += calcDCCstepInc;  // Normal decel
       }
@@ -2440,7 +2462,7 @@ void EstopProg() {
 
 void setup() {
   // run once:
-  Serial.begin(9600);
+  Serial.begin(115200);
   Serial8.begin(38400);  // Use Serial8 (pins 34 and 35)
   // Initialize Modbus communication
   node.begin(1, Serial8);
@@ -4822,6 +4844,66 @@ void loop() {
 
       inData = "";  // Clear recieved buffer
       ////////MOVE COMPLETE///////////
+    }
+
+    // [JAMES:MOD] ----- BLEND JOINT (Fast Path) -----------------------
+    if (function == "BJ") {
+      int J1dir, J2dir, J3dir, J4dir, J5dir, J6dir;
+      int J1axisFault = 0, J2axisFault = 0, J3axisFault = 0, J4axisFault = 0, J5axisFault = 0, J6axisFault = 0;
+
+      int J1start = inData.indexOf("A");
+      int J2start = inData.indexOf("B");
+      int J3start = inData.indexOf("C");
+      int J4start = inData.indexOf("D");
+      int J5start = inData.indexOf("E");
+      int J6start = inData.indexOf("F");
+      int SPstart = inData.indexOf("S");
+      int AcStart = inData.indexOf("Ac");
+      int DcStart = inData.indexOf("Dc");
+      int RmStart = inData.indexOf("Rm");
+
+      float J1Angle = inData.substring(J1start + 1, J2start).toFloat();
+      float J2Angle = inData.substring(J2start + 1, J3start).toFloat();
+      float J3Angle = inData.substring(J3start + 1, J4start).toFloat();
+      float J4Angle = inData.substring(J4start + 1, J5start).toFloat();
+      float J5Angle = inData.substring(J5start + 1, J6start).toFloat();
+      float J6Angle = inData.substring(J6start + 1, SPstart).toFloat();
+
+      String SpeedType = inData.substring(SPstart + 1, SPstart + 2);
+      float SpeedVal = inData.substring(SPstart + 2, AcStart).toFloat();
+      float ACCspd = inData.substring(AcStart + 2, DcStart).toFloat();
+      float DCCspd = inData.substring(DcStart + 2, RmStart).toFloat();
+      float ACCramp = inData.substring(RmStart + 2).toFloat();
+
+      int J1stepDif = J1StepM - (int)((J1Angle + J1axisLimNeg) * J1StepDeg);
+      int J2stepDif = J2StepM - (int)((J2Angle + J2axisLimNeg) * J2StepDeg);
+      int J3stepDif = J3StepM - (int)((J3Angle + J3axisLimNeg) * J3StepDeg);
+      int J4stepDif = J4StepM - (int)((J4Angle + J4axisLimNeg) * J4StepDeg);
+      int J5stepDif = J5StepM - (int)((J5Angle + J5axisLimNeg) * J5StepDeg);
+      int J6stepDif = J6StepM - (int)((J6Angle + J6axisLimNeg) * J6StepDeg);
+
+      J1dir = (J1stepDif <= 0) ? 1 : 0;
+      J2dir = (J2stepDif <= 0) ? 1 : 0;
+      J3dir = (J3stepDif <= 0) ? 1 : 0;
+      J4dir = (J4stepDif <= 0) ? 1 : 0;
+      J5dir = (J5stepDif <= 0) ? 1 : 0;
+      J6dir = (J6stepDif <= 0) ? 1 : 0;
+
+      // Basic axis limit check (skipping J7-9 for Speed)
+      if ((J1dir == 1 and (J1StepM + abs(J1stepDif) > J1StepLim)) or (J1dir == 0 and (J1StepM - abs(J1stepDif) < 0))) J1axisFault = 1;
+      if ((J2dir == 1 and (J2StepM + abs(J2stepDif) > J2StepLim)) or (J2dir == 0 and (J2StepM - abs(J2stepDif) < 0))) J2axisFault = 1;
+      if ((J3dir == 1 and (J3StepM + abs(J3stepDif) > J3StepLim)) or (J3dir == 0 and (J3StepM - abs(J3stepDif) < 0))) J3axisFault = 1;
+      if ((J4dir == 1 and (J4StepM + abs(J4stepDif) > J4StepLim)) or (J4dir == 0 and (J4StepM - abs(J4stepDif) < 0))) J4axisFault = 1;
+      if ((J5dir == 1 and (J5StepM + abs(J5stepDif) > J5StepLim)) or (J5dir == 0 and (J5StepM - abs(J5stepDif) < 0))) J5axisFault = 1;
+      if ((J6dir == 1 and (J6StepM + abs(J6stepDif) > J6StepLim)) or (J6dir == 0 and (J6StepM - abs(J6stepDif) < 0))) J6axisFault = 1;
+
+      if ((J1axisFault + J2axisFault + J3axisFault + J4axisFault + J5axisFault + J6axisFault) == 0) {
+        driveMotorsJ(abs(J1stepDif), abs(J2stepDif), abs(J3stepDif), abs(J4stepDif), abs(J5stepDif), abs(J6stepDif), 
+                     0, 0, 0, J1dir, J2dir, J3dir, J4dir, J5dir, J6dir, 0, 0, 0, 
+                     SpeedType, SpeedVal, ACCspd, DCCspd, ACCramp);
+        sendRobotPosFast(); // No blocking delay, no FK
+      }
+      inData = "";
     }
 
 

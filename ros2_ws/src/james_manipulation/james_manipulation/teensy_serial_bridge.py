@@ -385,25 +385,14 @@ class TeensySerialBridge(Node):
             if self.in_flight_count > 0:
                 self.in_flight_count -= 1
             
-            # Capacity available (1 executing, 1 buffer slot)
-            if self.in_flight_count < 2:
-                msg_to_send = None
-                if self.blending_enabled:
-                    # Blending Mode: Send most recent stored command
-                    if self.pending_joint_cmd is not None:
-                        msg_to_send = self.pending_joint_cmd
-                        self.pending_joint_cmd = None
-                else:
-                    # Non-Blending Mode: Send next command in FIFO queue
-                    if len(self.move_queue) > 0:
-                        msg_to_send = self.move_queue.popleft()
-                
                 if msg_to_send:
-                    self._send_rj_command(msg_to_send)
+                    self._send_move_command(msg_to_send)
 
-    def _send_rj_command(self, msg):
-        """Helper to format and send RJ command to Teensy, increments in_flight_count"""
-        cmd = "RJ"
+    def _send_move_command(self, msg):
+        """Helper to format and send RJ or BJ command to Teensy"""
+        # [JAMES:MOD] Use BJ (Blend Joint) for low-latency mode, RJ for precise mode
+        prefix = "BJ" if self.blending_enabled else "RJ"
+        cmd = prefix
         for i in range(min(len(msg.position), 6)):
             cmd += f"{self.joint_labels[i]}{math.degrees(msg.position[i]):.4f}"
         
@@ -412,7 +401,13 @@ class TeensySerialBridge(Node):
         ac = self.get_parameter('motion_accel').value
         dc = self.get_parameter('motion_decel').value
         rm = self.get_parameter('motion_ramp').value
-        cmd += f"J70.0000J80.0000J90.0000Sp{sp:.2f}Ac{ac:.2f}Dc{dc:.2f}Rm{rm:.2f}W0Lm111111111\n"
+        
+        if prefix == "BJ":
+            # BJ is lean: no extra joints, just basic motion profile
+            cmd += f"Sp{sp:.2f}Ac{ac:.2f}Dc{dc:.2f}Rm{rm:.2f}\n"
+        else:
+            # RJ is standard: full set of robot parameters
+            cmd += f"J70.0000J80.0000J90.0000Sp{sp:.2f}Ac{ac:.2f}Dc{dc:.2f}Rm{rm:.2f}W0Lm111111111\n"
 
         with self.serial_lock:
             if self.connected and self.serial_conn:
@@ -426,7 +421,7 @@ class TeensySerialBridge(Node):
         with self.flow_lock:
             if self.in_flight_count < 2:
                 # Capacity available in Teensy buffer
-                self._send_rj_command(msg)
+                self._send_move_command(msg)
             else:
                 if self.blending_enabled:
                     # Blending Mode: Overwrite single slot (skip intermediate points)
