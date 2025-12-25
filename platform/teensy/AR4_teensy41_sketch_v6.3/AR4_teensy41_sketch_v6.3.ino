@@ -2321,6 +2321,17 @@ void processSerial() {
         }
       }
 
+      // [JAMES:MOD] Add ST (Stop) command to immediately stop robot
+      if (procCMDtype == "ST") {
+          estopActive = true;       // Trigger soft E-stop to break loops
+          moveSequence = "";        // Clear sequences
+          cmdBuffer1 = "";          // Clear all buffers
+          cmdBuffer2 = "";
+          cmdBuffer3 = "";
+          splineTrue = false;       // Cancel spline mode
+          Serial.println("STOPPED"); // Ack
+      }
+
       recData = "";  // Clear recieved buffer
 
       shiftCMDarray();
@@ -2466,7 +2477,7 @@ void loop() {
   //dont start unless at least one command has been read in
   if (cmdBuffer1 != "") {
     //process data
-    estopActive = false;
+    estopActive = false; // [JAMES:MOD] Ensure Estop is reset when processing new valid commands
     inData = cmdBuffer1;
     inData.trim();
     String function = inData.substring(0, 2);

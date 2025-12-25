@@ -129,6 +129,9 @@ def main():
                 
                 if deltas:
                     print(f"!!! INSTABILITY DETECTED !!! Solver Jumped: {', '.join(deltas)}", flush=True)
+                    print("Input Joints (Deg):", flush=True)
+                    for n, p in zip(node.current_joints.name, node.current_joints.position):
+                    print(f"  {n}: {math.degrees(p):.2f}", flush=True)
                 else:
                     print("STABLE: Solution matches current state.", flush=True)
             

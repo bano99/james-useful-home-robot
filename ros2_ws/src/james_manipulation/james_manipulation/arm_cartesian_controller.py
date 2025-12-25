@@ -34,7 +34,7 @@ class ArmCartesianController(Node):
         self.declare_parameter('workspace_limits.y_min', -0.3)
         self.declare_parameter('workspace_limits.y_max', 0.3)
         self.declare_parameter('workspace_limits.z_min', 0.1)
-        self.declare_parameter('workspace_limits.z_max', 0.8)
+        self.declare_parameter('workspace_limits.z_max', 0.99)
         
         # MoveIt parameters
         self.declare_parameter('move_group_name', 'ar4_arm')
@@ -106,6 +106,11 @@ class ArmCartesianController(Node):
             10
         )
         
+
+        # [JAMES:MOD] Publisher for Raw Commands (for STOP)
+        self.raw_cmd_pub = self.create_publisher(String, '/arm/teensy_raw_cmd', 10)
+
+
         # Control timer
         self.control_timer = self.create_timer(
             1.0 / self.control_rate,
@@ -164,9 +169,10 @@ class ArmCartesianController(Node):
                 self.pending_v_y = joy_ly * self.velocity_scale # Final Fix: Joy Forward -> Robot Forward (Y-)
                 
                 if switch_mode == 'vertical':
-                    self.pending_v_z += joy_ry * self.velocity_scale
+                    self.pending_v_z = joy_ry * self.velocity_scale
                     self.pending_v_yaw = joy_rr * self.rotation_scale
                 else:
+                    self.pending_v_z = 0.0
                     self.pending_v_yaw = 0.0
                 
                 # DEBUG: Log inputs and calculated velocities
@@ -225,6 +231,16 @@ class ArmCartesianController(Node):
             # if self.manual_control_active: 
             #      self.get_logger().info('Manual Active but IDLE (Deadzone?)', throttle_duration_sec=2.0)
             
+            # [JAMES:MOD] If we just became idle from being active, send STOP
+
+
+            if self.manual_control_active:
+                self.get_logger().info('Joystick Released -> Sending STOP command')
+                stop_msg = String()
+                stop_msg.data = "ST"
+                self.raw_cmd_pub.publish(stop_msg)
+                self.manual_control_active = False # Reset flag
+
             if not self.sync_pose_to_actual(loud=False):
                 self.get_logger().warn('Sync Pose Failed (TF issue?)', throttle_duration_sec=2.0)
             return
@@ -237,6 +253,14 @@ class ArmCartesianController(Node):
             self.sync_pose_to_actual(loud=True)
             return
 
+        # If previous IK failed (hit limit/singularity), we MUST re-sync the target to actual
+        # otherwise we get stuck trying to solve for an impossible pose forever.
+        if not self.ik_success:
+             # Only sync if we are NOT currently trying to recover (active input might push us out)
+             # But simplistic appraoch: If failed, always sync to start fresh from current valid pos
+             self.sync_pose_to_actual(loud=False)
+             # We set success to True to allow one attempt, if it fails again, we sync again.
+             self.ik_success = True 
 
         # 1. Update target pose
         dt = 1.0 / self.control_rate
