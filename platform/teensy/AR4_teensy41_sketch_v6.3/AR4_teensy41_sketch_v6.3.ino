@@ -355,6 +355,7 @@ String rndData;
 bool rndTrue;
 float rndSpeed;
 bool splineTrue;
+bool blendingEnabled = false;
 bool splineEndReceived;
 bool estopActive;
 
@@ -1679,13 +1680,24 @@ void driveMotorsJ(int J1step, int J2step, int J3step, int J4step, int J5step, in
 
   while ((cur[0] < steps[0] || cur[1] < steps[1] || cur[2] < steps[2] || cur[3] < steps[3] || cur[4] < steps[4] || cur[5] < steps[5] || cur[6] < steps[6] || cur[7] < steps[7] || cur[8] < steps[8]) && estopActive == false) {
 
+    // [JAMES:MOD] Blending Check - once before deceleration begins
+    if (blendingEnabled && highStepCur == (HighStep - (int)DCCStep) && DCCStep > 0) {
+      while (Serial.available() > 0 && cmdBuffer3 == "") {
+        processSerial();
+      }
+    }
+
     ////DELAY CALC/////
     if (highStepCur <= ACCStep) {
       // During accel, move from startDelay down to cruise
       curDelay -= calcACCstepInc;  // since calcACCstepInc = (start - cruise)/ACCStep > 0
     } else if (highStepCur >= (HighStep - DCCStep)) {
-      // During decel, move from cruise up to endDelay
-      curDelay += calcDCCstepInc;  // since calcDCCstepInc = (end - cruise)/DCCStep > 0
+      // [JAMES:MOD] Deceleration Phase with Blending
+      if (blendingEnabled && cmdBuffer2 != "") {
+        curDelay = calcStepGap; // Stay at cruise speed
+      } else {
+        curDelay += calcDCCstepInc;  // Normal decel
+      }
     } else {
       curDelay = calcStepGap;  // cruise
     }
@@ -1752,6 +1764,14 @@ void driveMotorsJ(int J1step, int J2step, int J3step, int J4step, int J5step, in
   unsigned long moveEnd = micros();
   float elapsedSeconds = (moveEnd - moveStart) / 1000000.0f;
   //debug = String(elapsedSeconds);
+
+  // [JAMES:MOD] Set rounding speed to last move speed if blending
+  if (blendingEnabled && cmdBuffer2 != "") {
+    rndTrue = true;
+    rndSpeed = curDelay;
+  } else {
+    rndTrue = false;
+  }
 
   // Set rounding speed to last move speed
   rndSpeed = curDelay;
@@ -1962,6 +1982,16 @@ void driveMotorsL(int J1step, int J2step, int J3step, int J4step, int J5step, in
 
   // DRIVE MOTORS
   while ((cur[0] < steps[0] || cur[1] < steps[1] || cur[2] < steps[2] || cur[3] < steps[3] || cur[4] < steps[4] || cur[5] < steps[5] || cur[6] < steps[6] || cur[7] < steps[7] || cur[8] < steps[8]) && !estopActive) {
+    
+    // [JAMES:MOD] Blending Check - once before loop ends (since L is constant speed, we just check near the end)
+    // Actually driveMotorsL is often called for small segments.
+    // We check near the end of the HighStep if blending is enabled.
+    if (blendingEnabled && highStepCur == (HighStep - 1)) {
+       while (Serial.available() > 0 && cmdBuffer3 == "") {
+         processSerial();
+       }
+    }
+
     float distDelay = 30;
     float disDelayCur = 0;
 
@@ -2329,7 +2359,16 @@ void processSerial() {
           cmdBuffer2 = "";
           cmdBuffer3 = "";
           splineTrue = false;       // Cancel spline mode
+          blendingEnabled = false;  // Reset blending on ST
           Serial.println("STOPPED"); // Ack
+      }
+
+      // [JAMES:MOD] Blending Control
+      if (procCMDtype == "BM") {
+          int val = recData.substring(2).toInt();
+          blendingEnabled = (val == 1);
+          Serial.print("BLENDING:");
+          Serial.println(blendingEnabled ? "ON" : "OFF");
       }
 
       recData = "";  // Clear recieved buffer

@@ -128,6 +128,7 @@ class ArmCartesianController(Node):
         self.pending_v_y = 0.0
         self.pending_v_z = 0.0
         self.pending_v_yaw = 0.0
+        self.blending_active = False # [JAMES:MOD] Track firmware blending state
         
         self.get_logger().info('Arm Cartesian Controller initialized (Idle-Sync Logic Enabled)')
         self.get_logger().info(f'EE Link: {self.ee_link}, Planning Frame: {self.planning_frame}')
@@ -227,25 +228,31 @@ class ArmCartesianController(Node):
         is_idle = (abs(self.pending_v_x) + abs(self.pending_v_y) + abs(self.pending_v_z) + abs(self.pending_v_yaw)) < 1e-6
         
         if not self.manual_control_active or is_idle:
-            # BUMPLESS TRANSFER: Continuously sync target to actual
-            # if self.manual_control_active: 
-            #      self.get_logger().info('Manual Active but IDLE (Deadzone?)', throttle_duration_sec=2.0)
-            
-            # [JAMES:MOD] If we just became idle from being active, send STOP
-
-
-            if self.manual_control_active:
-                self.get_logger().info('Joystick Released -> Sending STOP command')
+            # [JAMES:MOD] If we just became idle from being active, send STOP and disable blending
+            if self.manual_control_active or self.blending_active:
+                self.get_logger().info('Joystick Idle -> Sending STOP and disabling blending (BM0)')
                 stop_msg = String()
+                stop_msg.data = "BM0"
+                self.raw_cmd_pub.publish(stop_msg)
                 stop_msg.data = "ST"
                 self.raw_cmd_pub.publish(stop_msg)
-                self.manual_control_active = False # Reset flag
+                
+                self.manual_control_active = False # Reset internal flags
+                self.blending_active = False
 
             if not self.sync_pose_to_actual(loud=False):
                 self.get_logger().warn('Sync Pose Failed (TF issue?)', throttle_duration_sec=2.0)
             return
 
         self.get_logger().info(f'ACTIVE: Vx={self.pending_v_x:.3f} Vy={self.pending_v_y:.3f} Vz={self.pending_v_z:.3f} Yaw={self.pending_v_yaw:.3f}', throttle_duration_sec=0.2)
+
+        # [JAMES:MOD] Enable blending on first active command
+        if not self.blending_active:
+             self.get_logger().info('Starting Move -> Enabling blending (BM1)')
+             start_msg = String()
+             start_msg.data = "BM1"
+             self.raw_cmd_pub.publish(start_msg)
+             self.blending_active = True
 
         if not self.tf_synced:
             self.get_logger().warn('Cannot move: Target Pose not synced with TF', throttle_duration_sec=1.0)
