@@ -20,26 +20,26 @@ class ArmCartesianController(Node):
     def __init__(self):
         super().__init__('arm_cartesian_controller')
         
-        # Declare parameters (Default values are loaded from config/arm_cartesian_params.yaml)
-        self.declare_parameter('velocity_scale', rclpy.Parameter.Type.DOUBLE)
-        self.declare_parameter('rotation_scale', rclpy.Parameter.Type.DOUBLE)
-        self.declare_parameter('control_rate', rclpy.Parameter.Type.DOUBLE)
-        self.declare_parameter('command_timeout', rclpy.Parameter.Type.DOUBLE)
-        self.declare_parameter('ik_timeout', rclpy.Parameter.Type.DOUBLE)
-        self.declare_parameter('joystick_deadzone', rclpy.Parameter.Type.DOUBLE)
+        # Declare parameters (Default values are placeholders; actual values are loaded from config/arm_cartesian_params.yaml)
+        self.declare_parameter('velocity_scale', 0.0)
+        self.declare_parameter('rotation_scale', 0.0)
+        self.declare_parameter('control_rate', 0.0)
+        self.declare_parameter('command_timeout', 0.0)
+        self.declare_parameter('ik_timeout', 0.0)
+        self.declare_parameter('joystick_deadzone', 0.0)
         
         # Workspace limits
-        self.declare_parameter('workspace_limits.x_min', rclpy.Parameter.Type.DOUBLE)
-        self.declare_parameter('workspace_limits.x_max', rclpy.Parameter.Type.DOUBLE)
-        self.declare_parameter('workspace_limits.y_min', rclpy.Parameter.Type.DOUBLE)
-        self.declare_parameter('workspace_limits.y_max', rclpy.Parameter.Type.DOUBLE)
-        self.declare_parameter('workspace_limits.z_min', rclpy.Parameter.Type.DOUBLE)
-        self.declare_parameter('workspace_limits.z_max', rclpy.Parameter.Type.DOUBLE)
+        self.declare_parameter('workspace_limits.x_min', 0.0)
+        self.declare_parameter('workspace_limits.x_max', 0.0)
+        self.declare_parameter('workspace_limits.y_min', 0.0)
+        self.declare_parameter('workspace_limits.y_max', 0.0)
+        self.declare_parameter('workspace_limits.z_min', 0.0)
+        self.declare_parameter('workspace_limits.z_max', 0.0)
         
         # MoveIt parameters
-        self.declare_parameter('move_group_name', rclpy.Parameter.Type.STRING)
-        self.declare_parameter('planning_frame', rclpy.Parameter.Type.STRING)
-        self.declare_parameter('end_effector_link', rclpy.Parameter.Type.STRING)
+        self.declare_parameter('move_group_name', "")
+        self.declare_parameter('planning_frame', "")
+        self.declare_parameter('end_effector_link', "")
         
         # Get parameters
         self.velocity_scale = self.get_parameter('velocity_scale').value
