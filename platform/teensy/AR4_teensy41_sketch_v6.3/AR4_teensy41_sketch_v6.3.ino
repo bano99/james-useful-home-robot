@@ -1688,7 +1688,7 @@ void driveMotorsJ(int J1step, int J2step, int J3step, int J4step, int J5step, in
     }
 
     ////DELAY CALC/////
-    if (highStepCur <= ACCStep) {
+    if (highStepCur <= ACCStep && !rndTrue) {
       // During accel, move from startDelay down to cruise
       curDelay -= calcACCstepInc;  // since calcACCstepInc = (start - cruise)/ACCStep > 0
     } else if (highStepCur >= (HighStep - DCCStep)) {

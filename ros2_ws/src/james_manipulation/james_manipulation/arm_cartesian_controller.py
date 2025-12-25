@@ -21,8 +21,8 @@ class ArmCartesianController(Node):
         super().__init__('arm_cartesian_controller')
         
         # Declare parameters
-        self.declare_parameter('velocity_scale', 0.001)
-        self.declare_parameter('rotation_scale', 0.01)
+        self.declare_parameter('velocity_scale', 0.002)
+        self.declare_parameter('rotation_scale', 0.02)
         self.declare_parameter('control_rate', 50.0)
         self.declare_parameter('command_timeout', 0.5)
         self.declare_parameter('ik_timeout', 0.05)
