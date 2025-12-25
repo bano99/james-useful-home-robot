@@ -19,6 +19,7 @@ import time
 import re
 import math
 import json
+import collections
 from datetime import datetime
 import os as _os
 import glob
@@ -55,6 +56,15 @@ class TeensySerialBridge(Node):
         self.declare_parameter('enable_auto_detect', True)
         self.declare_parameter('send_up_on_startup', True)
         
+
+
+
+        # [JAMES:MOD] Motion Profile Parameters (Tunable)
+        self.declare_parameter('motion_speed', 40.0)      # % Speed
+        self.declare_parameter('motion_accel', 20.0)      # % of steps for Acceleration
+        self.declare_parameter('motion_decel', 20.0)      # % of steps for Deceleration
+        self.declare_parameter('motion_ramp', 80.0)       # Acceleration Ramp factor
+
         # Log raw parameter values for debugging
         self.get_logger().info('--- PARAMETER DEBUG START ---')
         for param in self._parameters.values():
@@ -96,6 +106,13 @@ class TeensySerialBridge(Node):
         self.last_joint_state = JointState()
         self.last_command_time = time.time()
         self.serial_lock = threading.Lock()
+        
+        # Flow Control for Smooth Motion
+        self.in_flight_count = 0
+        self.pending_joint_cmd = None  # Single-slot buffer for Blending Mode
+        self.move_queue = collections.deque()  # FIFO Queue for Non-Blending Mode
+        self.blending_enabled = False  # Track Teensy blending state
+        self.flow_lock = threading.Lock()  # Lock for flow control variables
         
         # Setup logging folder
         log_dir = _os.path.expanduser('~/teensy_logs')
@@ -363,19 +380,85 @@ class TeensySerialBridge(Node):
         self.packet_count_pub.publish(pc_msg)
         self.publish_joint_state()
 
-    def joint_command_callback(self, msg):
-        if not self.connected or not self.serial_conn: return
+        # [JAMES:MOD] Flow Control - Move completed, check for pending moves
+        with self.flow_lock:
+            if self.in_flight_count > 0:
+                self.in_flight_count -= 1
+            
+            # Capacity available (1 executing, 1 buffer slot)
+            if self.in_flight_count < 2:
+                msg_to_send = None
+                if self.blending_enabled:
+                    # Blending Mode: Send most recent stored command
+                    if self.pending_joint_cmd is not None:
+                        msg_to_send = self.pending_joint_cmd
+                        self.pending_joint_cmd = None
+                else:
+                    # Non-Blending Mode: Send next command in FIFO queue
+                    if len(self.move_queue) > 0:
+                        msg_to_send = self.move_queue.popleft()
+                
+                if msg_to_send:
+                    self._send_rj_command(msg_to_send)
+
+    def _send_rj_command(self, msg):
+        """Helper to format and send RJ command to Teensy, increments in_flight_count"""
         cmd = "RJ"
         for i in range(min(len(msg.position), 6)):
             cmd += f"{self.joint_labels[i]}{math.degrees(msg.position[i]):.4f}"
-        cmd += "J70.0000J80.0000J90.0000Sp60.00Ac200.00Dc200.00Rm80.00W0Lm111111111\n"
+        
+        # Motion Profile Parameters
+        sp = self.get_parameter('motion_speed').value
+        ac = self.get_parameter('motion_accel').value
+        dc = self.get_parameter('motion_decel').value
+        rm = self.get_parameter('motion_ramp').value
+        cmd += f"J70.0000J80.0000J90.0000Sp{sp:.2f}Ac{ac:.2f}Dc{dc:.2f}Rm{rm:.2f}W0Lm111111111\n"
+
         with self.serial_lock:
-            self.log_file.write(f'[{datetime.now().strftime("%H:%M:%S.%f")[:-3]}] TX: {cmd}')
-            self.serial_conn.write(cmd.encode('utf-8'))
+            if self.connected and self.serial_conn:
+                self.log_file.write(f'[{datetime.now().strftime("%H:%M:%S.%f")[:-3]}] TX: {cmd}')
+                self.serial_conn.write(cmd.encode('utf-8'))
+                self.in_flight_count += 1
+
+    def joint_command_callback(self, msg):
+        if not self.connected or not self.serial_conn: return
+        
+        with self.flow_lock:
+            if self.in_flight_count < 2:
+                # Capacity available in Teensy buffer
+                self._send_rj_command(msg)
+            else:
+                if self.blending_enabled:
+                    # Blending Mode: Overwrite single slot (skip intermediate points)
+                    self.pending_joint_cmd = msg
+                else:
+                    # Non-Blending Mode: Strict FIFO queue (do not skip points)
+                    self.move_queue.append(msg)
 
     def raw_command_callback(self, msg):
         if not self.connected or not self.serial_conn: return
-        cmd = msg.data.strip() + "\n"
+        cmd_text = msg.data.strip()
+        
+        # [JAMES:MOD] Blending State Tracking
+        if cmd_text == "BM1":
+            with self.flow_lock:
+                self.blending_enabled = True
+            self.get_logger().info("Blending ENABLED (Joystick Mode: Latency prioritized, points may be skipped)")
+        elif cmd_text == "BM0":
+            with self.flow_lock:
+                self.blending_enabled = False
+            self.get_logger().info("Blending DISABLED (Programmed Mode: Every point will be executed)")
+
+        # [JAMES:MOD] Priority Stop Logic
+        if cmd_text == "ST":
+            with self.flow_lock:
+                self.pending_joint_cmd = None
+                self.move_queue.clear()
+                self.in_flight_count = 0
+                # Note: We keep blending_enabled state as set by controller
+            self.get_logger().info("Priority STOP received: Clearing all queues and resetting flow control.")
+
+        cmd = cmd_text + "\n"
         with self.serial_lock:
             self.log_file.write(f'[{datetime.now().strftime("%H:%M:%S.%f")[:-3]}] TX: {cmd}')
             self.serial_conn.write(cmd.encode('utf-8'))

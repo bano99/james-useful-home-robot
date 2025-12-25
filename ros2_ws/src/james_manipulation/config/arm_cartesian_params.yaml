@@ -10,7 +10,7 @@ platform_serial_bridge:
     enable_auto_detect: true
     
     # Communication settings
-    publish_rate: 10.0  # Hz - rate to publish received commands
+    publish_rate: 15.0  # Hz - rate to publish received commands
     connection_timeout: 1.0  # seconds - timeout for connection status
 
 teensy_serial_bridge:
@@ -23,14 +23,14 @@ teensy_serial_bridge:
     send_up_on_startup: false
     
     # Communication settings
-    publish_rate: 10.0  # Hz - rate to publish joint states
+    publish_rate: 15.0  # Hz - rate to publish joint states
     command_timeout: 0.5  # seconds - timeout for joint commands
 
 arm_cartesian_controller:
   ros__parameters:
     # Control scaling parameters
-    velocity_scale: 0.05       # m/s per joystick unit (increased to 5cm/s)
-    rotation_scale: 0.5        # rad/s per joystick unit
+    velocity_scale: 0.2       # m/s per joystick unit (increased to 5cm/s)
+    rotation_scale: 0.9        # rad/s per joystick unit
     
     # Control loop settings
     control_rate: 5.0          # Hz - reduced to prevent command buffer buildup
@@ -44,7 +44,7 @@ arm_cartesian_controller:
       y_min: -0.8 # Widened (Was -0.3, causing jump since robot starts at -0.5)
       y_max: 0.8
       z_min: 0.1
-      z_max: 0.8
+      z_max: 0.99
     
     # Joint limits (radians) - safety limits beyond hardware limits
     joint_limits:
