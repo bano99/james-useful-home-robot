@@ -1579,10 +1579,10 @@ void checkEncoders() {
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//DRIVE MOTORS BJ (Persistent Blending Loop)
+//DRIVE MOTORS XJ (Persistent Blending Loop)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void driveMotorsBJ(int J1step, int J2step, int J3step, int J4step, int J5step, int J6step, int J1dir, int J2dir, int J3dir, int J4dir, int J5dir, int J6dir, float SpeedVal, float ACCspd, float DCCspd, float ACCramp) {
+void driveMotorsXJ(int J1step, int J2step, int J3step, int J4step, int J5step, int J6step, int J1dir, int J2dir, int J3dir, int J4dir, int J5dir, int J6dir, String SpeedType, float SpeedVal, float ACCspd, float DCCspd, float ACCramp) {
   int steps[] = { J1step, J2step, J3step, J4step, J5step, J6step, 0, 0, 0 };
   int dirs[] = { J1dir, J2dir, J3dir, J4dir, J5dir, J6dir, 0, 0, 0 };
   int motDirs[] = { J1MotDir, J2MotDir, J3MotDir, J4MotDir, J5MotDir, J6MotDir, J7MotDir, J8MotDir, J9MotDir };
@@ -1599,80 +1599,88 @@ void driveMotorsBJ(int J1step, int J2step, int J3step, int J4step, int J5step, i
     int HighStep = 0;
     for (int i = 0; i < 6; i++) if (steps[i] > HighStep) HighStep = steps[i];
     
-    float ACCStep = HighStep * (ACCspd / 100.0f);
-    float DCCStep = HighStep * (DCCspd / 100.0f);
-    float NORStep = HighStep - ACCStep - DCCStep;
+    if (HighStep == 0) {
+       if (!nextReady) break; 
+       // If somehow we got here with nextReady but 0 steps, load next immediately
+    } else {
+        float ACCStep = HighStep * (ACCspd / 100.0f);
+        float DCCStep = HighStep * (DCCspd / 100.0f);
+        float NORStep = HighStep - ACCStep - DCCStep;
 
-    if(ACCramp < 10) ACCramp = 10;
-    const float k_acc = ACCramp / 10.0f;
-    const float k_dec = ACCramp / 10.0f;
+        if(ACCramp < 10) ACCramp = 10;
+        const float k_acc = ACCramp / 10.0f;
+        const float k_dec = ACCramp / 10.0f;
 
-    float speedSP = (SpeedVal * 1000000.0f);
-    float denom = NORStep + (ACCStep * (1.0f + k_acc) + DCCStep * (1.0f + k_dec)) * 0.5f;
-    float calcStepGap = (denom > 0) ? speedSP / denom : minSpeedDelay;
-    
-    float startDelay = calcStepGap * k_acc;
-    float endDelay = calcStepGap * k_dec;
-    float calcACCstepInc = (ACCStep > 0) ? (startDelay - calcStepGap) / ACCStep : 0;
-    float calcDCCstepInc = (DCCStep > 0) ? (endDelay - calcStepGap) / DCCStep : 0;
-
-    if (firstSegment) curDelay = startDelay;
-    else curDelay = lastCruiseDelay;
-
-    for (int i = 0; i < 6; i++) {
-        digitalWrite(dirPins[i], (dirs[i] == motDirs[i] ? HIGH : LOW));
-    }
-
-    int highStepCur = 0;
-    int cur[] = {0,0,0,0,0,0,0,0,0};
-    int PE[9], SE_1[9], SE_2[9], LO_1[9], LO_2[9];
-    int PEcur[9] = {0}, SE_1cur[9] = {0}, SE_2cur[9] = {0};
-
-    nextReady = false;
-    while (highStepCur < HighStep && !estopActive) {
-      if (!nextReady && highStepCur >= (HighStep - (int)DCCStep)) {
-        processSerial();
-        if (cmdBuffer1.startsWith("BJ")) nextReady = true;
-      }
-
-      if (firstSegment && highStepCur <= ACCStep) curDelay -= calcACCstepInc;
-      else if (!nextReady && highStepCur >= (HighStep - (int)DCCStep)) curDelay += calcDCCstepInc;
-      else curDelay = calcStepGap;
-
-      float disDelayCur = 0;
-      for (int i = 0; i < 6; i++) {
-        if (cur[i] < steps[i]) {
-          PE[i] = (HighStep / steps[i]);
-          LO_1[i] = (HighStep - (steps[i] * PE[i]));
-          SE_1[i] = (LO_1[i] > 0) ? (HighStep / LO_1[i]) : 0;
-          LO_2[i] = (SE_1[i] > 0) ? (HighStep - ((steps[i] * PE[i]) + ((steps[i] * PE[i]) / SE_1[i]))) : 0;
-          SE_2[i] = (LO_2[i] > 0) ? (HighStep / LO_2[i]) : 0;
-          if (SE_2[i] == 0) SE_2cur[i] = SE_2[i] + 1;
-          if (SE_2cur[i] != SE_2[i]) {
-            SE_2cur[i]++;
-            if (SE_1[i] == 0) SE_1cur[i] = SE_1[i] + 1;
-            if (SE_1cur[i] != SE_1[i]) {
-              SE_1cur[i]++; PEcur[i]++;
-              if (PEcur[i] == PE[i]) {
-                cur[i]++; PEcur[i] = 0;
-                digitalWrite(stepPins[i], LOW);
-                delayMicroseconds(30); disDelayCur += 30;
-                if (dirs[i] == 0) stepMonitors[i]--; else stepMonitors[i]++;
-              }
-            } else SE_1cur[i] = 0;
-          } else SE_2cur[i] = 0;
+        float calcStepGap;
+        if (SpeedType == "s") {
+          float speedSP = (SpeedVal * 1000000.0f);
+          float denom = NORStep + (ACCStep * (1.0f + k_acc) + DCCStep * (1.0f + k_dec)) * 0.5f;
+          calcStepGap = (denom > 0) ? speedSP / denom : minSpeedDelay;
+        } else {
+          calcStepGap = minSpeedDelay / (SpeedVal / 100.0f);
         }
-      }
-      highStepCur++;
-      for (int i = 0; i < 6; i++) digitalWrite(stepPins[i], HIGH);
-      float wait = curDelay - disDelayCur;
-      if (wait < minSpeedDelay) wait = minSpeedDelay;
-      delayMicroseconds(wait);
+        
+        float startDelay = calcStepGap * k_acc;
+        float endDelay = calcStepGap * k_dec;
+        float calcACCstepInc = (ACCStep > 0) ? (startDelay - calcStepGap) / ACCStep : 0;
+        float calcDCCstepInc = (DCCStep > 0) ? (endDelay - calcStepGap) / DCCStep : 0;
+
+        if (firstSegment) curDelay = startDelay;
+        else curDelay = lastCruiseDelay;
+
+        for (int i = 0; i < 6; i++) digitalWrite(dirPins[i], (dirs[i] == motDirs[i] ? HIGH : LOW));
+
+        int highStepCur = 0;
+        int cur[] = {0,0,0,0,0,0,0,0,0};
+        int PE[9], SE_1[9], SE_2[9], LO_1[9], LO_2[9];
+        int PEcur[9] = {0}, SE_1cur[9] = {0}, SE_2cur[9] = {0};
+
+        nextReady = false;
+        while (highStepCur < HighStep && !estopActive) {
+          if (!nextReady && highStepCur >= (HighStep - (int)DCCStep)) {
+            processSerial();
+            if (cmdBuffer1.startsWith("XJ")) nextReady = true;
+          }
+
+          if (firstSegment && highStepCur <= ACCStep) curDelay -= calcACCstepInc;
+          else if (!nextReady && highStepCur >= (HighStep - (int)DCCStep)) curDelay += calcDCCstepInc;
+          else curDelay = calcStepGap;
+
+          float disDelayCur = 0;
+          for (int i = 0; i < 6; i++) {
+            if (cur[i] < steps[i]) {
+              PE[i] = (HighStep / steps[i]);
+              LO_1[i] = (HighStep - (steps[i] * PE[i]));
+              SE_1[i] = (LO_1[i] > 0) ? (HighStep / LO_1[i]) : 0;
+              LO_2[i] = (SE_1[i] > 0) ? (HighStep - ((steps[i] * PE[i]) + ((steps[i] * PE[i]) / SE_1[i]))) : 0;
+              SE_2[i] = (LO_2[i] > 0) ? (HighStep / LO_2[i]) : 0;
+              if (SE_2[i] == 0) SE_2cur[i] = SE_2[i] + 1;
+              if (SE_2cur[i] != SE_2[i]) {
+                SE_2cur[i]++;
+                if (SE_1[i] == 0) SE_1cur[i] = SE_1[i] + 1;
+                if (SE_1cur[i] != SE_1[i]) {
+                  SE_1cur[i]++; PEcur[i]++;
+                  if (PEcur[i] == PE[i]) {
+                    cur[i]++; PEcur[i] = 0;
+                    digitalWrite(stepPins[i], LOW);
+                    delayMicroseconds(30); disDelayCur += 30;
+                    if (dirs[i] == 0) stepMonitors[i]--; else stepMonitors[i]++;
+                  }
+                } else SE_1cur[i] = 0;
+              } else SE_2cur[i] = 0;
+            }
+          }
+          highStepCur++;
+          for (int i = 0; i < 6; i++) digitalWrite(stepPins[i], HIGH);
+          float wait = curDelay - disDelayCur;
+          if (wait < minSpeedDelay) wait = minSpeedDelay;
+          delayMicroseconds(wait);
+        }
+        lastCruiseDelay = calcStepGap;
     }
 
     if (estopActive || !nextReady) break;
 
-    lastCruiseDelay = calcStepGap;
     firstSegment = false;
     
     // Sync to globals for position report
@@ -1681,10 +1689,12 @@ void driveMotorsBJ(int J1step, int J2step, int J3step, int J4step, int J5step, i
     sendRobotPosFast();
 
     String nextData = cmdBuffer1;
+    cmdBuffer1 = "";
     shiftCMDarray();
     
     int J1s = nextData.indexOf("A"), J2s = nextData.indexOf("B"), J3s = nextData.indexOf("C"), J4s = nextData.indexOf("D"), J5s = nextData.indexOf("E"), J6s = nextData.indexOf("F"), SPs = nextData.indexOf("S"), Acs = nextData.indexOf("Ac"), Dcs = nextData.indexOf("Dc"), Rms = nextData.indexOf("Rm");
     float J1A = nextData.substring(J1s + 1, J2s).toFloat(), J2A = nextData.substring(J2s + 1, J3s).toFloat(), J3A = nextData.substring(J3s + 1, J4s).toFloat(), J4A = nextData.substring(J4s + 1, J5s).toFloat(), J5A = nextData.substring(J5s + 1, J6s).toFloat(), J6A = nextData.substring(J6s + 1, SPs).toFloat();
+    SpeedType = nextData.substring(SPs + 1, SPs + 2);
     SpeedVal = nextData.substring(SPs + 2, Acs).toFloat();
     ACCspd = nextData.substring(Acs + 2, Dcs).toFloat();
     DCCspd = nextData.substring(Dcs + 2, Rms).toFloat();
@@ -4968,7 +4978,7 @@ void loop() {
     }
 
     // [JAMES:MOD] ----- BLEND JOINT (Fast Path) -----------------------
-    if (function == "BJ") {
+    if (function == "XJ") {
       int J1dir, J2dir, J3dir, J4dir, J5dir, J6dir;
       int J1axisFault = 0, J2axisFault = 0, J3axisFault = 0, J4axisFault = 0, J5axisFault = 0, J6axisFault = 0;
 
@@ -5019,9 +5029,11 @@ void loop() {
       if ((J6dir == 1 and (J6StepM + abs(J6stepDif) > J6StepLim)) or (J6dir == 0 and (J6StepM - abs(J6stepDif) < 0))) J6axisFault = 1;
 
       if ((J1axisFault + J2axisFault + J3axisFault + J4axisFault + J5axisFault + J6axisFault) == 0) {
-        driveMotorsBJ(abs(J1stepDif), abs(J2stepDif), abs(J3stepDif), abs(J4stepDif), abs(J5stepDif), abs(J6stepDif), 
+        cmdBuffer1 = "";
+        shiftCMDarray();
+        driveMotorsXJ(abs(J1stepDif), abs(J2stepDif), abs(J3stepDif), abs(J4stepDif), abs(J5stepDif), abs(J6stepDif), 
                      J1dir, J2dir, J3dir, J4dir, J5dir, J6dir, 
-                     SpeedVal, ACCspd, DCCspd, ACCramp);
+                     SpeedType, SpeedVal, ACCspd, DCCspd, ACCramp);
       }
       inData = "";
     }

@@ -384,14 +384,26 @@ class TeensySerialBridge(Node):
         with self.flow_lock:
             if self.in_flight_count > 0:
                 self.in_flight_count -= 1
-            
+                
+                msg_to_send = None
+                if self.blending_enabled:
+                    # Blending Mode: Send most recent stored command
+                    if self.pending_joint_cmd is not None:
+                        msg_to_send = self.pending_joint_cmd
+                        self.pending_joint_cmd = None
+                else:
+                    # Non-Blending Mode: Send next command in FIFO queue
+                    if len(self.move_queue) > 0:
+                        msg_to_send = self.move_queue.popleft()
+                
                 if msg_to_send:
                     self._send_move_command(msg_to_send)
 
     def _send_move_command(self, msg):
-        """Helper to format and send RJ or BJ command to Teensy"""
-        # [JAMES:MOD] Use BJ (Blend Joint) for low-latency mode, RJ for precise mode
-        prefix = "BJ" if self.blending_enabled else "RJ"
+        """Helper to format and send RJ or XJ command to Teensy"""
+        # [JAMES:MOD] Use XJ (eXtra/eXecute Joint) for low-latency mode, RJ for precise mode
+        # Changed from BJ to XJ to avoid conflict with 'B' joint label on firmware
+        prefix = "XJ" if self.blending_enabled else "RJ"
         cmd = prefix
         for i in range(min(len(msg.position), 6)):
             cmd += f"{self.joint_labels[i]}{math.degrees(msg.position[i]):.4f}"
@@ -402,8 +414,8 @@ class TeensySerialBridge(Node):
         dc = self.get_parameter('motion_decel').value
         rm = self.get_parameter('motion_ramp').value
         
-        if prefix == "BJ":
-            # BJ is lean: no extra joints, just basic motion profile
+        if prefix == "XJ":
+            # XJ is lean: no extra joints, just basic motion profile
             cmd += f"Sp{sp:.2f}Ac{ac:.2f}Dc{dc:.2f}Rm{rm:.2f}\n"
         else:
             # RJ is standard: full set of robot parameters
