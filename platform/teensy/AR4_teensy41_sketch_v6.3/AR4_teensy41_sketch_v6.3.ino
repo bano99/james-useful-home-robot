@@ -1579,8 +1579,144 @@ void checkEncoders() {
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//DRIVE MOTORS J
+//DRIVE MOTORS BJ (Persistent Blending Loop)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void driveMotorsBJ(int J1step, int J2step, int J3step, int J4step, int J5step, int J6step, int J1dir, int J2dir, int J3dir, int J4dir, int J5dir, int J6dir, float SpeedVal, float ACCspd, float DCCspd, float ACCramp) {
+  int steps[] = { J1step, J2step, J3step, J4step, J5step, J6step, 0, 0, 0 };
+  int dirs[] = { J1dir, J2dir, J3dir, J4dir, J5dir, J6dir, 0, 0, 0 };
+  int motDirs[] = { J1MotDir, J2MotDir, J3MotDir, J4MotDir, J5MotDir, J6MotDir, J7MotDir, J8MotDir, J9MotDir };
+  int stepPins[] = { J1stepPin, J2stepPin, J3stepPin, J4stepPin, J5stepPin, J6stepPin, J7stepPin, J8stepPin, J9stepPin };
+  int dirPins[] = { J1dirPin, J2dirPin, J3dirPin, J4dirPin, J5dirPin, J6dirPin, J7dirPin, J8dirPin, J9dirPin };
+  int stepMonitors[] = { J1StepM, J2StepM, J3StepM, J4StepM, J5StepM, J6StepM, J7StepM, J8StepM, J9StepM };
+
+  bool firstSegment = true;
+  bool nextReady = false;
+  float curDelay = 0;
+  float lastCruiseDelay = 0;
+
+  while (true) {
+    int HighStep = 0;
+    for (int i = 0; i < 6; i++) if (steps[i] > HighStep) HighStep = steps[i];
+    
+    float ACCStep = HighStep * (ACCspd / 100.0f);
+    float DCCStep = HighStep * (DCCspd / 100.0f);
+    float NORStep = HighStep - ACCStep - DCCStep;
+
+    if(ACCramp < 10) ACCramp = 10;
+    const float k_acc = ACCramp / 10.0f;
+    const float k_dec = ACCramp / 10.0f;
+
+    float speedSP = (SpeedVal * 1000000.0f);
+    float denom = NORStep + (ACCStep * (1.0f + k_acc) + DCCStep * (1.0f + k_dec)) * 0.5f;
+    float calcStepGap = (denom > 0) ? speedSP / denom : minSpeedDelay;
+    
+    float startDelay = calcStepGap * k_acc;
+    float endDelay = calcStepGap * k_dec;
+    float calcACCstepInc = (ACCStep > 0) ? (startDelay - calcStepGap) / ACCStep : 0;
+    float calcDCCstepInc = (DCCStep > 0) ? (endDelay - calcStepGap) / DCCStep : 0;
+
+    if (firstSegment) curDelay = startDelay;
+    else curDelay = lastCruiseDelay;
+
+    for (int i = 0; i < 6; i++) {
+        digitalWrite(dirPins[i], (dirs[i] == motDirs[i] ? HIGH : LOW));
+    }
+
+    int highStepCur = 0;
+    int cur[] = {0,0,0,0,0,0,0,0,0};
+    int PE[9], SE_1[9], SE_2[9], LO_1[9], LO_2[9];
+    int PEcur[9] = {0}, SE_1cur[9] = {0}, SE_2cur[9] = {0};
+
+    nextReady = false;
+    while (highStepCur < HighStep && !estopActive) {
+      if (!nextReady && highStepCur >= (HighStep - (int)DCCStep)) {
+        processSerial();
+        if (cmdBuffer1.startsWith("BJ")) nextReady = true;
+      }
+
+      if (firstSegment && highStepCur <= ACCStep) curDelay -= calcACCstepInc;
+      else if (!nextReady && highStepCur >= (HighStep - (int)DCCStep)) curDelay += calcDCCstepInc;
+      else curDelay = calcStepGap;
+
+      float disDelayCur = 0;
+      for (int i = 0; i < 6; i++) {
+        if (cur[i] < steps[i]) {
+          PE[i] = (HighStep / steps[i]);
+          LO_1[i] = (HighStep - (steps[i] * PE[i]));
+          SE_1[i] = (LO_1[i] > 0) ? (HighStep / LO_1[i]) : 0;
+          LO_2[i] = (SE_1[i] > 0) ? (HighStep - ((steps[i] * PE[i]) + ((steps[i] * PE[i]) / SE_1[i]))) : 0;
+          SE_2[i] = (LO_2[i] > 0) ? (HighStep / LO_2[i]) : 0;
+          if (SE_2[i] == 0) SE_2cur[i] = SE_2[i] + 1;
+          if (SE_2cur[i] != SE_2[i]) {
+            SE_2cur[i]++;
+            if (SE_1[i] == 0) SE_1cur[i] = SE_1[i] + 1;
+            if (SE_1cur[i] != SE_1[i]) {
+              SE_1cur[i]++; PEcur[i]++;
+              if (PEcur[i] == PE[i]) {
+                cur[i]++; PEcur[i] = 0;
+                digitalWrite(stepPins[i], LOW);
+                delayMicroseconds(30); disDelayCur += 30;
+                if (dirs[i] == 0) stepMonitors[i]--; else stepMonitors[i]++;
+              }
+            } else SE_1cur[i] = 0;
+          } else SE_2cur[i] = 0;
+        }
+      }
+      highStepCur++;
+      for (int i = 0; i < 6; i++) digitalWrite(stepPins[i], HIGH);
+      float wait = curDelay - disDelayCur;
+      if (wait < minSpeedDelay) wait = minSpeedDelay;
+      delayMicroseconds(wait);
+    }
+
+    if (estopActive || !nextReady) break;
+
+    lastCruiseDelay = calcStepGap;
+    firstSegment = false;
+    
+    // Sync to globals for position report
+    J1StepM = stepMonitors[0]; J2StepM = stepMonitors[1]; J3StepM = stepMonitors[2];
+    J4StepM = stepMonitors[3]; J5StepM = stepMonitors[4]; J6StepM = stepMonitors[5];
+    sendRobotPosFast();
+
+    String nextData = cmdBuffer1;
+    shiftCMDarray();
+    
+    int J1s = nextData.indexOf("A"), J2s = nextData.indexOf("B"), J3s = nextData.indexOf("C"), J4s = nextData.indexOf("D"), J5s = nextData.indexOf("E"), J6s = nextData.indexOf("F"), SPs = nextData.indexOf("S"), Acs = nextData.indexOf("Ac"), Dcs = nextData.indexOf("Dc"), Rms = nextData.indexOf("Rm");
+    float J1A = nextData.substring(J1s + 1, J2s).toFloat(), J2A = nextData.substring(J2s + 1, J3s).toFloat(), J3A = nextData.substring(J3s + 1, J4s).toFloat(), J4A = nextData.substring(J4s + 1, J5s).toFloat(), J5A = nextData.substring(J5s + 1, J6s).toFloat(), J6A = nextData.substring(J6s + 1, SPs).toFloat();
+    SpeedVal = nextData.substring(SPs + 2, Acs).toFloat();
+    ACCspd = nextData.substring(Acs + 2, Dcs).toFloat();
+    DCCspd = nextData.substring(Dcs + 2, Rms).toFloat();
+    ACCramp = nextData.substring(Rms + 2).toFloat();
+    
+    steps[0] = abs(stepMonitors[0] - (int)((J1A + J1axisLimNeg) * J1StepDeg));
+    steps[1] = abs(stepMonitors[1] - (int)((J2A + J2axisLimNeg) * J2StepDeg));
+    steps[2] = abs(stepMonitors[2] - (int)((J3A + J3axisLimNeg) * J3StepDeg));
+    steps[3] = abs(stepMonitors[3] - (int)((J4A + J4axisLimNeg) * J4StepDeg));
+    steps[4] = abs(stepMonitors[4] - (int)((J5A + J5axisLimNeg) * J5StepDeg));
+    steps[5] = abs(stepMonitors[5] - (int)((J6A + J6axisLimNeg) * J6StepDeg));
+    
+    dirs[0] = (stepMonitors[0] - (int)((J1A + J1axisLimNeg) * J1StepDeg) <= 0) ? 1 : 0;
+    dirs[1] = (stepMonitors[1] - (int)((J2A + J2axisLimNeg) * J2StepDeg) <= 0) ? 1 : 0;
+    dirs[2] = (stepMonitors[2] - (int)((J3A + J3axisLimNeg) * J3StepDeg) <= 0) ? 1 : 0;
+    dirs[3] = (stepMonitors[3] - (int)((J4A + J4axisLimNeg) * J4StepDeg) <= 0) ? 1 : 0;
+    dirs[4] = (stepMonitors[4] - (int)((J5A + J5axisLimNeg) * J5StepDeg) <= 0) ? 1 : 0;
+    dirs[5] = (stepMonitors[5] - (int)((J6A + J6axisLimNeg) * J6StepDeg) <= 0) ? 1 : 0;
+
+    int axisFault = 0;
+    if ((dirs[0] == 1 and (stepMonitors[0] + steps[0] > J1StepLim)) or (dirs[0] == 0 and (stepMonitors[0] - steps[0] < 0))) axisFault = 1;
+    if ((dirs[1] == 1 and (stepMonitors[1] + steps[1] > J2StepLim)) or (dirs[1] == 0 and (stepMonitors[1] - steps[1] < 0))) axisFault = 1;
+    if ((dirs[2] == 1 and (stepMonitors[2] + steps[2] > J3StepLim)) or (dirs[2] == 0 and (stepMonitors[2] - steps[2] < 0))) axisFault = 1;
+    if ((dirs[3] == 1 and (stepMonitors[3] + steps[3] > J4StepLim)) or (dirs[3] == 0 and (stepMonitors[3] - steps[3] < 0))) axisFault = 1;
+    if ((dirs[4] == 1 and (stepMonitors[4] + steps[4] > J5StepLim)) or (dirs[4] == 0 and (stepMonitors[4] - steps[4] < 0))) axisFault = 1;
+    if ((dirs[5] == 1 and (stepMonitors[5] + steps[5] > J6StepLim)) or (dirs[5] == 0 and (stepMonitors[5] - steps[5] < 0))) axisFault = 1;
+    if (axisFault) { nextReady = false; break; }
+  }
+  J1StepM = stepMonitors[0]; J2StepM = stepMonitors[1]; J3StepM = stepMonitors[2];
+  J4StepM = stepMonitors[3]; J5StepM = stepMonitors[4]; J6StepM = stepMonitors[5];
+  sendRobotPosFast();
+}
 
 void driveMotorsJ(int J1step, int J2step, int J3step, int J4step, int J5step, int J6step, int J7step, int J8step, int J9step,
                   int J1dir, int J2dir, int J3dir, int J4dir, int J5dir, int J6dir, int J7dir, int J8dir, int J9dir,
@@ -1699,27 +1835,12 @@ void driveMotorsJ(int J1step, int J2step, int J3step, int J4step, int J5step, in
 
   while ((cur[0] < steps[0] || cur[1] < steps[1] || cur[2] < steps[2] || cur[3] < steps[3] || cur[4] < steps[4] || cur[5] < steps[5] || cur[6] < steps[6] || cur[7] < steps[7] || cur[8] < steps[8]) && estopActive == false) {
 
-    // [JAMES:MOD] Blending Check - once before deceleration begins
-    if (blendingEnabled && highStepCur == (HighStep - (int)DCCStep) && DCCStep > 0) {
-      while (Serial.available() > 0 && cmdBuffer3 == "") {
-        processSerial();
-      }
-    }
-
     ////DELAY CALC/////
     if (highStepCur <= ACCStep && !rndTrue) {
       // During accel, move from startDelay down to cruise
       curDelay -= calcACCstepInc;
     } else if (highStepCur >= (HighStep - (int)DCCStep)) {
-      // [JAMES:MOD] Deceleration Phase with Blending
-      if (blendingEnabled && cmdBuffer2 != "") {
-        curDelay = calcStepGap; 
-        rndTrue = true;
-        rndSpeed = curDelay;
-        return; // Handover to next command at cruise speed
-      } else {
-        curDelay += calcDCCstepInc;  // Normal decel
-      }
+      curDelay += calcDCCstepInc;  // Normal decel
     } else {
       curDelay = calcStepGap;  // cruise
     }
@@ -4898,10 +5019,9 @@ void loop() {
       if ((J6dir == 1 and (J6StepM + abs(J6stepDif) > J6StepLim)) or (J6dir == 0 and (J6StepM - abs(J6stepDif) < 0))) J6axisFault = 1;
 
       if ((J1axisFault + J2axisFault + J3axisFault + J4axisFault + J5axisFault + J6axisFault) == 0) {
-        driveMotorsJ(abs(J1stepDif), abs(J2stepDif), abs(J3stepDif), abs(J4stepDif), abs(J5stepDif), abs(J6stepDif), 
-                     0, 0, 0, J1dir, J2dir, J3dir, J4dir, J5dir, J6dir, 0, 0, 0, 
-                     SpeedType, SpeedVal, ACCspd, DCCspd, ACCramp);
-        sendRobotPosFast(); // No blocking delay, no FK
+        driveMotorsBJ(abs(J1stepDif), abs(J2stepDif), abs(J3stepDif), abs(J4stepDif), abs(J5stepDif), abs(J6stepDif), 
+                     J1dir, J2dir, J3dir, J4dir, J5dir, J6dir, 
+                     SpeedVal, ACCspd, DCCspd, ACCramp);
       }
       inData = "";
     }
