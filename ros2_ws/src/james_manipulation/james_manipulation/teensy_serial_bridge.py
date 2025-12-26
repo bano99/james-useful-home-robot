@@ -409,7 +409,12 @@ class TeensySerialBridge(Node):
             cmd += f"{self.joint_labels[i]}{math.degrees(msg.position[i]):.4f}"
         
         # Motion Profile Parameters
-        sp = self.get_parameter('motion_speed').value
+        # [JAMES:MOD] Use dynamic speed from msg if provided (V9)
+        if len(msg.velocity) > 0:
+            sp = float(msg.velocity[0])
+        else:
+            sp = self.get_parameter('motion_speed').value
+            
         ac = self.get_parameter('motion_accel').value
         dc = self.get_parameter('motion_decel').value
         rm = self.get_parameter('motion_ramp').value

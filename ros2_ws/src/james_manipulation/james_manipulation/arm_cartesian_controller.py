@@ -27,7 +27,7 @@ class ArmCartesianController(Node):
         self.declare_parameter('command_timeout', 0.0)
         self.declare_parameter('ik_timeout', 0.0)
         self.declare_parameter('joystick_deadzone', 0.0)
-        self.declare_parameter('movement_lead', 1.0)
+        self.declare_parameter('movement_lead', 1.0) # ai keeps wanting to set this to 1, event though it's not used because it coms from yaml file
         
         # Workspace limits
         self.declare_parameter('workspace_limits.x_min', 0.0)
@@ -130,6 +130,11 @@ class ArmCartesianController(Node):
         self.pending_v_y = 0.0
         self.pending_v_z = 0.0
         self.pending_v_yaw = 0.0
+        self.joy_lx = 0.0
+        self.joy_ly = 0.0
+        self.joy_ry = 0.0
+        self.joy_rr = 0.0
+        self.dynamic_sp = 5.0 # Default speed
         self.blending_active = False # [JAMES:MOD] Track firmware blending state
         
         self.get_logger().info('Arm Cartesian Controller initialized (Idle-Sync Logic Enabled)')
@@ -168,8 +173,9 @@ class ArmCartesianController(Node):
                     switch_mode = 'vertical' if data['mode'] == 1 else 'platform'
                 
                 # Calculate velocity commands
-                self.pending_v_x = -joy_lx * self.velocity_scale # Final: Joy Left -> Robot Left (X-)
-                self.pending_v_y = joy_ly * self.velocity_scale # Final Fix: Joy Forward -> Robot Forward (Y-)
+                self.joy_lx, self.joy_ly, self.joy_ry, self.joy_rr = joy_lx, joy_ly, joy_ry, joy_rr
+                self.pending_v_x = -joy_lx * self.velocity_scale
+                self.pending_v_y = joy_ly * self.velocity_scale
                 
                 if switch_mode == 'vertical':
                     self.pending_v_z = joy_ry * self.velocity_scale
@@ -247,6 +253,11 @@ class ArmCartesianController(Node):
             return
 
         self.get_logger().info(f'ACTIVE: Vx={self.pending_v_x:.3f} Vy={self.pending_v_y:.3f} Vz={self.pending_v_z:.3f} Yaw={self.pending_v_yaw:.3f}', throttle_duration_sec=0.2)
+        # [JAMES:MOD] Dynamic Speed Scaling (V9)
+        joy_magnitude = math.sqrt(self.joy_lx**2 + self.joy_ly**2 + self.joy_ry**2 + self.joy_rr**2)
+        joy_magnitude = min(1.0, joy_magnitude)
+        self.dynamic_sp = 1.0 + (joy_magnitude * 29.0) # 1% to 30%
+        self.get_logger().info(f'DYNAMIC SPEED: Mag={joy_magnitude:.2f} -> Sp={self.dynamic_sp:.1f}', throttle_duration_sec=0.2)
 
         # [JAMES:MOD] Enable blending on first active command
         if not self.blending_active:
@@ -351,6 +362,10 @@ class ArmCartesianController(Node):
                 cmd_msg.header.stamp = self.get_clock().now().to_msg()
                 cmd_msg.name = response.solution.joint_state.name
                 cmd_msg.position = response.solution.joint_state.position
+                
+                # [JAMES:MOD] Pass dynamic speed in the velocity field (V9)
+                cmd_msg.velocity = [self.dynamic_sp]
+                
                 self.joint_cmd_pub.publish(cmd_msg)
                 # self.get_logger().info('IK SUCCESS: Published joint command', throttle_duration_sec=0.5)
             else:
