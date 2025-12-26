@@ -1,3 +1,4 @@
+from datetime import datetime
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String
@@ -137,9 +138,24 @@ class ArmCartesianController(Node):
         self.dynamic_sp = 5.0 # Default speed
         self.idle_start_time = None
         self.blending_active = False # [JAMES:MOD] Track firmware blending state
+        self.last_sync_pose = Pose() # Track actual position for leash
         
         self.get_logger().info('Arm Cartesian Controller initialized (Idle-Sync Logic Enabled)')
         self.get_logger().info(f'EE Link: {self.ee_link}, Planning Frame: {self.planning_frame}')
+
+    def log(self, msg, level='info', throttle=0.0):
+        """Custom logger for simplified format: [HH:MM:SS.mmm] [node] [LEVEL]: msg"""
+        t_str = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+        formatted_msg = f'[{t_str}] [{self.get_name()}] [{level.upper()}]: {msg}'
+        if level == 'info':
+            if throttle > 0:
+                self.get_logger().info(formatted_msg, throttle_duration_sec=throttle)
+            else:
+                self.get_logger().info(formatted_msg)
+        elif level == 'warn':
+            self.get_logger().warn(formatted_msg)
+        elif level == 'error':
+            self.get_logger().error(formatted_msg)
 
     def apply_deadzone(self, val):
         if abs(val) < self.deadzone:
@@ -153,7 +169,7 @@ class ArmCartesianController(Node):
             
             if data.get('type') == 'manual_control':
                 if not self.joint_state_received:
-                    self.get_logger().warn('Manual cmd received but NO joint_state_received yet', throttle_duration_sec=2.0)
+                    self.log('Manual cmd received but NO joint_state_received yet', level='warn', throttle=2.0)
                     return
 
                 # Always active if receiving data, but velocities might be zero
@@ -186,10 +202,10 @@ class ArmCartesianController(Node):
                     self.pending_v_yaw = 0.0
                 
                 # DEBUG: Log inputs and calculated velocities
-                self.get_logger().info(f'INPUT: lx={joy_lx:.2f}, ly={joy_ly:.2f} -> Vx={self.pending_v_x:.3f}, Vy={self.pending_v_y:.3f}, Vz={self.pending_v_z:.3f} Mode={switch_mode}')
+                self.log(f'INPUT: lx={joy_lx:.2f}, ly={joy_ly:.2f} -> Vx={self.pending_v_x:.3f}, Vy={self.pending_v_y:.3f}, Vz={self.pending_v_z:.3f} Mode={switch_mode}')
                 
         except Exception as e:
-            self.get_logger().error(f'Error processing manual command: {e}')
+            self.log(f'Error processing manual command: {e}', level='error')
 
     def joint_state_callback(self, msg):
         self.current_joint_state = msg
@@ -210,17 +226,23 @@ class ArmCartesianController(Node):
             self.current_target_pose.position.y = transform.transform.translation.y
             self.current_target_pose.position.z = transform.transform.translation.z
             self.current_target_pose.orientation = transform.transform.rotation
+
+            # [JAMES:MOD] Update last_sync_pose as well
+            self.last_sync_pose.position.x = transform.transform.translation.x
+            self.last_sync_pose.position.y = transform.transform.translation.y
+            self.last_sync_pose.position.z = transform.transform.translation.z
+            self.last_sync_pose.orientation = transform.transform.rotation
             
             self.tf_synced = True
             # Log synchronization periodically to verify we have the correct starting pose
             if loud:
-                self.get_logger().info(f'SYNC: TF Pose -> X={self.current_target_pose.position.x:.3f}, Y={self.current_target_pose.position.y:.3f}, Z={self.current_target_pose.position.z:.3f}')
+                self.log(f'SYNC: TF Pose -> X={self.current_target_pose.position.x:.3f}, Y={self.current_target_pose.position.y:.3f}, Z={self.current_target_pose.position.z:.3f}')
             else:
-                 self.get_logger().info(f'SYNC: TF Pose -> X={self.current_target_pose.position.x:.3f}, Y={self.current_target_pose.position.y:.3f}, Z={self.current_target_pose.position.z:.3f}', throttle_duration_sec=2.0)
+                 self.log(f'SYNC: TF Pose -> X={self.current_target_pose.position.x:.3f}, Y={self.current_target_pose.position.y:.3f}, Z={self.current_target_pose.position.z:.3f}', throttle=2.0)
             return True
         except Exception as e:
             if loud:
-                self.get_logger().warn(f'Could not sync pose from TF: {e}')
+                self.log(f'Could not sync pose from TF: {e}', level='warn')
             self.tf_synced = False
             return False
 
@@ -243,7 +265,7 @@ class ArmCartesianController(Node):
             # [JAMES:MOD] Stop Hysteresis (0.3s grace period)
             # This prevents flickering ST/BM0 commands if the Jetson lags or signal drops
             if self.blending_active and (current_time - self.idle_start_time > 0.3):
-                self.get_logger().info('Joystick Idle for >0.3s -> Sending STOP (BM0)')
+                self.log('Joystick Idle for >0.3s -> Sending STOP (BM0)')
                 stop_msg = String()
                 stop_msg.data = "BM0"
                 self.raw_cmd_pub.publish(stop_msg)
@@ -254,23 +276,23 @@ class ArmCartesianController(Node):
             
             if not self.blending_active:
                 if not self.sync_pose_to_actual(loud=False):
-                    self.get_logger().warn('Sync Pose Failed (TF issue?)', throttle_duration_sec=2.0)
+                    self.log('Sync Pose Failed (TF issue?)', level='warn', throttle=2.0)
             return
 
         # Reset idle timer if active
         self.idle_start_time = None
-        self.get_logger().info(f'ACTIVE: Vx={self.pending_v_x:.3f} Vy={self.pending_v_y:.3f} Vz={self.pending_v_z:.3f} Yaw={self.pending_v_yaw:.3f}', throttle_duration_sec=0.5)
+        self.log(f'ACTIVE: Vx={self.pending_v_x:.3f} Vy={self.pending_v_y:.3f} Vz={self.pending_v_z:.3f} Yaw={self.pending_v_yaw:.3f}', throttle=0.5)
         # [JAMES:MOD] Dynamic Speed Scaling (V9)
         joy_magnitude = math.sqrt(self.joy_lx**2 + self.joy_ly**2 + self.joy_ry**2 + self.joy_rr**2)
         joy_magnitude = min(1.0, joy_magnitude)
         self.dynamic_sp = 1.0 + (joy_magnitude * 29.0) # 1% to 30%
-        self.get_logger().info(f'DYNAMIC SPEED: Mag={joy_magnitude:.2f} -> Sp={self.dynamic_sp:.1f}', throttle_duration_sec=0.2)
+        self.log(f'DYNAMIC SPEED: Mag={joy_magnitude:.2f} -> Sp={self.dynamic_sp:.1f}', throttle=0.2)
 
         # [JAMES:MOD] Enable blending on first active command
         if not self.blending_active:
-             self.get_logger().info('Starting Move -> Syncing to actual and enabling blending (BM1)')
+             self.log('Starting Move -> Syncing to actual and enabling blending (BM1)')
              if not self.sync_pose_to_actual(loud=True):
-                 self.get_logger().warn('Cannot start move: Initial sync failed')
+                 self.log('Cannot start move: Initial sync failed', level='warn')
                  return
              
              start_msg = String()
@@ -278,22 +300,43 @@ class ArmCartesianController(Node):
              self.raw_cmd_pub.publish(start_msg)
              self.blending_active = True
 
-        # If previous IK failed (hit limit/singularity), we still attempt to move from actual
+        # [JAMES:MOD] Re-sync on IK failure
         if not self.ik_success:
-             self.ik_success = True 
+             self.log('Previous IK failed, re-syncing target pose to actual arm position.', level='warn')
+             if not self.sync_pose_to_actual(loud=True): # Re-sync current_target_pose from actual
+                 self.log('Cannot start move: Re-sync after IK failure failed', level='warn')
+                 return
+             self.ik_success = True # Reset for next attempt
 
         # 1. Update target pose (V11: Continuous Virtual Carrot)
         # We NO LONGER sync to actual in every loop. We update from the current_target_pose
         # which acts as a "carrot" running ahead of the arm.
         dt = (1.0 / self.control_rate) * self.movement_lead
-        # DEBUG: Log target update
-        if abs(self.pending_v_x) > 0 or abs(self.pending_v_y) > 0 or abs(self.pending_v_z) > 0:
-             self.get_logger().info(f'UPDATE: Vx={self.pending_v_x:.3f} Vy={self.pending_v_y:.3f} | CurX={self.current_target_pose.position.x:.3f} Y={self.current_target_pose.position.y:.3f} Z={self.current_target_pose.position.z:.3f}')
-
-        self.current_target_pose.position.x += self.pending_v_x * dt
-        self.current_target_pose.position.y += self.pending_v_y * dt
-        self.current_target_pose.position.z += self.pending_v_z * dt
         
+        new_x = self.current_target_pose.position.x + self.pending_v_x * dt
+        new_y = self.current_target_pose.position.y + self.pending_v_y * dt
+        new_z = self.current_target_pose.position.z + self.pending_v_z * dt
+        
+        # [JAMES:MOD] Carrot Leash (V13)
+        # Prevent the carrot from running too far ahead of actual arm (max 10cm)
+        # This keeps the IK solver stable and prevents configuration jumps.
+        max_dist = 0.10 
+        dx = new_x - self.last_sync_pose.position.x
+        dy = new_y - self.last_sync_pose.position.y
+        dz = new_z - self.last_sync_pose.position.z
+        dist = math.sqrt(dx**2 + dy**2 + dz**2)
+        
+        if dist > max_dist:
+             scale = max_dist / dist
+             self.current_target_pose.position.x = self.last_sync_pose.position.x + dx * scale
+             self.current_target_pose.position.y = self.last_sync_pose.position.y + dy * scale
+             self.current_target_pose.position.z = self.last_sync_pose.position.z + dz * scale
+             self.log('Carrot Leash Active (Hitting max lead)', throttle=1.0)
+        else:
+             self.current_target_pose.position.x = new_x
+             self.current_target_pose.position.y = new_y
+             self.current_target_pose.position.z = new_z
+
         if abs(self.pending_v_yaw) > 1e-6:
             self.apply_yaw_step(self.pending_v_yaw * dt)
 
@@ -360,7 +403,7 @@ class ArmCartesianController(Node):
                          diffs = [math.degrees(t - c) for t, c in zip(tgt, cur)]
                          # Log if any joint moves more than 2 degrees
                          if any(abs(d) > 2.0 for d in diffs):
-                             self.get_logger().info(f'KINEMATICS DEBUG: JoyV(x={self.pending_v_x:.3f},y={self.pending_v_y:.3f}) -> LARGE JUMP: J1={diffs[0]:.1f}, J2={diffs[1]:.1f} (Cur={math.degrees(cur[1]):.1f}), J3={diffs[2]:.1f}')
+                             self.log(f'LARGE JUMP: J1={diffs[0]:.1f}, J2={diffs[1]:.1f}, J3={diffs[2]:.1f}', level='warn')
 
                 cmd_msg = JointState()
                 cmd_msg.header.stamp = self.get_clock().now().to_msg()
@@ -371,12 +414,11 @@ class ArmCartesianController(Node):
                 cmd_msg.velocity = [self.dynamic_sp]
                 
                 self.joint_cmd_pub.publish(cmd_msg)
-                # self.get_logger().info('IK SUCCESS: Published joint command', throttle_duration_sec=0.5)
             else:
-                self.ik_success = False
-                self.get_logger().warn(f'IK FAILED with error code: {response.error_code.val}', throttle_duration_sec=1.0)
+                self.log(f'IK FAILED: Error Code {response.error_code.val}', level='warn')
+                self.ik_success = False # Trigger re-sync in next loop
         except Exception as e:
-            self.get_logger().error(f'IK service call failed: {e}')
+            self.log(f'Error in ik_callback: {e}', level='error')
 
     def publish_status(self):
         status = {

@@ -1,0 +1,188 @@
+First try:
+
+It stopped here:
+[23:03:02.362] TX: BM1
+[23:03:02.366] RX: BLENDING:ON
+[23:03:02.373] TX: XJA59.6845B22.0322C-0.6248D31.2023E21.3330F16.2893Sp5.26Ac10.00Dc10.00Rm10.00
+[23:03:02.429] TX: XJA59.6090B22.0823C-0.7026D31.0395E21.3201F16.4937Sp5.26Ac10.00Dc10.00Rm10.00
+[23:03:02.433] RX: A59.692B22.027C-0.628D31.203E21.323F16.293G
+[23:03:02.487] RX: A59.614B22.081C-0.700D31.040E21.323F16.502G
+[23:03:02.503] TX: XJA59.5338B22.1328C-0.7810D30.8759E21.3080F16.6987Sp5.26Ac10.00Dc10.00Rm10.00
+[23:03:02.563] RX: A59.535B22.126C-0.780D30.878E21.300F16.710G
+
+[1766786582.362466709] [teensy_serial_bridge]: Blending ENABLED (Joystick Mode: Latency prioritized, points may be skipped)
+[1766786582.423335344] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=-0.003 | CurX=-0.209 Y=-0.211 Z=0.395
+[1766786582.491071585] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=-0.003 | CurX=-0.209 Y=-0.212 Z=0.395
+[1766786582.513305859] [arm_cartesian_controller]: INPUT: lx=0.00, ly=-0.24 -> Vx=-0.000, Vy=-0.005, Vz=0.000 Mode=platform
+[1766786582.556376449] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=-0.005 | CurX=-0.209 Y=-0.212 Z=0.395
+[1766786582.621170725] [arm_cartesian_controller]: DYNAMIC SPEED: Mag=0.24 -> Sp=7.9
+[1766786582.623410741] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=-0.005 | CurX=-0.209 Y=-0.213 Z=0.395
+[1766786582.689992572] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=-0.005 | CurX=-0.209 Y=-0.214 Z=0.395
+[1766786582.696426102] [arm_cartesian_controller]: INPUT: lx=0.00, ly=-0.24 -> Vx=-0.000, Vy=-0.005, Vz=0.000 Mode=platform
+[1766786582.756420075] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=-0.005 | CurX=-0.209 Y=-0.215 Z=0.395
+[1766786582.822983155] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=-0.005 | CurX=-0.209 Y=-0.216 Z=0.395
+[1766786582.861034372] [arm_cartesian_controller]: INPUT: lx=0.00, ly=-0.25 -> Vx=-0.000, Vy=-0.005, Vz=0.000 Mode=platform
+[1766786582.886316969] [arm_cartesian_controller]: ACTIVE: Vx=-0.000 Vy=-0.005 Vz=0.000 Yaw=0.000
+[1766786582.888763086] [arm_cartesian_controller]: DYNAMIC SPEED: Mag=0.25 -> Sp=8.1
+[1766786582.891042374] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=-0.005 | CurX=-0.209 Y=-0.217 Z=0.395
+[1766786582.899246428] [arm_cartesian_controller]: KINEMATICS DEBUG: JoyV(x=-0.000,y=-0.005) -> LARGE JUMP: J1=-0.7, J2=0.5 (Cur=22.1), J3=-0.8
+[1766786582.956412397] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=-0.005 | CurX=-0.209 Y=-0.218 Z=0.395
+[1766786582.963736215] [arm_cartesian_controller]: KINEMATICS DEBUG: JoyV(x=-0.000,y=-0.005) -> LARGE JUMP: J1=-0.9, J2=0.6 (Cur=22.1), J3=-0.9
+[1766786583.023318092] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=-0.005 | CurX=-0.209 Y=-0.219 Z=0.395
+[1766786583.029691516] [arm_cartesian_controller]: KINEMATICS DEBUG: JoyV(x=-0.000,y=-0.005) -> LARGE JUMP: J1=-1.0, J2=0.7 (Cur=22.1), J3=-1.1
+[1766786583.034829538] [arm_cartesian_controller]: INPUT: lx=0.00, ly=-0.25 -> Vx=-0.000, Vy=-0.005, Vz=0.000 Mode=platform
+[1766786583.090348998] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=-0.005 | CurX=-0.209 Y=-0.220 Z=0.395
+[1766786583.098239136] [arm_cartesian_controller]: KINEMATICS DEBUG: JoyV(x=-0.000,y=-0.005) -> LARGE JUMP: J1=-1.1, J2=0.8 (Cur=22.1), J3=-1.2
+[1766786583.155018791] [arm_cartesian_controller]: DYNAMIC SPEED: Mag=0.25 -> Sp=8.2
+
+
+
+Second try: arm moved less then one cm, then stopped again
+
+[23:05:30.940] TX: BM1
+[23:05:30.942] RX: BLENDING:ON
+[23:05:30.946] TX: XJA59.4537B22.1807C-0.8650D30.7011E21.2872F16.9317Sp5.61Ac10.00Dc10.00Rm10.00
+[23:05:31.006] RX: A59.456B22.179C-0.861D30.704E21.277F16.942G
+[23:05:31.007] TX: XJA59.3724B22.2354C-0.9500D30.5241E21.2743F17.1533Sp5.61Ac10.00Dc10.00Rm10.00
+[23:05:31.066] RX: A59.377B22.233C-0.951D30.530E21.277F17.174G
+[23:05:31.080] TX: XJA59.2915B22.2904C-1.0357D30.3463E21.2625F17.3757Sp5.61Ac10.00Dc10.00Rm10.00
+[23:05:31.137] RX: A59.299B22.287C-1.031D30.356E21.253F17.382G
+[23:05:31.140] TX: XJA59.1622B22.3794C-1.1744D30.0605E21.2454F17.7324Sp8.39Ac10.00Dc10.00Rm10.00
+[23:05:31.203] RX: A59.164B22.377C-1.175D30.066E21.253F17.753G
+[23:05:31.208] TX: XJA59.0330B22.4684C-1.3133D29.7745E21.2286F18.0894Sp8.39Ac10.00Dc10.00Rm10.00
+[23:05:31.270] RX: A59.040B22.466C-1.309D29.776E21.230F18.101G
+[23:05:31.277] TX: XJA58.9042B22.5578C-1.4530D29.4879E21.2129F18.4467Sp8.39Ac10.00Dc10.00Rm10.00
+[23:05:31.337] RX: A58.905B22.556C-1.453D29.498E21.207F18.449G
+[23:05:31.340] TX: XJA58.7757B22.6476C-1.5935D29.2007E21.1983F18.8043Sp8.39Ac10.00Dc10.00Rm10.00
+[23:05:31.403] RX: A58.781B22.646C-1.596D29.208E21.207F18.819G
+[23:05:31.407] TX: XJA58.6475B22.7378C-1.7347D28.9130E21.1848F19.1622Sp8.39Ac10.00Dc10.00Rm10.00
+[23:05:31.469] RX: A58.646B22.735C-1.731D28.918E21.184F19.167G
+[23:05:31.477] TX: XJA58.5197B22.8283C-1.8768D28.6248E21.1725F19.5203Sp8.39Ac10.00Dc10.00Rm10.00
+[23:05:31.540] RX: A58.522B22.825C-1.874D28.628E21.161F19.538G
+
+[1766786730.930379160] [arm_cartesian_controller]: ACTIVE: Vx=-0.000 Vy=-0.003 Vz=0.000 Yaw=0.000
+[1766786730.932825172] [arm_cartesian_controller]: DYNAMIC SPEED: Mag=0.16 -> Sp=5.6
+[1766786730.935053729] [arm_cartesian_controller]: Starting Move -> Syncing to actual and enabling blending (BM1)
+[1766786730.937295152] [arm_cartesian_controller]: SYNC: TF Pose -> X=-0.209, Y=-0.212, Z=0.395
+[1766786730.939406779] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=-0.003 | CurX=-0.209 Y=-0.212 Z=0.395
+[1766786730.940376027] [teensy_serial_bridge]: Blending ENABLED (Joystick Mode: Latency prioritized, points may be skipped)
+[1766786731.000639062] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=-0.003 | CurX=-0.209 Y=-0.213 Z=0.395
+[1766786731.068124556] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=-0.003 | CurX=-0.209 Y=-0.213 Z=0.395
+[1766786731.074455270] [arm_cartesian_controller]: INPUT: lx=0.00, ly=-0.26 -> Vx=-0.000, Vy=-0.005, Vz=0.000 Mode=platform
+[1766786731.134024221] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=-0.005 | CurX=-0.209 Y=-0.214 Z=0.395
+[1766786731.199106777] [arm_cartesian_controller]: DYNAMIC SPEED: Mag=0.26 -> Sp=8.4
+[1766786731.201113505] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=-0.005 | CurX=-0.209 Y=-0.215 Z=0.395
+[1766786731.241661824] [arm_cartesian_controller]: INPUT: lx=0.00, ly=-0.26 -> Vx=-0.000, Vy=-0.005, Vz=0.000 Mode=platform
+[1766786731.267753609] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=-0.005 | CurX=-0.209 Y=-0.216 Z=0.395
+[1766786731.333841613] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=-0.005 | CurX=-0.209 Y=-0.217 Z=0.395
+[1766786731.400758131] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=-0.005 | CurX=-0.209 Y=-0.218 Z=0.395
+[1766786731.415764526] [arm_cartesian_controller]: INPUT: lx=0.00, ly=-0.26 -> Vx=-0.000, Vy=-0.005, Vz=0.000 Mode=platform
+[1766786731.463838127] [arm_cartesian_controller]: ACTIVE: Vx=-0.000 Vy=-0.005 Vz=0.000 Yaw=0.000
+[1766786731.466348776] [arm_cartesian_controller]: DYNAMIC SPEED: Mag=0.26 -> Sp=8.4
+[1766786731.468340608] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=-0.005 | CurX=-0.209 Y=-0.219 Z=0.395
+[1766786731.533935472] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=-0.005 | CurX=-0.209 Y=-0.220 Z=0.395
+[1766786731.589551177] [arm_cartesian_controller]: INPUT: lx=0.00, ly=-0.26 -> Vx=-0.000, Vy=-0.005, Vz=0.000 Mode=platform
+[1766786731.600643286] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=-0.005 | CurX=-0.209 Y=-0.221 Z=0.395
+[1766786731.667850803] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=-0.005 | CurX=-0.209 Y=-0.222 Z=0.395
+[1766786731.732241620] [arm_cartesian_controller]: DYNAMIC SPEED: Mag=0.26 -> Sp=8.4
+[1766786731.734363664] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=-0.005 | CurX=-0.209 Y=-0.223 Z=0.395
+[1766786731.763250534] [arm_cartesian_controller]: INPUT: lx=0.00, ly=-0.26 -> Vx=-0.000, Vy=-0.005, Vz=0.000 Mode=platform
+[1766786731.800884858] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=-0.005 | CurX=-0.209 Y=-0.224 Z=0.395
+[1766786731.867930234] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=-0.005 | CurX=-0.209 Y=-0.225 Z=0.395
+[1766786731.877315989] [arm_cartesian_controller]: KINEMATICS DEBUG: JoyV(x=-0.000,y=-0.005) -> LARGE JUMP: J1=-0.8, J2=0.6 (Cur=22.8), J3=-0.9
+[1766786731.932258289] [arm_cartesian_controller]: DYNAMIC SPEED: Mag=0.26 -> Sp=8.4
+[1766786731.934422365] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=-0.005 | CurX=-0.209 Y=-0.226 Z=0.395
+[1766786731.938991307] [arm_cartesian_controller]: INPUT: lx=0.00, ly=-0.26 -> Vx=-0.000, Vy=-0.005, Vz=0.000 Mode=platform
+[1766786731.943094505] [arm_cartesian_controller]: KINEMATICS DEBUG: JoyV(x=-0.000,y=-0.005) -> LARGE JUMP: J1=-0.9, J2=0.6 (Cur=22.8), J3=-1.0
+[1766786731.997131985] [arm_cartesian_controller]: ACTIVE: Vx=-0.000 Vy=-0.005 Vz=0.000 Yaw=0.000
+[1766786732.001201901] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=-0.005 | CurX=-0.209 Y=-0.227 Z=0.395
+[1766786732.007898459] [arm_cartesian_controller]: KINEMATICS DEBUG: JoyV(x=-0.000,y=-0.005) -> LARGE JUMP: J1=-1.0, J2=0.7 (Cur=22.8), J3=-1.2
+
+
+
+
+
+Attempt #3, arm moved a little bit, but also stopped
+[23:07:50.537] TX: BM1
+[23:07:50.538] RX: BLENDING:ON
+[23:07:50.543] TX: XJA58.6081B22.7638C-1.7780D28.8227E21.1690F19.2962Sp5.99Ac10.00Dc10.00Rm10.00
+[23:07:50.602] RX: A58.612B22.762C-1.776D28.825E21.161F19.306G
+[23:07:50.605] TX: XJA58.6945B22.7029C-1.6826D29.0169E21.1779F19.0547Sp5.99Ac10.00Dc10.00Rm10.00
+[23:07:50.668] RX: A58.702B22.700C-1.686D29.022E21.184F19.074G
+[23:07:50.673] TX: XJA58.8223B22.6132C-1.5422D29.3035E21.1918F18.6981Sp8.37Ac10.00Dc10.00Rm10.00
+[23:07:50.736] TX: XJA58.9504B22.5239C-1.4026D29.5896E21.2067F18.3418Sp8.37Ac10.00Dc10.00Rm10.00
+[23:07:50.739] RX: A58.826B22.610C-1.543D29.312E21.184F18.704G
+[23:07:50.799] RX: A58.950B22.520C-1.399D29.591E21.207F18.356G
+[23:07:50.808] TX: XJA59.0789B22.4350C-1.2637D29.8751E21.2228F17.9858Sp8.37Ac10.00Dc10.00Rm10.00
+[23:07:50.872] TX: XJA59.2077B22.3465C-1.1256D30.1600E21.2399F17.6302Sp8.37Ac10.00Dc10.00Rm10.00
+[23:07:50.875] RX: A59.085B22.430C-1.265D29.881E21.230F18.008G
+[23:07:50.935] RX: A59.209B22.341C-1.130D30.171E21.230F17.637G
+[23:07:50.937] TX: XJA59.3369B22.2583C-0.9883D30.4443E21.2582F17.2750Sp8.37Ac10.00Dc10.00Rm10.00
+[23:07:51.000] RX: A59.344B22.251C-0.987D30.449E21.253F17.290G
+[23:07:51.009] TX: XJA59.4664B22.1706C-0.8518D30.7279E21.2776F16.9202Sp8.37Ac10.00Dc10.00Rm10.00
+[23:07:51.074] TX: XJA59.5962B22.0832C-0.7160D31.0107E21.2981F16.5659Sp8.37Ac10.00Dc10.00Rm10.00
+[23:07:51.077] RX: A59.467B22.170C-0.852D30.739E21.277F16.942G
+[23:07:51.138] RX: A59.602B22.081C-0.717D31.017E21.300F16.571G
+
+
+[1766786870.527700388] [arm_cartesian_controller]: ACTIVE: Vx=-0.000 Vy=0.003 Vz=0.000 Yaw=0.000
+[1766786870.529852537] [arm_cartesian_controller]: DYNAMIC SPEED: Mag=0.17 -> Sp=6.0
+[1766786870.531763220] [arm_cartesian_controller]: Starting Move -> Syncing to actual and enabling blending (BM1)
+[1766786870.534036206] [arm_cartesian_controller]: SYNC: TF Pose -> X=-0.209, Y=-0.220, Z=0.395
+[1766786870.536171271] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=0.003 | CurX=-0.209 Y=-0.220 Z=0.395
+[1766786870.536967753] [teensy_serial_bridge]: Blending ENABLED (Joystick Mode: Latency prioritized, points may be skipped)
+[1766786870.598261855] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=0.003 | CurX=-0.209 Y=-0.219 Z=0.395
+[1766786870.656738058] [arm_cartesian_controller]: INPUT: lx=0.00, ly=0.25 -> Vx=-0.000, Vy=0.005, Vz=0.000 Mode=platform
+[1766786870.664676737] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=0.005 | CurX=-0.209 Y=-0.219 Z=0.395
+[1766786870.730710670] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=0.005 | CurX=-0.209 Y=-0.218 Z=0.395
+[1766786870.796466365] [arm_cartesian_controller]: DYNAMIC SPEED: Mag=0.25 -> Sp=8.4
+[1766786870.798685443] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=0.005 | CurX=-0.209 Y=-0.217 Z=0.395
+[1766786870.830309320] [arm_cartesian_controller]: INPUT: lx=0.00, ly=0.25 -> Vx=-0.000, Vy=0.005, Vz=0.000 Mode=platform
+[1766786870.864804743] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=0.005 | CurX=-0.209 Y=-0.216 Z=0.395
+[1766786870.931071964] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=0.005 | CurX=-0.209 Y=-0.215 Z=0.395
+[1766786870.998273224] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=0.005 | CurX=-0.209 Y=-0.214 Z=0.395
+[1766786871.003724952] [arm_cartesian_controller]: INPUT: lx=0.00, ly=0.25 -> Vx=-0.000, Vy=0.005, Vz=0.000 Mode=platform
+[1766786871.061126488] [arm_cartesian_controller]: ACTIVE: Vx=-0.000 Vy=0.005 Vz=0.000 Yaw=0.000
+[1766786871.063407911] [arm_cartesian_controller]: DYNAMIC SPEED: Mag=0.25 -> Sp=8.4
+[1766786871.065426879] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=0.005 | CurX=-0.209 Y=-0.213 Z=0.395
+[1766786871.131350652] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=0.005 | CurX=-0.209 Y=-0.212 Z=0.395
+[1766786871.169176957] [arm_cartesian_controller]: INPUT: lx=0.00, ly=0.25 -> Vx=-0.000, Vy=0.005, Vz=0.000 Mode=platform
+[1766786871.198214714] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=0.005 | CurX=-0.209 Y=-0.211 Z=0.395
+[1766786871.264768872] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=0.005 | CurX=-0.209 Y=-0.210 Z=0.395
+[1766786871.329382761] [arm_cartesian_controller]: DYNAMIC SPEED: Mag=0.25 -> Sp=8.4
+[1766786871.331381103] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=0.005 | CurX=-0.209 Y=-0.209 Z=0.395
+[1766786871.340872694] [arm_cartesian_controller]: INPUT: lx=0.00, ly=0.25 -> Vx=-0.000, Vy=0.005, Vz=0.000 Mode=platform
+[1766786871.398914405] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=0.005 | CurX=-0.209 Y=-0.208 Z=0.395
+[1766786871.464847710] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=0.005 | CurX=-0.209 Y=-0.207 Z=0.395
+[1766786871.472849411] [arm_cartesian_controller]: KINEMATICS DEBUG: JoyV(x=-0.000,y=0.005) -> LARGE JUMP: J1=0.8, J2=-0.5 (Cur=22.1), J3=0.8
+[1766786871.515058193] [arm_cartesian_controller]: INPUT: lx=0.00, ly=0.25 -> Vx=-0.000, Vy=0.005, Vz=0.000 Mode=platform
+[1766786871.531128421] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=0.005 | CurX=-0.209 Y=-0.206 Z=0.395
+[1766786871.537751487] [arm_cartesian_controller]: KINEMATICS DEBUG: JoyV(x=-0.000,y=0.005) -> LARGE JUMP: J1=0.9, J2=-0.6 (Cur=22.1), J3=0.9
+[1766786871.594414979] [arm_cartesian_controller]: ACTIVE: Vx=-0.000 Vy=0.005 Vz=0.000 Yaw=0.000
+[1766786871.596829271] [arm_cartesian_controller]: DYNAMIC SPEED: Mag=0.25 -> Sp=8.4
+[1766786871.599118507] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=0.005 | CurX=-0.209 Y=-0.205 Z=0.395
+[1766786871.605492659] [arm_cartesian_controller]: KINEMATICS DEBUG: JoyV(x=-0.000,y=0.005) -> LARGE JUMP: J1=1.0, J2=-0.7 (Cur=22.1), J3=1.1
+[1766786871.664764824] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=0.005 | CurX=-0.209 Y=-0.204 Z=0.395
+[1766786871.673131901] [arm_cartesian_controller]: KINEMATICS DEBUG: JoyV(x=-0.000,y=0.005) -> LARGE JUMP: J1=1.2, J2=-0.8 (Cur=22.1), J3=1.2
+[1766786871.688086991] [arm_cartesian_controller]: INPUT: lx=0.00, ly=0.25 -> Vx=-0.000, Vy=0.005, Vz=0.000 Mode=platform
+[1766786871.731031524] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=0.005 | CurX=-0.209 Y=-0.203 Z=0.395
+[1766786871.737466147] [arm_cartesian_controller]: KINEMATICS DEBUG: JoyV(x=-0.000,y=0.005) -> LARGE JUMP: J1=1.3, J2=-0.9 (Cur=22.1), J3=1.3
+[1766786871.798255285] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=0.005 | CurX=-0.209 Y=-0.202 Z=0.395
+[1766786871.804821422] [arm_cartesian_controller]: KINEMATICS DEBUG: JoyV(x=-0.000,y=0.005) -> LARGE JUMP: J1=1.4, J2=-0.9 (Cur=22.1), J3=1.4
+[1766786871.863288510] [arm_cartesian_controller]: DYNAMIC SPEED: Mag=0.25 -> Sp=8.4
+[1766786871.865312739] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=0.005 | CurX=-0.209 Y=-0.201 Z=0.395
+[1766786871.871689026] [arm_cartesian_controller]: INPUT: lx=0.00, ly=0.25 -> Vx=-0.000, Vy=0.005, Vz=0.000 Mode=platform
+[1766786871.877551183] [arm_cartesian_controller]: KINEMATICS DEBUG: JoyV(x=-0.000,y=0.005) -> LARGE JUMP: J1=1.6, J2=-1.0 (Cur=22.1), J3=1.6
+[1766786871.931091820] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=0.005 | CurX=-0.209 Y=-0.199 Z=0.395
+[1766786871.937443628] [arm_cartesian_controller]: KINEMATICS DEBUG: JoyV(x=-0.000,y=0.005) -> LARGE JUMP: J1=1.7, J2=-1.1 (Cur=22.1), J3=1.7
+[1766786871.998265631] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=0.005 | CurX=-0.209 Y=-0.198 Z=0.395
+[1766786872.004697858] [arm_cartesian_controller]: KINEMATICS DEBUG: JoyV(x=-0.000,y=0.005) -> LARGE JUMP: J1=1.8, J2=-1.2 (Cur=22.1), J3=1.8
+[1766786872.036151105] [arm_cartesian_controller]: INPUT: lx=0.00, ly=0.01 -> Vx=-0.000, Vy=0.000, Vz=0.000 Mode=platform
+[1766786872.064782860] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=0.000 | CurX=-0.209 Y=-0.197 Z=0.395
+[1766786872.072917534] [arm_cartesian_controller]: KINEMATICS DEBUG: JoyV(x=-0.000,y=0.000) -> LARGE JUMP: J1=1.9, J2=-1.2 (Cur=22.1), J3=1.8
+[1766786872.127705657] [arm_cartesian_controller]: ACTIVE: Vx=-0.000 Vy=0.000 Vz=0.000 Yaw=0.000
+[1766786872.129992185] [arm_cartesian_controller]: DYNAMIC SPEED: Mag=0.01 -> Sp=1.4
+[1766786872.131975370] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=0.000 | CurX=-0.209 Y=-0.197 Z=0.395
+[1766786872.138320146] [arm_cartesian_controller]: KINEMATICS DEBUG: JoyV(x=-0.000,y=0.000) -> LARGE JUMP: J1=1.9, J2=-1.2 (Cur=22.1), J3=1.8
+[1766786872.198228111] [arm_cartesian_controller]: UPDATE: Vx=-0.000 Vy=0.000 | CurX=-0.209 Y=-0.197 Z=0.395
+[1766786872.204810655] [arm_cartesian_controller]: KINEMATICS DEBUG: JoyV(x=-0.000,y=0.000) -> LARGE JUMP: J1=1.9, J2=-1.2 (Cur=22.1), J3=1.8
