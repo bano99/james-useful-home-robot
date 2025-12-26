@@ -34,8 +34,8 @@ arm_cartesian_controller:
     
     # Control loop settings
     control_rate: 50.0          # Hz - Increased for dynamic streaming
-    command_timeout: 0.1       # seconds - restored for 50Hz
-    movement_lead: 1.5         # 1.5x lead at 50Hz = ~0.5 degree segments
+    command_timeout: 0.5       # seconds - Increased for Jetson stability (was 0.1)
+    movement_lead: 1.2         # V11: Lead factor for continuous carrot (was 15.0)
     ik_timeout: 0.1            # seconds - increased for Jetson Nano (KDL Solver)
     
     # Workspace safety limits (meters)

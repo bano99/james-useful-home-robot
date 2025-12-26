@@ -236,17 +236,15 @@ class ArmCartesianController(Node):
         is_idle = (abs(self.pending_v_x) + abs(self.pending_v_y) + abs(self.pending_v_z) + abs(self.pending_v_yaw)) < 1e-6
         
         if not self.manual_control_active or is_idle:
-            # [JAMES:MOD] If we just became idle from being active, send STOP and disable blending
-            if self.manual_control_active or self.blending_active:
+            if self.blending_active:
                 self.get_logger().info('Joystick Idle -> Sending STOP and disabling blending (BM0)')
                 stop_msg = String()
                 stop_msg.data = "BM0"
                 self.raw_cmd_pub.publish(stop_msg)
                 stop_msg.data = "ST"
                 self.raw_cmd_pub.publish(stop_msg)
-                
-                self.manual_control_active = False # Reset internal flags
                 self.blending_active = False
+                self.manual_control_active = False # Ensure we re-sync on next push
 
             if not self.sync_pose_to_actual(loud=False):
                 self.get_logger().warn('Sync Pose Failed (TF issue?)', throttle_duration_sec=2.0)
@@ -261,26 +259,23 @@ class ArmCartesianController(Node):
 
         # [JAMES:MOD] Enable blending on first active command
         if not self.blending_active:
-             self.get_logger().info('Starting Move -> Enabling blending (BM1)')
+             self.get_logger().info('Starting Move -> Syncing to actual and enabling blending (BM1)')
+             if not self.sync_pose_to_actual(loud=True):
+                 self.get_logger().warn('Cannot start move: Initial sync failed')
+                 return
+             
              start_msg = String()
              start_msg.data = "BM1"
              self.raw_cmd_pub.publish(start_msg)
              self.blending_active = True
 
-        # [JAMES:MOD] Actual-Relative Targeting:
-        # We RE-SYNC to actual TF every single loop. This ensures the 1.5x lead we give the
-        # arm is always relative to where it actually is, preventing drift/wind-up.
-        if not self.sync_pose_to_actual(loud=False):
-            self.get_logger().warn('Cannot move: Target Pose sync failed', throttle_duration_sec=1.0)
-            return
-
         # If previous IK failed (hit limit/singularity), we still attempt to move from actual
         if not self.ik_success:
              self.ik_success = True 
 
-        # 1. Update target pose
-        # Target DT includes a "lead factor" to ensure we give the arm more work than it can
-        # finish in one cycle, preventing the buffer from emptying and causing jitter.
+        # 1. Update target pose (V11: Continuous Virtual Carrot)
+        # We NO LONGER sync to actual in every loop. We update from the current_target_pose
+        # which acts as a "carrot" running ahead of the arm.
         dt = (1.0 / self.control_rate) * self.movement_lead
         # DEBUG: Log target update
         if abs(self.pending_v_x) > 0 or abs(self.pending_v_y) > 0 or abs(self.pending_v_z) > 0:
