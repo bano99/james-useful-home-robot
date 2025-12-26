@@ -32,10 +32,10 @@ arm_cartesian_controller:
     velocity_scale: 0.02       # m/s per joystick unit (increased to 5cm/s)
     rotation_scale: 0.05        # rad/s per joystick unit
     
-    # Control loop settings
-    control_rate: 15.0          # Hz - V12: Balanced for significant segments
-    command_timeout: 0.5       # seconds - Increased for Jetson stability
-    movement_lead: 3.0         # V12: ~200ms segments (beefy enough to blend)
+    # Control loop settings (V15: Self-Clocking Watchdog)
+    control_rate: 10.0          # Hz - Watchdog only (STOP check)
+    command_timeout: 0.5       # seconds - Robust against Jetson jitter
+    movement_lead: 5.0         # V15: ~0.5s segments (High resolution blending runway)
     ik_timeout: 0.1            # seconds - increased for Jetson Nano (KDL Solver)
     
     # Workspace safety limits (meters)

@@ -2,6 +2,7 @@
 install/
 build/
 log/
+temp/
 *.bag
 *.db3
 *.mcap

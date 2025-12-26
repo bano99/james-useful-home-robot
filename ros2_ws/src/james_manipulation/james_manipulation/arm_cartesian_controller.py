@@ -147,26 +147,20 @@ class ArmCartesianController(Node):
     def log(self, msg, level='info', throttle=0.0):
         """Custom logger with manual throttle to avoid ROS2 filter errors"""
         now = time.time()
-        
-        # Manual throttling logic
         if throttle > 0:
-            # Use the first part of the message or a unique prefix as key
-            # to prevent different throttled messages from blocking each other
             key = msg[:20] 
             last_time = self.log_throttle_map.get(key, 0)
             if now - last_time < throttle:
                 return
             self.log_throttle_map[key] = now
 
-        t_str = datetime.now().strftime("%H:%M:%S.%f")[:-3]
-        formatted_msg = f'[{t_str}] [{self.get_name()}] [{level.upper()}]: {msg}'
-        
+        # Stripped custom timestamps to let ROS handle it cleanly
         if level == 'info':
-            self.get_logger().info(formatted_msg)
+            self.get_logger().info(msg)
         elif level == 'warn':
-            self.get_logger().warn(formatted_msg)
+            self.get_logger().warn(msg)
         elif level == 'error':
-            self.get_logger().error(formatted_msg)
+            self.get_logger().error(msg)
 
     def apply_deadzone(self, val):
         if abs(val) < self.deadzone:
@@ -222,6 +216,11 @@ class ArmCartesianController(Node):
         self.current_joint_state = msg
         self.joint_state_received = True
 
+        # [JAMES:MOD] SELF-CLOCKING PULSE (V15)
+        # Every time we receive a state update (Teensy ACK), we generate the NEXT segment
+        if self.manual_control_active and self.blending_active:
+             self.produce_next_segment()
+
     def sync_pose_to_actual(self, loud=False):
         """Initialize current_target_pose from the actual arm position via TF"""
         try:
@@ -258,23 +257,20 @@ class ArmCartesianController(Node):
             return False
 
     def control_loop(self):
-        """Main control loop at control_rate"""
+        """Watchdog loop at 10Hz - Handles only STOP logic and Idle syncing"""
         current_time = self.get_clock().now().nanoseconds / 1e9
         
         # Timeout Check
         if current_time - self.last_command_time > self.command_timeout:
             self.manual_control_active = False
         
-        # IDLE CHECK: If not active OR velocities are zero (deadzone)
-        # We assume "Idle" if total velocity is negligible
         is_idle = (abs(self.pending_v_x) + abs(self.pending_v_y) + abs(self.pending_v_z) + abs(self.pending_v_yaw)) < 1e-6
         
         if not self.manual_control_active or is_idle:
             if self.idle_start_time is None:
                 self.idle_start_time = current_time
             
-            # [JAMES:MOD] Stop Hysteresis (0.3s grace period)
-            # This prevents flickering ST/BM0 commands if the Jetson lags or signal drops
+            # Stop Hysteresis
             if self.blending_active and (current_time - self.idle_start_time > 0.3):
                 self.log('Joystick Idle for >0.3s -> Sending STOP (BM0)')
                 stop_msg = String()
@@ -290,18 +286,10 @@ class ArmCartesianController(Node):
                     self.log('Sync Pose Failed (TF issue?)', level='warn', throttle=2.0)
             return
 
-        # Reset idle timer if active
+        # Start Move logic (Initial Push)
         self.idle_start_time = None
-        self.log(f'ACTIVE: Vx={self.pending_v_x:.3f} Vy={self.pending_v_y:.3f} Vz={self.pending_v_z:.3f} Yaw={self.pending_v_yaw:.3f}', throttle=0.5)
-        # [JAMES:MOD] Dynamic Speed Scaling (V9)
-        joy_magnitude = math.sqrt(self.joy_lx**2 + self.joy_ly**2 + self.joy_ry**2 + self.joy_rr**2)
-        joy_magnitude = min(1.0, joy_magnitude)
-        self.dynamic_sp = 1.0 + (joy_magnitude * 29.0) # 1% to 30%
-        self.log(f'DYNAMIC SPEED: Mag={joy_magnitude:.2f} -> Sp={self.dynamic_sp:.1f}', throttle=0.2)
-
-        # [JAMES:MOD] Enable blending on first active command
         if not self.blending_active:
-             self.log('Starting Move -> Syncing to actual and enabling blending (BM1)')
+             self.log('Starting Move -> Initial Priming Burst (BM1 + 3x Segments)')
              if not self.sync_pose_to_actual(loud=True):
                  self.log('Cannot start move: Initial sync failed', level='warn')
                  return
@@ -310,28 +298,37 @@ class ArmCartesianController(Node):
              start_msg.data = "BM1"
              self.raw_cmd_pub.publish(start_msg)
              self.blending_active = True
-
-        # [JAMES:MOD] Re-sync on IK failure
+             
+             # Prime the Teensy buffer with 3 initial segments to start the closed loop
+             for _ in range(3):
+                  self.produce_next_segment()
+        return
+ 
+    def produce_next_segment(self):
+        """Closed-loop Producer: Generates one 'Beefy' segment and sends to bridge (V15)"""
+        # Dynamic Speed Scaling
+        joy_magnitude = math.sqrt(self.joy_lx**2 + self.joy_ly**2 + self.joy_ry**2 + self.joy_rr**2)
+        joy_magnitude = min(1.0, joy_magnitude)
+        self.dynamic_sp = 1.0 + (joy_magnitude * 29.0) # 1% to 30%
+        
+        # IK Failure Recovery -> Re-syncing carrot to actual
         if not self.ik_success:
-             self.log('Previous IK failed, re-syncing target pose to actual arm position.', level='warn')
-             if not self.sync_pose_to_actual(loud=True): # Re-sync current_target_pose from actual
-                 self.log('Cannot start move: Re-sync after IK failure failed', level='warn')
+             self.log('IK Failure Recovery -> Re-syncing carrot to actual', level='warn')
+             if not self.sync_pose_to_actual(loud=True):
                  return
-             self.ik_success = True # Reset for next attempt
+             self.ik_success = True
 
-        # 1. Update target pose (V11: Continuous Virtual Carrot)
-        # We NO LONGER sync to actual in every loop. We update from the current_target_pose
-        # which acts as a "carrot" running ahead of the arm.
-        dt = (1.0 / self.control_rate) * self.movement_lead
+        # Calculate Delta: 0.2s of movement per segment (Fixed Lead)
+        # In V15, we define segments by 'work duration', not 'ROS clock rate'.
+        # dt = (duration of path segment in seconds)
+        dt = 0.2 * self.movement_lead 
         
         new_x = self.current_target_pose.position.x + self.pending_v_x * dt
         new_y = self.current_target_pose.position.y + self.pending_v_y * dt
         new_z = self.current_target_pose.position.z + self.pending_v_z * dt
         
-        # [JAMES:MOD] Carrot Leash (V13)
-        # Prevent the carrot from running too far ahead of actual arm (max 10cm)
-        # This keeps the IK solver stable and prevents configuration jumps.
-        max_dist = 0.10 
+        # Carrot Leash (V15: Tightened to 2cm for strict local stability)
+        max_dist = 0.02
         dx = new_x - self.last_sync_pose.position.x
         dy = new_y - self.last_sync_pose.position.y
         dz = new_z - self.last_sync_pose.position.z
@@ -342,7 +339,6 @@ class ArmCartesianController(Node):
              self.current_target_pose.position.x = self.last_sync_pose.position.x + dx * scale
              self.current_target_pose.position.y = self.last_sync_pose.position.y + dy * scale
              self.current_target_pose.position.z = self.last_sync_pose.position.z + dz * scale
-             self.log('Carrot Leash Active (Hitting max lead)', throttle=1.0)
         else:
              self.current_target_pose.position.x = new_x
              self.current_target_pose.position.y = new_y
@@ -351,10 +347,10 @@ class ArmCartesianController(Node):
         if abs(self.pending_v_yaw) > 1e-6:
             self.apply_yaw_step(self.pending_v_yaw * dt)
 
-        # 2. Apply Workspace Limits
+        # Apply Workspace Limits
         self.current_target_pose = self.apply_workspace_limits(self.current_target_pose)
 
-        # 3. Solve IK
+        # Submit IK request asynchronously
         self.call_ik_service_async()
 
     def apply_yaw_step(self, delta_yaw):
