@@ -24,7 +24,7 @@ teensy_serial_bridge:
     
     # Communication settings
     publish_rate: 15.0  # Hz - rate to publish joint states
-    command_timeout: 0.5  # seconds - timeout for joint commands
+    command_timeout: 0.3  # seconds - increased to prevent intermittent stops 
 
 arm_cartesian_controller:
   ros__parameters:
@@ -34,7 +34,8 @@ arm_cartesian_controller:
     
     # Control loop settings
     control_rate: 15.0          # Hz - increased for smoother blending
-    command_timeout: 0.1       # seconds - reduced for better streaming responsiveness
+    command_timeout: 0.3       # seconds - increased for robustness (was 0.1)
+    movement_lead: 1.5         # lead factor to ensure motion doesn't finish before next cmd
     ik_timeout: 0.1            # seconds - increased for Jetson Nano (KDL Solver)
     
     # Workspace safety limits (meters)

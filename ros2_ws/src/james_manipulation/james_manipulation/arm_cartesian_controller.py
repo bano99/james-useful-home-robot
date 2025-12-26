@@ -20,13 +20,14 @@ class ArmCartesianController(Node):
     def __init__(self):
         super().__init__('arm_cartesian_controller')
         
-        # Declare parameters (Default values are placeholders; actual values are loaded from config/arm_cartesian_params.yaml)
+        # Declare parameters (values are loaded from config/arm_cartesian_params.yaml)
         self.declare_parameter('velocity_scale', 0.0)
         self.declare_parameter('rotation_scale', 0.0)
         self.declare_parameter('control_rate', 0.0)
         self.declare_parameter('command_timeout', 0.0)
         self.declare_parameter('ik_timeout', 0.0)
         self.declare_parameter('joystick_deadzone', 0.0)
+        self.declare_parameter('movement_lead', 0.0)
         
         # Workspace limits
         self.declare_parameter('workspace_limits.x_min', 0.0)
@@ -48,6 +49,7 @@ class ArmCartesianController(Node):
         self.command_timeout = self.get_parameter('command_timeout').value
         self.ik_timeout = self.get_parameter('ik_timeout').value
         self.deadzone = self.get_parameter('joystick_deadzone').value
+        self.movement_lead = self.get_parameter('movement_lead').value
         
         self.planning_frame = self.get_parameter('planning_frame').value
         self.ee_link = self.get_parameter('end_effector_link').value
@@ -270,7 +272,9 @@ class ArmCartesianController(Node):
              self.ik_success = True 
 
         # 1. Update target pose
-        dt = 1.0 / self.control_rate
+        # Target DT includes a "lead factor" to ensure we give the arm more work than it can
+        # finish in one cycle, preventing the buffer from emptying and causing jitter.
+        dt = (1.0 / self.control_rate) * self.movement_lead
         # DEBUG: Log target update
         if abs(self.pending_v_x) > 0 or abs(self.pending_v_y) > 0 or abs(self.pending_v_z) > 0:
              self.get_logger().info(f'UPDATE: Vx={self.pending_v_x:.3f} Vy={self.pending_v_y:.3f} | CurX={self.current_target_pose.position.x:.3f} Y={self.current_target_pose.position.y:.3f} Z={self.current_target_pose.position.z:.3f}')
