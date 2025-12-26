@@ -1639,6 +1639,7 @@ void driveMotorsXJ(int J1step, int J2step, int J3step, int J4step, int J5step, i
         while (highStepCur < HighStep && !estopActive) {
           if (!nextReady && highStepCur >= (HighStep - (int)DCCStep)) {
             processSerial();
+            shiftCMDarray();
             if (cmdBuffer1.startsWith("XJ")) nextReady = true;
           }
 

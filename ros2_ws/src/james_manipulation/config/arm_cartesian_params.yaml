@@ -33,8 +33,8 @@ arm_cartesian_controller:
     rotation_scale: 0.9        # rad/s per joystick unit
     
     # Control loop settings
-    control_rate: 5.0          # Hz - reduced to prevent command buffer buildup
-    command_timeout: 0.5       # seconds - increased for slower loop
+    control_rate: 15.0          # Hz - increased for smoother blending
+    command_timeout: 0.1       # seconds - reduced for better streaming responsiveness
     ik_timeout: 0.1            # seconds - increased for Jetson Nano (KDL Solver)
     
     # Workspace safety limits (meters)
