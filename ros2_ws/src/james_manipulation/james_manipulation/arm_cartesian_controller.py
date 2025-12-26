@@ -139,19 +139,30 @@ class ArmCartesianController(Node):
         self.idle_start_time = None
         self.blending_active = False # [JAMES:MOD] Track firmware blending state
         self.last_sync_pose = Pose() # Track actual position for leash
+        self.log_throttle_map = {} # Track last log times for manual throttling
         
         self.get_logger().info('Arm Cartesian Controller initialized (Idle-Sync Logic Enabled)')
         self.get_logger().info(f'EE Link: {self.ee_link}, Planning Frame: {self.planning_frame}')
 
     def log(self, msg, level='info', throttle=0.0):
-        """Custom logger for simplified format: [HH:MM:SS.mmm] [node] [LEVEL]: msg"""
+        """Custom logger with manual throttle to avoid ROS2 filter errors"""
+        now = time.time()
+        
+        # Manual throttling logic
+        if throttle > 0:
+            # Use the first part of the message or a unique prefix as key
+            # to prevent different throttled messages from blocking each other
+            key = msg[:20] 
+            last_time = self.log_throttle_map.get(key, 0)
+            if now - last_time < throttle:
+                return
+            self.log_throttle_map[key] = now
+
         t_str = datetime.now().strftime("%H:%M:%S.%f")[:-3]
         formatted_msg = f'[{t_str}] [{self.get_name()}] [{level.upper()}]: {msg}'
+        
         if level == 'info':
-            if throttle > 0:
-                self.get_logger().info(formatted_msg, throttle_duration_sec=throttle)
-            else:
-                self.get_logger().info(formatted_msg)
+            self.get_logger().info(formatted_msg)
         elif level == 'warn':
             self.get_logger().warn(formatted_msg)
         elif level == 'error':
