@@ -380,24 +380,26 @@ class TeensySerialBridge(Node):
         self.packet_count_pub.publish(pc_msg)
         self.publish_joint_state()
 
-        # [JAMES:MOD] Flow Control - Move completed, check for pending moves
+        # [JAMES:MOD] Flow Control - Move completed, aggressively refill pipeline (V12)
         with self.flow_lock:
             if self.in_flight_count > 0:
                 self.in_flight_count -= 1
-                
+            
+            # Fill as many slots as possible (up to 3)
+            while self.in_flight_count < 3:
                 msg_to_send = None
                 if self.blending_enabled:
-                    # Blending Mode: Send most recent stored command
                     if self.pending_joint_cmd is not None:
                         msg_to_send = self.pending_joint_cmd
                         self.pending_joint_cmd = None
                 else:
-                    # Non-Blending Mode: Send next command in FIFO queue
                     if len(self.move_queue) > 0:
                         msg_to_send = self.move_queue.popleft()
                 
                 if msg_to_send:
                     self._send_move_command(msg_to_send)
+                else:
+                    break # Nothing left to send
 
     def _send_move_command(self, msg):
         """Helper to format and send RJ or XJ command to Teensy"""

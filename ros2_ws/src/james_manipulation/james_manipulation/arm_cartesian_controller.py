@@ -135,6 +135,7 @@ class ArmCartesianController(Node):
         self.joy_ry = 0.0
         self.joy_rr = 0.0
         self.dynamic_sp = 5.0 # Default speed
+        self.idle_start_time = None
         self.blending_active = False # [JAMES:MOD] Track firmware blending state
         
         self.get_logger().info('Arm Cartesian Controller initialized (Idle-Sync Logic Enabled)')
@@ -236,21 +237,29 @@ class ArmCartesianController(Node):
         is_idle = (abs(self.pending_v_x) + abs(self.pending_v_y) + abs(self.pending_v_z) + abs(self.pending_v_yaw)) < 1e-6
         
         if not self.manual_control_active or is_idle:
-            if self.blending_active:
-                self.get_logger().info('Joystick Idle -> Sending STOP and disabling blending (BM0)')
+            if self.idle_start_time is None:
+                self.idle_start_time = current_time
+            
+            # [JAMES:MOD] Stop Hysteresis (0.3s grace period)
+            # This prevents flickering ST/BM0 commands if the Jetson lags or signal drops
+            if self.blending_active and (current_time - self.idle_start_time > 0.3):
+                self.get_logger().info('Joystick Idle for >0.3s -> Sending STOP (BM0)')
                 stop_msg = String()
                 stop_msg.data = "BM0"
                 self.raw_cmd_pub.publish(stop_msg)
                 stop_msg.data = "ST"
                 self.raw_cmd_pub.publish(stop_msg)
                 self.blending_active = False
-                self.manual_control_active = False # Ensure we re-sync on next push
-
-            if not self.sync_pose_to_actual(loud=False):
-                self.get_logger().warn('Sync Pose Failed (TF issue?)', throttle_duration_sec=2.0)
+                self.manual_control_active = False 
+            
+            if not self.blending_active:
+                if not self.sync_pose_to_actual(loud=False):
+                    self.get_logger().warn('Sync Pose Failed (TF issue?)', throttle_duration_sec=2.0)
             return
 
-        self.get_logger().info(f'ACTIVE: Vx={self.pending_v_x:.3f} Vy={self.pending_v_y:.3f} Vz={self.pending_v_z:.3f} Yaw={self.pending_v_yaw:.3f}', throttle_duration_sec=0.2)
+        # Reset idle timer if active
+        self.idle_start_time = None
+        self.get_logger().info(f'ACTIVE: Vx={self.pending_v_x:.3f} Vy={self.pending_v_y:.3f} Vz={self.pending_v_z:.3f} Yaw={self.pending_v_yaw:.3f}', throttle_duration_sec=0.5)
         # [JAMES:MOD] Dynamic Speed Scaling (V9)
         joy_magnitude = math.sqrt(self.joy_lx**2 + self.joy_ly**2 + self.joy_ry**2 + self.joy_rr**2)
         joy_magnitude = min(1.0, joy_magnitude)

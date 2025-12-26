@@ -33,9 +33,9 @@ arm_cartesian_controller:
     rotation_scale: 0.05        # rad/s per joystick unit
     
     # Control loop settings
-    control_rate: 50.0          # Hz - Increased for dynamic streaming
-    command_timeout: 0.5       # seconds - Increased for Jetson stability (was 0.1)
-    movement_lead: 1.2         # V11: Lead factor for continuous carrot (was 15.0)
+    control_rate: 15.0          # Hz - V12: Balanced for significant segments
+    command_timeout: 0.5       # seconds - Increased for Jetson stability
+    movement_lead: 3.0         # V12: ~200ms segments (beefy enough to blend)
     ik_timeout: 0.1            # seconds - increased for Jetson Nano (KDL Solver)
     
     # Workspace safety limits (meters)
