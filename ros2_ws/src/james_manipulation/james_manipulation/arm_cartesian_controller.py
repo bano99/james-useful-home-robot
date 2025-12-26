@@ -154,7 +154,6 @@ class ArmCartesianController(Node):
                 return
             self.log_throttle_map[key] = now
 
-        # Stripped custom timestamps to let ROS handle it cleanly
         if level == 'info':
             self.get_logger().info(msg)
         elif level == 'warn':
@@ -267,12 +266,18 @@ class ArmCartesianController(Node):
         is_idle = (abs(self.pending_v_x) + abs(self.pending_v_y) + abs(self.pending_v_z) + abs(self.pending_v_yaw)) < 1e-6
         
         if not self.manual_control_active or is_idle:
+            # [JAMES:MOD] ZERO VELOCITIES when idle to stop carrot drift (V15.1)
+            self.pending_v_x = 0.0
+            self.pending_v_y = 0.0
+            self.pending_v_z = 0.0
+            self.pending_v_yaw = 0.0
+
             if self.idle_start_time is None:
                 self.idle_start_time = current_time
             
             # Stop Hysteresis
             if self.blending_active and (current_time - self.idle_start_time > 0.3):
-                self.log('Joystick Idle for >0.3s -> Sending STOP (BM0)')
+                self.log('Joystick Idle -> Sending STOP and clearing blending (BM0)')
                 stop_msg = String()
                 stop_msg.data = "BM0"
                 self.raw_cmd_pub.publish(stop_msg)
@@ -283,15 +288,14 @@ class ArmCartesianController(Node):
             
             if not self.blending_active:
                 if not self.sync_pose_to_actual(loud=False):
-                    self.log('Sync Pose Failed (TF issue?)', level='warn', throttle=2.0)
+                    self.log('Sync Pose Failed', level='warn', throttle=2.0)
             return
 
         # Start Move logic (Initial Push)
         self.idle_start_time = None
         if not self.blending_active:
-             self.log('Starting Move -> Initial Priming Burst (BM1 + 3x Segments)')
+             self.log('Starting Move -> Initial Priming (BM1)')
              if not self.sync_pose_to_actual(loud=True):
-                 self.log('Cannot start move: Initial sync failed', level='warn')
                  return
              
              start_msg = String()
@@ -299,7 +303,7 @@ class ArmCartesianController(Node):
              self.raw_cmd_pub.publish(start_msg)
              self.blending_active = True
              
-             # Prime the Teensy buffer with 3 initial segments to start the closed loop
+             # Prime with 3 segments
              for _ in range(3):
                   self.produce_next_segment()
         return
@@ -318,10 +322,9 @@ class ArmCartesianController(Node):
                  return
              self.ik_success = True
 
-        # Calculate Delta: 0.2s of movement per segment (Fixed Lead)
-        # In V15, we define segments by 'work duration', not 'ROS clock rate'.
-        # dt = (duration of path segment in seconds)
-        dt = 0.2 * self.movement_lead 
+        # Calculate Delta: 60ms of movement per segment (V15.1: Sane Work Duration)
+        # We don't use 'lead' from yaml here, we want consistent small steps for stability.
+        dt = 0.06 
         
         new_x = self.current_target_pose.position.x + self.pending_v_x * dt
         new_y = self.current_target_pose.position.y + self.pending_v_y * dt
@@ -399,18 +402,20 @@ class ArmCartesianController(Node):
         try:
             response = future.result()
             if response.error_code.val == response.error_code.SUCCESS:
-                self.ik_success = True
-
-                # KINEMATICS DEBUG: Measure the jump
+                # KINEMATICS SAFETY: Block Large Jumps (Singularities)
                 if self.current_joint_state:
                     tgt = response.solution.joint_state.position
                     cur = self.current_joint_state.position
                     # Safe zip (names might not match order, but usually do in MoveIt)
                     if len(tgt) == len(cur):
                          diffs = [math.degrees(t - c) for t, c in zip(tgt, cur)]
-                         # Log if any joint moves more than 2 degrees
-                         if any(abs(d) > 2.0 for d in diffs):
-                             self.log(f'LARGE JUMP: J1={diffs[0]:.1f}, J2={diffs[1]:.1f}, J3={diffs[2]:.1f}', level='warn')
+                         # Log if any joint moves more than 3 degrees
+                         if any(abs(d) > 3.0 for d in diffs):
+                             self.log(f'SAFETY BLOCK: Large Jump Detected ({max(diffs):.1f} deg). Re-syncing.', level='warn')
+                             self.ik_success = False # Cause recovery re-sync on next call
+                             return
+
+                self.ik_success = True
 
                 cmd_msg = JointState()
                 cmd_msg.header.stamp = self.get_clock().now().to_msg()
@@ -422,7 +427,7 @@ class ArmCartesianController(Node):
                 
                 self.joint_cmd_pub.publish(cmd_msg)
             else:
-                self.log(f'IK FAILED: Error Code {response.error_code.val}', level='warn')
+                self.log(f'IK FAILED: Error {response.error_code.val}', level='warn')
                 self.ik_success = False # Trigger re-sync in next loop
         except Exception as e:
             self.log(f'Error in ik_callback: {e}', level='error')
