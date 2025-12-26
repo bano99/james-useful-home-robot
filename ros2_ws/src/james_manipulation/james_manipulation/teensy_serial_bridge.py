@@ -431,7 +431,7 @@ class TeensySerialBridge(Node):
         if not self.connected or not self.serial_conn: return
         
         with self.flow_lock:
-            if self.in_flight_count < 2:
+            if self.in_flight_count < 3:
                 # Capacity available in Teensy buffer
                 self._send_move_command(msg)
             else:

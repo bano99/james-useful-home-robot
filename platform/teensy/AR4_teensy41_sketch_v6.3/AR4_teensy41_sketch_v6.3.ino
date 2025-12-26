@@ -2478,34 +2478,15 @@ int32_t modbusQuerry(String inData, int function) {
 
 
 void processSerial() {
-  if (Serial.available() > 0 and cmdBuffer3 == "") {
+  while (Serial.available() > 0) {
     char recieved = Serial.read();
     recData += recieved;
     // Process message when new line character is recieved
     if (recieved == '\n') {
-      //place data in last position
-      cmdBuffer3 = recData;
-      //determine if move command
       recData.trim();
       String procCMDtype = recData.substring(0, 2);
-      if (procCMDtype == "SS") {
-        splineTrue = false;
-        splineEndReceived = true;
-      }
-      if (splineTrue == true) {
-        if (moveSequence == "") {
-          moveSequence = "firsMoveActive";
-        }
-        //close serial so next command can be read in
-        if (Alarm == "0") {
-          sendRobotPosSpline();
-        } else {
-          Serial.println(Alarm);
-          Alarm = "0";
-        }
-      }
 
-      // [JAMES:MOD] Add ST (Stop) command to immediately stop robot
+      // [JAMES:MOD] Priority Commands: Process even if buffers are full
       if (procCMDtype == "ST") {
           estopActive = true;       // Trigger soft E-stop to break loops
           moveSequence = "";        // Clear sequences
@@ -2515,19 +2496,42 @@ void processSerial() {
           splineTrue = false;       // Cancel spline mode
           blendingEnabled = false;  // Reset blending on ST
           Serial.println("STOPPED"); // Ack
+          recData = "";
+          return;
       }
 
-      // [JAMES:MOD] Blending Control
       if (procCMDtype == "BM") {
           int val = recData.substring(2).toInt();
           blendingEnabled = (val == 1);
           Serial.print("BLENDING:");
           Serial.println(blendingEnabled ? "ON" : "OFF");
+          recData = "";
+          return;
       }
 
+      // [JAMES:MOD] Regular Commands: Only buffer if there is room
+      if (cmdBuffer3 == "") {
+          cmdBuffer3 = recData;
+          if (procCMDtype == "SS") {
+            splineTrue = false;
+            splineEndReceived = true;
+          }
+          if (splineTrue == true) {
+            if (moveSequence == "") {
+              moveSequence = "firsMoveActive";
+            }
+            //close serial so next command can be read in
+            if (Alarm == "0") {
+              sendRobotPosSpline();
+            } else {
+              Serial.println(Alarm);
+              Alarm = "0";
+            }
+          }
+          shiftCMDarray();
+      }
+      
       recData = "";  // Clear recieved buffer
-
-      shiftCMDarray();
 
 
       //if second position is empty and first move command read in process second move ahead of time

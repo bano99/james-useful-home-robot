@@ -27,7 +27,7 @@ class ArmCartesianController(Node):
         self.declare_parameter('command_timeout', 0.0)
         self.declare_parameter('ik_timeout', 0.0)
         self.declare_parameter('joystick_deadzone', 0.0)
-        self.declare_parameter('movement_lead', 0.0)
+        self.declare_parameter('movement_lead', 1.0)
         
         # Workspace limits
         self.declare_parameter('workspace_limits.x_min', 0.0)
