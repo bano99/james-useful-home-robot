@@ -47,10 +47,10 @@ class TeensySerialBridge(Node):
 
         # Declare ALL parameters first
         self.declare_parameter('serial_port', '/dev/ttyACM0')
-        self.declare_parameter('baud_rate', 9600)
+        self.declare_parameter('baud_rate', 115200)
         self.declare_parameter('timeout', 0.1)
-        self.declare_parameter('publish_rate', 20.0)
-        self.declare_parameter('command_timeout', 0.5)
+        self.declare_parameter('publish_rate', 10.0)
+        self.declare_parameter('command_timeout', 0.9)
         self.declare_parameter('mock_hardware', False)
         self.declare_parameter('config_file', default_config_path)
         self.declare_parameter('enable_auto_detect', True)
@@ -60,10 +60,10 @@ class TeensySerialBridge(Node):
 
 
         # [JAMES:MOD] Motion Profile Parameters (Tunable)
-        self.declare_parameter('motion_speed', 20.0)      # % Speed (was 30)
-        self.declare_parameter('motion_accel', 45.0)      # % for Accel (was 35)
-        self.declare_parameter('motion_decel', 45.0)      # % for Decel (was 35)
-        self.declare_parameter('motion_ramp', 80.0)       # Acceleration Ramp factor
+        self.declare_parameter('motion_speed', 3.0)      # % Speed (was 30)
+        self.declare_parameter('motion_accel', 10.0)      # % for Accel (was 35)
+        self.declare_parameter('motion_decel', 10.0)      # % for Decel (was 35)
+        self.declare_parameter('motion_ramp', 10.0)       # Acceleration Ramp factor
 
         # Log raw parameter values for debugging
         self.get_logger().info('--- PARAMETER DEBUG START ---')
