@@ -60,9 +60,9 @@ class TeensySerialBridge(Node):
 
 
         # [JAMES:MOD] Motion Profile Parameters (Tunable)
-        self.declare_parameter('motion_speed', 30.0)      # % Speed (was 40)
-        self.declare_parameter('motion_accel', 35.0)      # % for Accel (was 20)
-        self.declare_parameter('motion_decel', 35.0)      # % for Decel (was 20)
+        self.declare_parameter('motion_speed', 20.0)      # % Speed (was 30)
+        self.declare_parameter('motion_accel', 45.0)      # % for Accel (was 35)
+        self.declare_parameter('motion_decel', 45.0)      # % for Decel (was 35)
         self.declare_parameter('motion_ramp', 80.0)       # Acceleration Ramp factor
 
         # Log raw parameter values for debugging

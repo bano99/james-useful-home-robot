@@ -35,7 +35,7 @@ arm_cartesian_controller:
     # Control loop settings
     control_rate: 15.0          # Hz - increased for smoother blending
     command_timeout: 0.3       # seconds - increased for robustness (was 0.1)
-    movement_lead: 1.5         # lead factor to ensure motion doesn't finish before next cmd
+    movement_lead: 3.0         # increased from 1.5 to ensure constant cruise phase
     ik_timeout: 0.1            # seconds - increased for Jetson Nano (KDL Solver)
     
     # Workspace safety limits (meters)
