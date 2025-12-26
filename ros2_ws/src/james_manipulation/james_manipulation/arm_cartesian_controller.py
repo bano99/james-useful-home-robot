@@ -256,19 +256,15 @@ class ArmCartesianController(Node):
              self.raw_cmd_pub.publish(start_msg)
              self.blending_active = True
 
-        if not self.tf_synced:
-            self.get_logger().warn('Cannot move: Target Pose not synced with TF', throttle_duration_sec=1.0)
-            # Try to sync again
-            self.sync_pose_to_actual(loud=True)
+        # [JAMES:MOD] Actual-Relative Targeting:
+        # We RE-SYNC to actual TF every single loop. This ensures the 1.5x lead we give the
+        # arm is always relative to where it actually is, preventing drift/wind-up.
+        if not self.sync_pose_to_actual(loud=False):
+            self.get_logger().warn('Cannot move: Target Pose sync failed', throttle_duration_sec=1.0)
             return
 
-        # If previous IK failed (hit limit/singularity), we MUST re-sync the target to actual
-        # otherwise we get stuck trying to solve for an impossible pose forever.
+        # If previous IK failed (hit limit/singularity), we still attempt to move from actual
         if not self.ik_success:
-             # Only sync if we are NOT currently trying to recover (active input might push us out)
-             # But simplistic appraoch: If failed, always sync to start fresh from current valid pos
-             self.sync_pose_to_actual(loud=False)
-             # We set success to True to allow one attempt, if it fails again, we sync again.
              self.ik_success = True 
 
         # 1. Update target pose
