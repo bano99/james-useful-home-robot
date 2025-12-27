@@ -141,25 +141,15 @@ class ArmCartesianController(Node):
         self.last_sync_pose = Pose() # Track actual position for leash
         self.log_throttle_map = {} # Track last log times for manual throttling
         
-        # [JAMES:MOD] V17: Internal flags for direction zeroing
-        self.pure_v_x = 0.0 
-        self.pure_v_y = 0.0
-        self.pure_v_z = 0.0
-        self.pure_v_yaw = 0.0
+        # [JAMES:MOD] V18: Atomic Movement Parameters
+        self.atomic_step_size = 0.015 # [USER:CHANGE_HERE] Default 1.5cm steps
+        self.is_active = False # Track if we are in an active move session
         
-        self.get_logger().info('Arm Cartesian Controller initialized (Idle-Sync Logic Enabled)')
+        self.get_logger().info('Arm Cartesian Controller initialized (Atomic Beef V18 enabled)')
         self.get_logger().info(f'EE Link: {self.ee_link}, Planning Frame: {self.planning_frame}')
 
     def log(self, msg, level='info', throttle=0.0):
-        """Custom logger with manual throttle to avoid ROS2 filter errors"""
-        now = time.time()
-        if throttle > 0:
-            key = msg[:20] 
-            last_time = self.log_throttle_map.get(key, 0)
-            if now - last_time < throttle:
-                return
-            self.log_throttle_map[key] = now
-
+        """Standardized logger wrapper"""
         if level == 'info':
             self.get_logger().info(msg)
         elif level == 'warn':
@@ -199,23 +189,29 @@ class ArmCartesianController(Node):
                 if 'mode' in data:
                     switch_mode = 'vertical' if data['mode'] == 1 else 'platform'
                 
-                # Calculate unit-velocities (V17: Direction only, magnitude decoupled from size)
+                # Calculate unit-velocities (V18: Magnitude decoupled from step size)
                 self.joy_lx, self.joy_ly, self.joy_ry, self.joy_rr = joy_lx, joy_ly, joy_ry, joy_rr
-                self.pure_v_x = -joy_lx * self.velocity_scale
-                self.pure_v_y = joy_ly * self.velocity_scale
+                
+                # [JAMES:MOD] V18: Robust Deadzone (10%) to kill remote-switch noise
+                mag = math.sqrt(joy_lx**2 + joy_ly**2 + joy_ry**2 + joy_rr**2)
+                if mag < 0.10:
+                    self.pending_v_x = 0.0
+                    self.pending_v_y = 0.0
+                    self.pending_v_z = 0.0
+                    self.pending_v_yaw = 0.0
+                    self.is_active = False
+                    return
+
+                self.is_active = True
+                self.pending_v_x = -joy_lx * self.velocity_scale
+                self.pending_v_y = joy_ly * self.velocity_scale
                 
                 if switch_mode == 'vertical':
-                    self.pure_v_z = joy_ry * self.velocity_scale
-                    self.pure_v_yaw = joy_rr * self.rotation_scale
+                    self.pending_v_z = joy_ry * self.velocity_scale
+                    self.pending_v_yaw = joy_rr * self.rotation_scale
                 else:
-                    self.pure_v_z = 0.0
-                    self.pure_v_yaw = 0.0
-
-                # Velocity scaled by scale factor only (V17: Fixed step size regardless of joy push)
-                self.pending_v_x = self.pure_v_x 
-                self.pending_v_y = self.pure_v_y
-                self.pending_v_z = self.pure_v_z
-                self.pending_v_yaw = self.pure_v_yaw
+                    self.pending_v_z = 0.0
+                    self.pending_v_yaw = 0.0
                 
         except Exception as e:
             self.log(f'Error processing manual command: {e}', level='error')
@@ -272,10 +268,8 @@ class ArmCartesianController(Node):
         if current_time - self.last_command_time > self.command_timeout:
             self.manual_control_active = False
         
-        is_idle = (abs(self.pending_v_x) + abs(self.pending_v_y) + abs(self.pending_v_z) + abs(self.pending_v_yaw)) < 1e-6
-        
-        if not self.manual_control_active or is_idle:
-            # [JAMES:MOD] ZERO VELOCITIES when idle to stop carrot drift (V15.1)
+        if not self.manual_control_active or not self.is_active:
+            # Idle/Stopped
             self.pending_v_x = 0.0
             self.pending_v_y = 0.0
             self.pending_v_z = 0.0
@@ -286,7 +280,7 @@ class ArmCartesianController(Node):
             
             # Stop Hysteresis
             if self.blending_active and (current_time - self.idle_start_time > 0.3):
-                self.log('Joystick Idle -> Sending STOP and clearing blending (BM0)')
+                self.get_logger().info('Joystick Idle -> Sending STOP (BM0)')
                 stop_msg = String()
                 stop_msg.data = "BM0"
                 self.raw_cmd_pub.publish(stop_msg)
@@ -296,14 +290,13 @@ class ArmCartesianController(Node):
                 self.manual_control_active = False 
             
             if not self.blending_active:
-                if not self.sync_pose_to_actual(loud=False):
-                    self.log('Sync Pose Failed', level='warn', throttle=2.0)
+                self.sync_pose_to_actual(loud=False)
             return
 
         # Start Move logic (Initial Push)
         self.idle_start_time = None
         if not self.blending_active:
-             self.log('Starting Move -> Initial Priming (BM1)')
+             self.get_logger().info('Starting Move -> Initial Priming (BM1)')
              if not self.sync_pose_to_actual(loud=True):
                  return
              
@@ -312,55 +305,59 @@ class ArmCartesianController(Node):
              self.raw_cmd_pub.publish(start_msg)
              self.blending_active = True
              
-             # Prime with 3 segments
-             for _ in range(3):
-                  self.produce_next_segment()
+             # Prime the buffer. Attempt to send 3 segments. 
+             # If one fails IK, we don't decrement the counter, so it keeps trying to fill all 3.
+             self.produce_next_segment()
+             self.produce_next_segment()
+             self.produce_next_segment()
         return
  
     def produce_next_segment(self):
-        """Closed-loop Producer: Generates one 'Beefy' segment (V17)"""
-        # Strict Idle Blocking (Kills Ghost Moves)
-        is_idle = (abs(self.pure_v_x) + abs(self.pure_v_y) + abs(self.pure_v_z) + abs(self.pure_v_yaw)) < 1e-6
-        if is_idle:
+        """Closed-loop Producer: Generates one 'Atomic Beef' segment (V18)"""
+        if not self.is_active:
              return
 
-        # Speed Calculation: 5% for testing (as requested)
+        # Use constant 5% speed for initial V18 baseline test (as requested)
         self.dynamic_sp = 5.0
         
         # IK Failure Recovery
         if not self.ik_success:
-             self.get_logger().warn('IK Failure Recovery -> Re-syncing carrot')
-             if not self.sync_pose_to_actual(loud=True):
-                 return
+             # If we failed IK, re-sync carrot to actual to "unstuck" the loop
+             self.sync_pose_to_actual(loud=False)
              self.ik_success = True
 
-        # Calculate Delta: Beefy DT (V17: lead=3.0 -> 300ms segments)
-        # We use a unit-normalized direction here to ensure step size is constant
-        dt = 0.1 * self.movement_lead 
+        # [JAMES:MOD] V18: ATOMIC STEP CALCULATION
+        # Calculate direction from current velocity vector
+        dx = self.pending_v_x
+        dy = self.pending_v_y
+        dz = self.pending_v_z
+        mag = math.sqrt(dx**2 + dy**2 + dz**2)
         
-        new_x = self.current_target_pose.position.x + self.pending_v_x * dt
-        new_y = self.current_target_pose.position.y + self.pending_v_y * dt
-        new_z = self.current_target_pose.position.z + self.pending_v_z * dt
-        
-        # Carrot Leash (2cm)
-        max_dist = 0.02
-        dx = new_x - self.last_sync_pose.position.x
-        dy = new_y - self.last_sync_pose.position.y
-        dz = new_z - self.last_sync_pose.position.z
-        dist = math.sqrt(dx**2 + dy**2 + dz**2)
-        
-        if dist > max_dist:
-             scale = max_dist / dist
-             self.current_target_pose.position.x = self.last_sync_pose.position.x + dx * scale
-             self.current_target_pose.position.y = self.last_sync_pose.position.y + dy * scale
-             self.current_target_pose.position.z = self.last_sync_pose.position.z + dz * scale
-        else:
-             self.current_target_pose.position.x = new_x
-             self.current_target_pose.position.y = new_y
-             self.current_target_pose.position.z = new_z
+        # Determine Atomic Step Size (Default 1.5cm scaled by movement_lead)
+        step_len = self.atomic_step_size * self.movement_lead
 
-        if abs(self.pending_v_yaw) > 1e-6:
-            self.apply_yaw_step(self.pending_v_yaw * dt)
+        if mag > 1e-6:
+             # Normalize direction and multiply by atomic step length
+             self.current_target_pose.position.x += (dx / mag) * step_len
+             self.current_target_pose.position.y += (dy / mag) * step_len
+             self.current_target_pose.position.z += (dz / mag) * step_len
+        elif abs(self.pending_v_yaw) > 1e-6:
+             # Strictly rotation? Use a fixed time step for yaw
+             self.apply_yaw_step(self.pending_v_yaw * 0.1)
+        else:
+             return # No movement requested
+        
+        # Carrot Leash (2cm) - strictly prevents carrot from running away
+        cur_dx = self.current_target_pose.position.x - self.last_sync_pose.position.x
+        cur_dy = self.current_target_pose.position.y - self.last_sync_pose.position.y
+        cur_dz = self.current_target_pose.position.z - self.last_sync_pose.position.z
+        cur_dist = math.sqrt(cur_dx**2 + cur_dy**2 + cur_dz**2)
+        
+        if cur_dist > 0.02:
+             scale = 0.02 / cur_dist
+             self.current_target_pose.position.x = self.last_sync_pose.position.x + cur_dx * scale
+             self.current_target_pose.position.y = self.last_sync_pose.position.y + cur_dy * scale
+             self.current_target_pose.position.z = self.last_sync_pose.position.z + cur_dz * scale
 
         self.current_target_pose = self.apply_workspace_limits(self.current_target_pose)
         self.call_ik_service_async()
@@ -411,33 +408,31 @@ class ArmCartesianController(Node):
         try:
             response = future.result()
             if response.error_code.val == response.error_code.SUCCESS:
-                # KINEMATICS SAFETY: Block Large Jumps (Singularities)
+                # KINEMATICS SAFETY: Block Large Jumps (Configuration Flips)
                 if self.current_joint_state:
                     tgt = response.solution.joint_state.position
                     cur = self.current_joint_state.position
-                    # Safe zip (names might not match order, but usually do in MoveIt)
                     if len(tgt) == len(cur):
                          diffs = [math.degrees(t - c) for t, c in zip(tgt, cur)]
-                         # Log if any joint moves more than 3 degrees
                          if any(abs(d) > 3.0 for d in diffs):
-                             self.log(f'SAFETY BLOCK: Large Jump Detected ({max(diffs):.1f} deg). Re-syncing.', level='warn')
-                             self.ik_success = False # Cause recovery re-sync on next call
+                             self.get_logger().warn(f'SAFETY BLOCK: Large Jump ({max(diffs):.1f} deg). Re-syncing.')
+                             self.ik_success = False 
+                             # [V18] Auto-retry: Try to generate segment from refreshed pose
+                             self.produce_next_segment() 
                              return
 
                 self.ik_success = True
-
                 cmd_msg = JointState()
                 cmd_msg.header.stamp = self.get_clock().now().to_msg()
                 cmd_msg.name = response.solution.joint_state.name
                 cmd_msg.position = response.solution.joint_state.position
-                
-                # [JAMES:MOD] Pass dynamic speed in the velocity field (V9)
                 cmd_msg.velocity = [self.dynamic_sp]
-                
                 self.joint_cmd_pub.publish(cmd_msg)
             else:
-                self.log(f'IK FAILED: Error {response.error_code.val}', level='warn')
-                self.ik_success = False # Trigger re-sync in next loop
+                self.get_logger().warn(f'IK FAILED: Error {response.error_code.val}')
+                self.ik_success = False 
+                # [V18] Auto-retry on failure to keep the priming queue moving
+                self.produce_next_segment()
         except Exception as e:
             self.log(f'Error in ik_callback: {e}', level='error')
 
