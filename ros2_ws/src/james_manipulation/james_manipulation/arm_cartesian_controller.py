@@ -408,7 +408,7 @@ class ArmCartesianController(Node):
                     cur = self.current_joint_state.position
                     if len(tgt) == len(cur):
                          diffs = [math.degrees(t - c) for t, c in zip(tgt, cur)]
-                         if any(abs(d) > 3.0 for d in diffs):
+                         if any(abs(d) > 10.0 for d in diffs):
                              self.get_logger().warn(f'SAFETY BLOCK: Large Jump ({max(diffs):.1f} deg). Re-syncing.')
                              self.ik_success = False 
                              # [V19] No direct retry. The 20Hz timer will pick up from re-synced pose.

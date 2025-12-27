@@ -280,15 +280,19 @@ class TeensySerialBridge(Node):
                         time.sleep(1.0)
                         continue
                 
+                line = None
                 with self.serial_lock:
                     if self.serial_conn and self.serial_conn.in_waiting > 0:
                         try:
                             line = self.serial_conn.readline().decode('utf-8').strip()
-                            if line:
-                                self.log_file.write(f'[{datetime.now().strftime("%H:%M:%S.%f")[:-3]}] RX: {line}\n')
-                                self.raw_rx_pub.publish(String(data=line)) # Publish raw for Debug CLI
-                                self.process_teensy_message(line)
-                        except UnicodeDecodeError: pass
+                        except UnicodeDecodeError:
+                            pass
+                
+                if line:
+                    self.log_file.write(f'[{datetime.now().strftime("%H:%M:%S.%f")[:-3]}] RX: {line}\n')
+                    self.raw_rx_pub.publish(String(data=line))
+                    self.process_teensy_message(line)
+                
                 time.sleep(0.005)
             except Exception as e:
                 self.get_logger().error(f'Serial Loop Error: {e}')
