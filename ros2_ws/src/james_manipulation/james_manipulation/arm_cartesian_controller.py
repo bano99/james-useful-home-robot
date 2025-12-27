@@ -141,6 +141,12 @@ class ArmCartesianController(Node):
         self.last_sync_pose = Pose() # Track actual position for leash
         self.log_throttle_map = {} # Track last log times for manual throttling
         
+        # [JAMES:MOD] V17: Internal flags for direction zeroing
+        self.pure_v_x = 0.0 
+        self.pure_v_y = 0.0
+        self.pure_v_z = 0.0
+        self.pure_v_yaw = 0.0
+        
         self.get_logger().info('Arm Cartesian Controller initialized (Idle-Sync Logic Enabled)')
         self.get_logger().info(f'EE Link: {self.ee_link}, Planning Frame: {self.planning_frame}')
 
@@ -193,20 +199,23 @@ class ArmCartesianController(Node):
                 if 'mode' in data:
                     switch_mode = 'vertical' if data['mode'] == 1 else 'platform'
                 
-                # Calculate velocity commands
+                # Calculate unit-velocities (V17: Direction only, magnitude decoupled from size)
                 self.joy_lx, self.joy_ly, self.joy_ry, self.joy_rr = joy_lx, joy_ly, joy_ry, joy_rr
-                self.pending_v_x = -joy_lx * self.velocity_scale
-                self.pending_v_y = joy_ly * self.velocity_scale
+                self.pure_v_x = -joy_lx * self.velocity_scale
+                self.pure_v_y = joy_ly * self.velocity_scale
                 
                 if switch_mode == 'vertical':
-                    self.pending_v_z = joy_ry * self.velocity_scale
-                    self.pending_v_yaw = joy_rr * self.rotation_scale
+                    self.pure_v_z = joy_ry * self.velocity_scale
+                    self.pure_v_yaw = joy_rr * self.rotation_scale
                 else:
-                    self.pending_v_z = 0.0
-                    self.pending_v_yaw = 0.0
-                
-                # DEBUG: Log inputs and calculated velocities
-                self.log(f'INPUT: lx={joy_lx:.2f}, ly={joy_ly:.2f} -> Vx={self.pending_v_x:.3f}, Vy={self.pending_v_y:.3f}, Vz={self.pending_v_z:.3f} Mode={switch_mode}')
+                    self.pure_v_z = 0.0
+                    self.pure_v_yaw = 0.0
+
+                # Velocity scaled by scale factor only (V17: Fixed step size regardless of joy push)
+                self.pending_v_x = self.pure_v_x 
+                self.pending_v_y = self.pure_v_y
+                self.pending_v_z = self.pure_v_z
+                self.pending_v_yaw = self.pure_v_yaw
                 
         except Exception as e:
             self.log(f'Error processing manual command: {e}', level='error')
@@ -309,28 +318,31 @@ class ArmCartesianController(Node):
         return
  
     def produce_next_segment(self):
-        """Closed-loop Producer: Generates one 'Beefy' segment and sends to bridge (V15)"""
-        # Dynamic Speed Scaling
-        joy_magnitude = math.sqrt(self.joy_lx**2 + self.joy_ly**2 + self.joy_ry**2 + self.joy_rr**2)
-        joy_magnitude = min(1.0, joy_magnitude)
-        self.dynamic_sp = 1.0 + (joy_magnitude * 29.0) # 1% to 30%
+        """Closed-loop Producer: Generates one 'Beefy' segment (V17)"""
+        # Strict Idle Blocking (Kills Ghost Moves)
+        is_idle = (abs(self.pure_v_x) + abs(self.pure_v_y) + abs(self.pure_v_z) + abs(self.pure_v_yaw)) < 1e-6
+        if is_idle:
+             return
+
+        # Speed Calculation: 5% for testing (as requested)
+        self.dynamic_sp = 5.0
         
-        # IK Failure Recovery -> Re-syncing carrot to actual
+        # IK Failure Recovery
         if not self.ik_success:
-             self.log('IK Failure Recovery -> Re-syncing carrot to actual', level='warn')
+             self.get_logger().warn('IK Failure Recovery -> Re-syncing carrot')
              if not self.sync_pose_to_actual(loud=True):
                  return
              self.ik_success = True
 
-        # Calculate Delta: 60ms of movement per segment (V15.1: Sane Work Duration)
-        # We don't use 'lead' from yaml here, we want consistent small steps for stability.
-        dt = 0.06 
+        # Calculate Delta: Beefy DT (V17: lead=3.0 -> 300ms segments)
+        # We use a unit-normalized direction here to ensure step size is constant
+        dt = 0.1 * self.movement_lead 
         
         new_x = self.current_target_pose.position.x + self.pending_v_x * dt
         new_y = self.current_target_pose.position.y + self.pending_v_y * dt
         new_z = self.current_target_pose.position.z + self.pending_v_z * dt
         
-        # Carrot Leash (V15: Tightened to 2cm for strict local stability)
+        # Carrot Leash (2cm)
         max_dist = 0.02
         dx = new_x - self.last_sync_pose.position.x
         dy = new_y - self.last_sync_pose.position.y
@@ -350,10 +362,7 @@ class ArmCartesianController(Node):
         if abs(self.pending_v_yaw) > 1e-6:
             self.apply_yaw_step(self.pending_v_yaw * dt)
 
-        # Apply Workspace Limits
         self.current_target_pose = self.apply_workspace_limits(self.current_target_pose)
-
-        # Submit IK request asynchronously
         self.call_ik_service_async()
 
     def apply_yaw_step(self, delta_yaw):
