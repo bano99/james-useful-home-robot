@@ -219,11 +219,7 @@ class ArmCartesianController(Node):
     def joint_state_callback(self, msg):
         self.current_joint_state = msg
         self.joint_state_received = True
-
-        # [JAMES:MOD] SELF-CLOCKING PULSE (V15)
-        # Every time we receive a state update (Teensy ACK), we generate the NEXT segment
-        if self.manual_control_active and self.blending_active:
-             self.produce_next_segment()
+        # [V19] No auto-pulse here. Generation is now 20Hz timer-driven.
 
     def sync_pose_to_actual(self, loud=False):
         """Initialize current_target_pose from the actual arm position via TF"""
@@ -293,8 +289,6 @@ class ArmCartesianController(Node):
                 self.sync_pose_to_actual(loud=False)
             return
 
-        # Start Move logic (Initial Push)
-        self.idle_start_time = None
         if not self.blending_active:
              self.get_logger().info('Starting Move -> Initial Priming (BM1)')
              if not self.sync_pose_to_actual(loud=True):
@@ -304,11 +298,11 @@ class ArmCartesianController(Node):
              start_msg.data = "BM1"
              self.raw_cmd_pub.publish(start_msg)
              self.blending_active = True
-             
-             # Prime the buffer. Attempt to send 3 segments. 
-             # If one fails IK, we don't decrement the counter, so it keeps trying to fill all 3.
+             # Initial burst of 1 move to start the bridge pump. 
+             # The 20Hz loop will handle the rest.
              self.produce_next_segment()
-             self.produce_next_segment()
+        else:
+             # Constant Pulse: Generate next segment at 20Hz
              self.produce_next_segment()
         return
  
@@ -322,7 +316,7 @@ class ArmCartesianController(Node):
         
         # IK Failure Recovery
         if not self.ik_success:
-             # If we failed IK, re-sync carrot to actual to "unstuck" the loop
+             # [V19] Re-sync and continue. Timer will handle the next attempt.
              self.sync_pose_to_actual(loud=False)
              self.ik_success = True
 
@@ -417,8 +411,7 @@ class ArmCartesianController(Node):
                          if any(abs(d) > 3.0 for d in diffs):
                              self.get_logger().warn(f'SAFETY BLOCK: Large Jump ({max(diffs):.1f} deg). Re-syncing.')
                              self.ik_success = False 
-                             # [V18] Auto-retry: Try to generate segment from refreshed pose
-                             self.produce_next_segment() 
+                             # [V19] No direct retry. The 20Hz timer will pick up from re-synced pose.
                              return
 
                 self.ik_success = True
@@ -431,8 +424,7 @@ class ArmCartesianController(Node):
             else:
                 self.get_logger().warn(f'IK FAILED: Error {response.error_code.val}')
                 self.ik_success = False 
-                # [V18] Auto-retry on failure to keep the priming queue moving
-                self.produce_next_segment()
+                # [V19] No direct retry. Timer handles next tick.
         except Exception as e:
             self.log(f'Error in ik_callback: {e}', level='error')
 
