@@ -398,7 +398,11 @@ class TeensySerialBridge(Node):
                 if m_e != -1 and m_e > m_s:
                     val_str = data[m_s+1:m_e]
                     try: 
-                        self.last_joint_state.position[i] = math.radians(float(val_str))
+                        val_deg = float(val_str)
+                        # [JAMES:MOD] Invert J1, J2, J3 to compensate for kinematic model vs physical calibration
+                        if i in [0, 1, 2]:
+                            val_deg = -val_deg
+                        self.last_joint_state.position[i] = math.radians(val_deg)
                     except ValueError: 
                         self.get_logger().warn(f"Parse Error J{i+1}: '{val_str}'")
         
@@ -437,7 +441,11 @@ class TeensySerialBridge(Node):
         prefix = "XJ" if self.blending_enabled else "RJ"
         cmd = prefix
         for i in range(min(len(msg.position), 6)):
-            cmd += f"{self.joint_labels[i]}{math.degrees(msg.position[i]):.4f}"
+            val_deg = math.degrees(msg.position[i])
+            # [JAMES:MOD] Invert J1, J2, J3 to compensate for kinematic model vs physical calibration
+            if i in [0, 1, 2]:
+                val_deg = -val_deg
+            cmd += f"{self.joint_labels[i]}{val_deg:.4f}"
         
         # Motion Profile Parameters
         # [JAMES:MOD] Use dynamic speed from msg if provided (V9)

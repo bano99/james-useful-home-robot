@@ -60,7 +60,7 @@
   <joint name="camera_tower_joint" type="fixed">
     <parent link="base_link"/>
     <child link="camera_tower_link"/>
-    <origin xyz="0 0.35 0.05" rpy="0 0 0"/> <!-- Positioned at back of base (Y+) -->
+    <origin xyz="0 -0.35 0.05" rpy="0 0 0"/> <!-- Positioned at back of base (Y-) -->
   </joint>
 
   <!-- Instantiate AR4 Robot Arm -->
@@ -68,7 +68,7 @@
     tf_prefix="arm_" 
     parent="base_link" 
     robot_parameters_file="$(find james_description)/config/ar4_custom_limits.yaml">
-    <origin xyz="0.15 0 0.05" rpy="0 0 0" /> <!-- Mounted at front-center of base -->
+    <origin xyz="0.15 0 0.05" rpy="0 0 3.1415926" /> <!-- Forward is now +Y -->
   </xacro:ar_robot>
 
   <!-- Custom Gripper (Placeholder) -->
