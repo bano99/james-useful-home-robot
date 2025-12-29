@@ -60,7 +60,7 @@
       </collision>
     </link>
     <joint name="${tf_prefix}joint_1" type="revolute">
-      <origin rpy="${pi} 0 0" xyz="0 0 0"/>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
       <parent link="${tf_prefix}base_link"/>
       <child link="${tf_prefix}link_1"/>
       <axis xyz="0 0 1"/>

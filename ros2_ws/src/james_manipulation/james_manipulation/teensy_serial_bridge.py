@@ -13,13 +13,14 @@ import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
 from std_msgs.msg import String, Int32
-import serial
-import threading
-import time
-import re
-import math
 import json
-import collections
+import time
+import math
+import serial
+import glob
+import os as _os
+import threading
+from collections import deque
 from datetime import datetime
 import os as _os
 import glob
@@ -396,11 +397,7 @@ class TeensySerialBridge(Node):
                 if m_e != -1 and m_e > m_s:
                     val_str = data[m_s+1:m_e]
                     try: 
-                        val_deg = float(val_str)
-                        # [JAMES:MOD] Invert J1, J2, J3 to compensate for kinematic model vs physical calibration
-                        if i in [0, 1, 2]:
-                            val_deg = -val_deg
-                        self.last_joint_state.position[i] = math.radians(val_deg)
+                        self.last_joint_state.position[i] = math.radians(float(val_str))
                     except ValueError: 
                         self.get_logger().warn(f"Parse Error J{i+1}: '{val_str}'")
         
@@ -439,11 +436,7 @@ class TeensySerialBridge(Node):
         prefix = "XJ" if self.blending_enabled else "RJ"
         cmd = prefix
         for i in range(min(len(msg.position), 6)):
-            val_deg = math.degrees(msg.position[i])
-            # [JAMES:MOD] Invert J1, J2, J3 to compensate for kinematic model vs physical calibration
-            if i in [0, 1, 2]:
-                val_deg = -val_deg
-            cmd += f"{self.joint_labels[i]}{val_deg:.4f}"
+            cmd += f"{self.joint_labels[i]}{math.degrees(msg.position[i]):.4f}"
         
         # Motion Profile Parameters
         # [JAMES:MOD] Use dynamic speed from msg if provided (V9)
@@ -493,12 +486,10 @@ class TeensySerialBridge(Node):
             with self.flow_lock:
                 self.blending_enabled = True
             self.get_logger().info("Blending ENABLED (Joystick Mode: Latency prioritized, points may be skipped)")
-            return # Skip sending to Teensy as bridge handles this (Wait, Teensy also needs BM1)
         elif cmd_text == "BM0":
             with self.flow_lock:
                 self.blending_enabled = False
             self.get_logger().info("Blending DISABLED (Programmed Mode: Every point will be executed)")
-            # return # Keep sending to Teensy
 
         # [JAMES:MOD] Priority Stop Logic
         if cmd_text == "ST":
@@ -506,19 +497,8 @@ class TeensySerialBridge(Node):
                 self.pending_joint_cmd = None
                 self.move_queue.clear()
                 self.in_flight_count = 0
+                # Note: We keep blending_enabled state as set by controller
             self.get_logger().info("Priority STOP received: Clearing all queues and resetting flow control.")
-
-        # [JAMES:MOD] Translate J1, J2, J3 for raw movement commands (RJ, XJ)
-        # This ensures ROS scripts like calibrator work with the software inversion
-        # Markers for RJ/XJ: A (J1), B (J2), C (J3)
-        if cmd_text.startswith(("RJ", "XJ")):
-            def invert_val(match):
-                prefix = match.group(1)
-                val = float(match.group(2))
-                return f"{prefix}{-val:.4f}"
-            
-            # Invert A, B, C positions
-            cmd_text = re.sub(r'([ABC])([-+]?\d*\.?\d+)', invert_val, cmd_text)
 
         cmd = cmd_text + "\n"
         with self.serial_lock:
