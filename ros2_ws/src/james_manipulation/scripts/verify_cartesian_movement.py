@@ -94,7 +94,7 @@ class CartesianMovementVerifier(Node):
             self.get_logger().error('IK Service timed out')
         return None
 
-    def run_test(self):
+    def run_test(self, executor):
         try:
             self._do_run_test()
         except KeyboardInterrupt:
@@ -102,7 +102,8 @@ class CartesianMovementVerifier(Node):
         except Exception as e:
             print(f"Error during test: {e}")
         finally:
-            print("Shutting down test thread.")
+            print("Shutting down test...")
+            executor.shutdown()
 
     def _do_run_test(self):
         print(f"[{get_timestamp()}] Initializing Cartesian Test...")
@@ -206,7 +207,7 @@ def main():
     executor.add_node(node)
     
     # Run test in thread
-    thread = threading.Thread(target=node.run_test, daemon=True)
+    thread = threading.Thread(target=node.run_test, args=(executor,), daemon=True)
     thread.start()
     
     def signal_handler(sig, frame):

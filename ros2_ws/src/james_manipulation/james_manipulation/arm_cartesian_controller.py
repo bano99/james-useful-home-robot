@@ -365,6 +365,8 @@ class ArmCartesianController(Node):
              self.current_target_pose.position.x += (dx / mag) * step_len
              self.current_target_pose.position.y += (dy / mag) * step_len
              self.current_target_pose.position.z += (dz / mag) * step_len
+             # [Telemetry] Log target generation
+             self.log(f"JOY -> Pushing Target: X={self.current_target_pose.position.x:.3f}, Y={self.current_target_pose.position.y:.3f}, Z={self.current_target_pose.position.z:.3f} (Step: {step_len:.3f})", throttle=0.2)
         elif abs(self.pending_v_yaw) > 1e-6:
              self.apply_yaw_step(self.pending_v_yaw * 0.05)
         else:
@@ -451,7 +453,8 @@ class ArmCartesianController(Node):
                 cmd_msg.velocity = [self.dynamic_sp]
                 self.joint_cmd_pub.publish(cmd_msg)
             else:
-                self.get_logger().warn(f'IK FAILED: Error {response.error_code.val}')
+                tp = self.current_target_pose.position
+                self.get_logger().warn(f'IK FAILED: Error {response.error_code.val} at Tgt(X:{tp.x:.3f}, Y:{tp.y:.3f}, Z:{tp.z:.3f})')
                 self.ik_success = False 
                 # [V19] No direct retry. Timer handles next tick.
         except Exception as e:
