@@ -224,10 +224,10 @@ class ArmCartesianController(Node):
                 self.is_active = True
                 self.stop_sent = False # Reset stop guard
                 self.pending_v_x = -joy_lx   # Stick Left -> Robot +X (Left)
-                self.pending_v_y = joy_ly    # Stick Forward -> Robot +Y (Forward)
+                self.pending_v_y = -joy_ly   # Stick Forward -> Robot +Y (Forward) [FLIPPED]
                 
                 if switch_mode == 'vertical':
-                    self.pending_v_z = joy_ry
+                    self.pending_v_z = -joy_ry  # Stick Up -> Robot +Z (Up) [FLIPPED]
                     self.pending_v_yaw = joy_rr
                 else:
                     self.pending_v_z = 0.0
