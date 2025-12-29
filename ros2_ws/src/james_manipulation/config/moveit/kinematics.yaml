@@ -3,9 +3,8 @@
     ar_manipulator:
       kinematics_solver: bio_ik/BioIKKinematicsPlugin
       kinematics_solver_search_resolution: 0.005
-      kinematics_solver_timeout: 0.1
-      kinematics_solver_attempts: 1
-      minimal_displacement_weight: 20.0
-      center_joints_weight: 1.0
+      mode: gd_c
+      minimal_displacement_weight: 10.0
+      center_joints_weight: 0.1
       avoid_joint_limits_weight: 1.0
-      rotation_scale: 0.05
+      rotation_scale: 0.5
