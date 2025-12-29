@@ -419,13 +419,19 @@ class ArmCartesianController(Node):
         req = GetPositionIK.Request()
         req.ik_request.group_name = self.group_name
         req.ik_request.robot_state.joint_state = self.current_joint_state
-        req.ik_request.avoid_collisions = True
+        req.ik_request.avoid_collisions = False # [DIAGNOSTIC] Disable to rule out spurious self-collisions
         pose_stamped = PoseStamped()
         pose_stamped.header.frame_id = self.planning_frame
         pose_stamped.header.stamp = self.get_clock().now().to_msg()
         pose_stamped.pose = self.current_target_pose
         req.ik_request.pose_stamped = pose_stamped
         req.ik_request.timeout = rclpy.duration.Duration(seconds=self.ik_timeout).to_msg()
+        
+        # [Telemetry] Log seed state
+        if self.current_joint_state:
+            js = ", ".join([f"{n}:{math.degrees(p):.1f}" for n, p in zip(self.current_joint_state.name, self.current_joint_state.position)])
+            self.log(f"IK Seed Joints: {js}", throttle=1.0)
+
         future = self.ik_client.call_async(req)
         future.add_done_callback(self.ik_callback)
 
