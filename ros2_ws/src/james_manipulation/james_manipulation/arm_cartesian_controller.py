@@ -385,7 +385,7 @@ class ArmCartesianController(Node):
              self.current_target_pose.position.z = self.last_sync_pose.position.z + cur_dz * scale
 
         self.current_target_pose = self.apply_workspace_limits(self.current_target_pose)
-        self.call_ik_service_async(retry_scale)
+        self.call_ik_service_async()
 
     def apply_yaw_step(self, delta_yaw):
         cos_y = math.cos(delta_yaw / 2.0)
