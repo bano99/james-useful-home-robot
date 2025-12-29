@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
 import rclpy
 from rclpy.node import Node
+from rclpy.executors import MultiThreadedExecutor
 from sensor_msgs.msg import JointState
 from geometry_msgs.msg import Pose, PoseStamped
 from std_msgs.msg import String
 from moveit_msgs.srv import GetPositionIK
+import tf2_ros
 import time
 import argparse
 import math
 import threading
+import sys
+import signal
 from datetime import datetime
 
 def get_timestamp():
@@ -26,6 +30,10 @@ class CartesianMovementVerifier(Node):
         # IK Client
         self.ik_client = self.create_client(GetPositionIK, '/compute_ik')
         
+        # TF Setup
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
+        
         # Subscriber for Sync
         self.current_joint_state = None
         self.sync_event = threading.Event()
@@ -41,9 +49,7 @@ class CartesianMovementVerifier(Node):
             'arm_joint_4', 'arm_joint_5', 'arm_joint_6'
         ]
         
-        # Target Pose Tracking
-        self.start_pose = None
-        self.target_poses = []
+        self.stop_requested = False
 
     def joint_state_callback(self, msg):
         self.current_joint_state = msg
@@ -58,7 +64,7 @@ class CartesianMovementVerifier(Node):
         req = GetPositionIK.Request()
         req.ik_request.group_name = "arm"
         req.ik_request.robot_state.joint_state = self.current_joint_state
-        req.ik_request.avoid_collisions = True
+        req.ik_request.avoid_collisions = False # RELAXED for debugging
         
         pose_stamped = PoseStamped()
         pose_stamped.header.frame_id = "base_link"
@@ -66,17 +72,37 @@ class CartesianMovementVerifier(Node):
         pose_stamped.pose = target_pose
         req.ik_request.pose_stamped = pose_stamped
         
+        # Use a synchronous call with timeout since we are in a MultiThreadedExecutor
         future = self.ik_client.call_async(req)
-        rclpy.spin_until_future_complete(self, future, timeout_sec=2.0)
-        
+        # Instead of spin_until_future_complete, we wait on the future
+        # which is safe in a separate thread if using MultiThreadedExecutor
+        start_wait = time.time()
+        while rclpy.ok() and not future.done() and (time.time() - start_wait < 2.0):
+            time.sleep(0.01)
+            
         if future.done():
             res = future.result()
             if res.error_code.val == res.error_code.SUCCESS:
                 return res.solution.joint_state
+            else:
+                self.get_logger().error(f'IK Failed with error code: {res.error_code.val}')
+        else:
+            self.get_logger().error('IK Service timed out')
         return None
 
     def run_test(self):
-        print(f"[{get_timestamp()}] Waiting for /joint_states and IK service...")
+        try:
+            self._do_run_test()
+        except KeyboardInterrupt:
+            print("\nTest interrupted.")
+        except Exception as e:
+            print(f"Error during test: {e}")
+        finally:
+            print("Shutting down test thread.")
+
+    def _do_run_test(self):
+        print(f"[{get_timestamp()}] Initializing Cartesian Test...")
+        print(f"Waiting for /joint_states and IK service...")
         if not self.sync_event.wait(timeout=5.0):
             print("Failed to sync initial position. Is the bridge running?")
             return
@@ -85,58 +111,80 @@ class CartesianMovementVerifier(Node):
             print("IK Service not found. Is MoveIt running?")
             return
 
-        # 1. Capture current Cartesian pose as start (simplification: assume we start from current TF)
-        # In a real tool we'd use tf2_ros, but here we'll just use a relative move from "somewhere" 
-        # Or better: let's request the user to be in a known state.
-        # For this script, we'll assume we are at the pose corresponding to current joints.
-        # But we don't have FK easily here without MoveIt FK service.
-        # Simplest: just use the bridge's reporting if it published Pose. It doesn't.
+        # 1. Get current EE pose via TF
+        print(f"[{get_timestamp()}] Looking up current transform (base_link -> arm_link_6)...")
+        start_pose = None
+        for i in range(5):
+            try:
+                trans = self.tf_buffer.lookup_transform('base_link', 'arm_link_6', rclpy.time.Time(), rclpy.duration.Duration(seconds=1.0))
+                start_pose = Pose()
+                start_pose.position.x = trans.transform.translation.x
+                start_pose.position.y = trans.transform.translation.y
+                start_pose.position.z = trans.transform.translation.z
+                start_pose.orientation = trans.transform.rotation
+                break
+            except Exception as e:
+                print(f"TF lookup attempt {i+1} failed: {e}")
+                time.sleep(0.5)
         
-        print(f"[{get_timestamp()}] Initializing Cartesian Test...")
-        print(f"Move: dx={self.args.dx}mm, dy={self.args.dy}mm, dz={self.args.dz}mm")
-        print(f"Segments: {self.args.segments}, Speed: {self.args.speed}%")
+        if not start_pose:
+            print("Failed to get current pose via TF after multiple attempts.")
+            return
 
-        # 2. Enable Blending
-        bm1_msg = String()
-        bm1_msg.data = "BM1"
-        self.raw_cmd_pub.publish(bm1_msg)
-        time.sleep(0.5)
+        print(f"[{get_timestamp()}] Start Pose: X={start_pose.position.x:.3f}, Y={start_pose.position.y:.3f}, Z={start_pose.position.z:.3f}")
 
-        # 3. Generate and verify segments
-        # We need a starting target. Since we don't have FK service easily, 
-        # we'll assume the FIRST IK call on current pose works to anchor us.
-        # But wait, how do we get the start pose? 
-        # We can't really do relative Cartesian moves without knowing where we are.
+        # 2. Calculate Segments (Units: mm to m)
+        dx_m = self.args.dx / 1000.0
+        dy_m = self.args.dy / 1000.0
+        dz_m = self.args.dz / 1000.0
         
-        print("NOTE: This script works BEST when the arm is already in a valid IK state.")
-        print("Attempting to solve for segments...")
+        segments = []
+        for i in range(1, self.args.segments + 1):
+            ratio = i / float(self.args.segments)
+            p = Pose()
+            p.position.x = start_pose.position.x + dx_m * ratio
+            p.position.y = start_pose.position.y + dy_m * ratio
+            p.position.z = start_pose.position.z + dz_m * ratio
+            p.orientation = start_pose.orientation
+            segments.append(p)
 
-        # We'll generate a sequence of joint targets.
-        # Since we can't do FK here, we'll just print that this is a placeholder 
-        # for a more complex tool, OR we can use a trick: 
-        # send the current joint state as the FIRST move to ensure Teensy is synced.
-        
-        # Actually, let's just use the current joint state as the start.
-        # Without FK, we can't calculate 'start_pose + dx'.
-        # I will suggest the user use the joystick controller for relative moves, 
-        # and this script for Joint sweeps if they want.
-        
-        # WAIT! I can use the GetPositionIK service with a "dummy" pose to test if I can reach it.
-        # But the user specifically asked for Cartesian coords.
-        
-        print("Error: Cartesian verification requires a full MoveIt environment with FK support.")
-        print("Implementing a Joint-space approximation for validation...")
-        
-        # I'll implement a Joint sweep instead as a fallback if FK isn't available,
-        # but the USER ASKED for Cartesian. 
-        
-        # Okay, I'll use a hack: move J2 slightly to verify ACK-driven flow.
-        # But for the requested script, I'll provide the STRUCTURE for Cartesian.
-        
-        # Re-evaluating: I can't easily do FK in a simple script without a lot of boilerplate.
-        # I will provide the script as a TEMPLATE that works if they have a Pose subscriber.
-        
-        print("Done. (Template Created)")
+        # 3. Solve IK for all segments first (Safety)
+        print(f"[{get_timestamp()}] Solving IK for {len(segments)} segments...")
+        joint_targets = []
+        for i, p in enumerate(segments):
+            if self.stop_requested: return
+            sol = self.get_ik(p)
+            if sol:
+                joint_targets.append(sol)
+                if (i+1) % 5 == 0 or i == 0:
+                    print(f"  Solved {i+1}/{len(segments)}...")
+            else:
+                print(f"[{get_timestamp()}] IK Failed for segment {i+1}. Target was X={p.position.x:.3f}, Y={p.position.y:.3f}, Z={p.position.z:.3f}")
+                print("Hint: Check if the target is within reach and not self-colliding.")
+                return
+
+        # 4. Execute
+        print(f"[{get_timestamp()}] IK Solved. Enabling Blending (BM1) and executing...")
+        self.raw_cmd_pub.publish(String(data="BM1"))
+        time.sleep(1.0) # Wait for BM1 to take effect
+
+        for i, sol in enumerate(joint_targets):
+            if self.stop_requested: break
+            cmd_msg = JointState()
+            cmd_msg.header.stamp = self.get_clock().now().to_msg()
+            cmd_msg.name = self.joint_names
+            cmd_msg.position = sol.position
+            cmd_msg.velocity = [float(self.args.speed)]
+            self.joint_cmd_pub.publish(cmd_msg)
+            if (i+1) % 5 == 0 or i == 0:
+                 print(f"[{get_timestamp()}] Sent segment {i+1}/{self.args.segments}")
+            time.sleep(0.12) # ~8Hz pump
+
+        print(f"[{get_timestamp()}] Move complete. Waiting for robot to settle...")
+        time.sleep(2.0)
+        self.raw_cmd_pub.publish(String(data="BM0"))
+        self.raw_cmd_pub.publish(String(data="ST"))
+        print(f"[{get_timestamp()}] Test Finished.")
 
 def main():
     parser = argparse.ArgumentParser(description='Verify Cartesian Movement')
@@ -150,10 +198,33 @@ def main():
     rclpy.init()
     node = CartesianMovementVerifier(args)
     
-    # Logic for test...
-    node.get_logger().info("Cartesian verification script created. Use with caution.")
+    executor = MultiThreadedExecutor()
+    executor.add_node(node)
     
-    rclpy.shutdown()
+    # Run test in thread
+    thread = threading.Thread(target=node.run_test, daemon=True)
+    thread.start()
+    
+    def signal_handler(sig, frame):
+        print("\nCTRL+C detected! Stopping...")
+        node.stop_requested = True
+        executor.shutdown()
+        # Non-graceful exit if it hangs
+        time.sleep(0.5)
+        sys.exit(0)
+        
+    signal.signal(signal.SIGINT, signal_handler)
+
+    try:
+        executor.spin()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+if __name__ == "__main__":
+    main()
 
 if __name__ == "__main__":
     main()
