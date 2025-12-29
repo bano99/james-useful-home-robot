@@ -9,6 +9,7 @@ from moveit_msgs.srv import GetPositionIK
 import json
 import time
 import math
+import copy
 import threading
 
 
@@ -342,11 +343,8 @@ class ArmCartesianController(Node):
              self.blending_active = True
              self.stop_sent = False
              
-             # [Stability] Capture session start pose for orientation locking
-             self.session_start_pose.position.x = self.current_target_pose.position.x
-             self.session_start_pose.position.y = self.current_target_pose.position.y
-             self.session_start_pose.position.z = self.current_target_pose.position.z
-             self.session_start_pose.orientation = self.current_target_pose.orientation
+             # [Stability] Capture session start pose for orientation locking (DEEP COPY)
+             self.session_start_pose = copy.deepcopy(self.current_target_pose)
              
              # Initial burst of 3 moves to fill Teensy buffer (ACKs will take over from here)
              for _ in range(3):
@@ -375,8 +373,9 @@ class ArmCartesianController(Node):
              self.current_target_pose.position.z += (dz / mag) * step_len
              
              # [Stability] If no rotation is requested, lock to session start orientation
-             if abs(self.pending_v_yaw) < 1e-6:
-                  self.current_target_pose.orientation = self.session_start_pose.orientation
+             # Increased threshold to 1e-4 to ignore joystick idle noise
+             if abs(self.pending_v_yaw) < 1e-4:
+                  self.current_target_pose.orientation = copy.deepcopy(self.session_start_pose.orientation)
                   
              self.log(f"JOY -> Pushing Target: X={self.current_target_pose.position.x:.3f}, Y={self.current_target_pose.position.y:.3f}, Z={self.current_target_pose.position.z:.3f} (Step: {step_len:.3f})", throttle=0.2)
         elif abs(self.pending_v_yaw) > 1e-6:
