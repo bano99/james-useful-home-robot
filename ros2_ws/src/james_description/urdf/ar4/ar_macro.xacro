@@ -131,7 +131,7 @@
       <origin rpy="0 0 3.1416" xyz="0 -0.305 0.007"/>
       <parent link="${tf_prefix}link_2"/>
       <child link="${tf_prefix}link_3"/>
-      <axis xyz="0 0 -1"/>
+      <axis xyz="0 0 1"/>
       <limit
         lower="${robot_parameters['j3_limit_min']}"
         upper="${robot_parameters['j3_limit_max']}"

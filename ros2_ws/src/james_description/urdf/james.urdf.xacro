@@ -68,7 +68,7 @@
     tf_prefix="arm_" 
     parent="base_link" 
     robot_parameters_file="$(find james_description)/config/ar4_custom_limits.yaml">
-    <origin xyz="0.15 0 0.05" rpy="0 0 0" /> <!-- Forward is now +Y -->
+    <origin xyz="0.15 0 0.05" rpy="0 0 3.1415926" /> <!-- Forward is now +Y -->
   </xacro:ar_robot>
 
   <!-- Custom Gripper (Placeholder) -->
