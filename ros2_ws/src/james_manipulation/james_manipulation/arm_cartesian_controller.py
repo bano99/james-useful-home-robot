@@ -142,8 +142,8 @@ class ArmCartesianController(Node):
         self.log_throttle_map = {} # Track last log times for manual throttling
         
         # [JAMES:MOD] V18/V20: Atomic Movement Parameters
-        self.atomic_step_size = 0.010 # Reduced to 1cm for smoother tracking
-        self.min_step_size = 0.005    # Minimum 0.5cm safety limit
+        self.atomic_step_size = 0.002 # Reduced to 2mm for high-frequency throughput
+        self.min_step_size = 0.001    # Minimum 1mm safety limit
         self.is_active = False # Track if we are in an active move session
         self.stop_sent = True # Avoid repeating ST
         self.last_ik_solution = None # Seed for IK continuity
@@ -227,7 +227,7 @@ class ArmCartesianController(Node):
                 self.pending_v_y = -joy_ly   # Stick Forward -> Robot +Y (Forward) [FLIPPED]
                 
                 if switch_mode == 'vertical':
-                    self.pending_v_z = -joy_ry  # Stick Up -> Robot +Z (Up) [FLIPPED]
+                    self.pending_v_z = joy_ry
                     self.pending_v_yaw = joy_rr
                 else:
                     self.pending_v_z = 0.0
