@@ -52,9 +52,9 @@ def rpy_to_mat(r, p, y):
     return res
 
 def get_pose(j_angles):
-    # Mount in james.urdf.xacro: xyz="0.15 0 0.05" rpy="0 0 1.5708"
+    # Mount in james.urdf.xacro: xyz="0.15 0 0.05" rpy="0 0 3.1415926" (REVISED: Mount 180)
     T = translate(0.15, 0, 0.05)
-    T = mat_mul(T, rpy_to_mat(0, 0, 1.5708))
+    T = mat_mul(T, rpy_to_mat(0, 0, 3.1415926))
     
     # Joint 1: Stand upright (Pi on X)
     T = mat_mul(T, rpy_to_mat(math.pi, 0, 0))
@@ -62,22 +62,22 @@ def get_pose(j_angles):
     T = mat_mul(T, rot_z_correct(-j_angles[0]))
     
     # Joint 2: origin rpy="1.5708 0 -1.5708" xyz="0 0.0642 -0.16977"
-    # Axis: 0 0 -1. Rotation is RotZ(-theta2)
+    # Axis: 0 0 1. Rotation is RotZ(theta2)
     T = mat_mul(T, translate(0, 0.0642, -0.16977))
     T = mat_mul(T, rpy_to_mat(1.5708, 0, -1.5708))
-    T = mat_mul(T, rot_z_correct(-j_angles[1]))
+    T = mat_mul(T, rot_z_correct(j_angles[1]))
     
     # Joint 3: origin rpy="0 0 3.1416" xyz="0 -0.305 0.007"
-    # Axis: 0 0 1. Rotation is RotZ(theta3)
+    # Axis: 0 0 -1. Rotation is RotZ(-theta3)
     T = mat_mul(T, translate(0, -0.305, 0.007))
     T = mat_mul(T, rpy_to_mat(0, 0, 3.1416))
-    T = mat_mul(T, rot_z_correct(j_angles[2]))
+    T = mat_mul(T, rot_z_correct(-j_angles[2]))
     
     # Joint 4: origin rpy="1.5708 0 -1.5708" xyz="0 0 0"
-    # Axis: 0 0 1. Rotation is RotZ(theta4)
+    # Axis: 0 0 -1.
     T = mat_mul(T, translate(0, 0, 0))
     T = mat_mul(T, rpy_to_mat(1.5708, 0, -1.5708))
-    T = mat_mul(T, rot_z_correct(j_angles[3]))
+    T = mat_mul(T, rot_z_correct(-j_angles[3]))
     
     # Joint 5: origin rpy="pi 0 -1.5708" xyz="0 0 -0.22263"
     # Axis: 1 0 0.
@@ -86,16 +86,16 @@ def get_pose(j_angles):
     T = mat_mul(T, rot_x(j_angles[4]))
     
     # Joint 6: origin rpy="0 0 3.1416" xyz="0 0 0.041"
-    # Axis: 0 0 -1.
+    # Axis: 0 0 1.
     T = mat_mul(T, translate(0, 0, 0.041))
     T = mat_mul(T, rpy_to_mat(0, 0, 3.1416))
-    T = mat_mul(T, rot_z_correct(-j_angles[5]))
+    T = mat_mul(T, rot_z_correct(j_angles[5]))
     
     return T[0][3], T[1][3], T[2][3]
 
 # User reported angles
 j_angles = [0, 21.8, 85.0, 0, 0, 0]
 
-print("--- STANDING NORMALIZED MODEL ---")
+print("--- STANDING MODEL (Mount 180, Reverted Axes) ---")
 x, y, z = get_pose(j_angles)
 print(f"EE Pose: X={x:.4f}, Y={y:.4f}, Z={z:.4f}")

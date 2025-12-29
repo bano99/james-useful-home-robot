@@ -97,7 +97,7 @@
       <origin rpy="1.5708 0 -1.5708" xyz="0 0.0642 -0.16977"/>
       <parent link="${tf_prefix}link_1"/>
       <child link="${tf_prefix}link_2"/>
-      <axis xyz="0 0 -1"/>
+      <axis xyz="0 0 1"/>
       <limit 
         lower="${robot_parameters['j2_limit_min']}"
         upper="${robot_parameters['j2_limit_max']}"
@@ -131,7 +131,7 @@
       <origin rpy="0 0 3.1416" xyz="0 -0.305 0.007"/>
       <parent link="${tf_prefix}link_2"/>
       <child link="${tf_prefix}link_3"/>
-      <axis xyz="0 0 1"/>
+      <axis xyz="0 0 -1"/>
       <limit
         lower="${robot_parameters['j3_limit_min']}"
         upper="${robot_parameters['j3_limit_max']}"
@@ -165,7 +165,7 @@
       <origin rpy="1.5708 0 -1.5708" xyz="0 0 0.0"/>
       <parent link="${tf_prefix}link_3"/>
       <child link="${tf_prefix}link_4"/>
-      <axis xyz="0 0 1"/>
+      <axis xyz="0 0 -1"/>
       <limit
         lower="${robot_parameters['j4_limit_min']}"
         upper="${robot_parameters['j4_limit_max']}"
@@ -233,7 +233,7 @@
       <origin rpy="0 0 3.1416" xyz="0.000 0 ${robot_parameters['l6_length']}"/>
       <parent link="${tf_prefix}link_5"/>
       <child link="${tf_prefix}link_6"/>
-      <axis xyz="0 0 -1"/>
+      <axis xyz="0 0 1"/>
       <limit
         lower="${robot_parameters['j6_limit_min']}"
         upper="${robot_parameters['j6_limit_max']}"
