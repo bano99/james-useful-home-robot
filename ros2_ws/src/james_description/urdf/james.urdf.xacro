@@ -68,7 +68,7 @@
     tf_prefix="arm_" 
     parent="base_link" 
     robot_parameters_file="$(find james_description)/config/ar4_custom_limits.yaml">
-    <origin xyz="0.15 0 0.05" rpy="0 0 0" /> <!-- Mounted at front-center of base -->
+    <origin xyz="0.15 0 0.05" rpy="0 0 -1.5708" /> <!-- Rotated 90 deg to align J1=0 with Forward axis -->
   </xacro:ar_robot>
 
   <!-- Custom Gripper (Placeholder) -->

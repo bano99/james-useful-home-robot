@@ -150,8 +150,17 @@ class ArmCartesianController(Node):
         self.get_logger().info('Arm Cartesian Controller initialized (Atomic Beef V20 - ACK-Driven)')
         self.get_logger().info(f'EE Link: {self.ee_link}, Planning Frame: {self.planning_frame}')
 
-    def log(self, msg, level='info', throttle=0.0):
-        """Standardized logger wrapper"""
+    def log(self, msg, level='info', throttle=0.0, key=None):
+        """Standardized logger wrapper with throttling support"""
+        current_time = self.get_clock().now().nanoseconds / 1e9
+        
+        if throttle > 0.0:
+            throttle_key = key if key else msg
+            last_log = self.log_throttle_map.get(throttle_key, 0.0)
+            if current_time - last_log < throttle:
+                return
+            self.log_throttle_map[throttle_key] = current_time
+
         if level == 'info':
             self.get_logger().info(msg)
         elif level == 'warn':
@@ -234,9 +243,17 @@ class ArmCartesianController(Node):
         if self.is_active and self.blending_active and self.ik_success:
              self.produce_next_segment()
 
-    def sync_pose_to_actual(self, loud=False):
+    def sync_pose_to_actual(self, loud=False, throttle=0.0):
         """Initialize current_target_pose from the actual arm position via TF"""
         try:
+            # Manual throttling for high-frequency calls
+            if not loud and throttle > 0.0:
+                current_time = self.get_clock().now().nanoseconds / 1e9
+                last_sync = self.log_throttle_map.get('tf_sync_timer', 0.0)
+                if current_time - last_sync < throttle:
+                    return True
+                self.log_throttle_map['tf_sync_timer'] = current_time
+
             now = rclpy.time.Time()
             transform = self.tf_buffer.lookup_transform(
                 self.planning_frame,
@@ -258,10 +275,11 @@ class ArmCartesianController(Node):
             
             self.tf_synced = True
             # Log synchronization periodically to verify we have the correct starting pose
+            log_msg = f'SYNC: TF Pose -> X={self.current_target_pose.position.x:.3f}, Y={self.current_target_pose.position.y:.3f}, Z={self.current_target_pose.position.z:.3f}'
             if loud:
-                self.log(f'SYNC: TF Pose -> X={self.current_target_pose.position.x:.3f}, Y={self.current_target_pose.position.y:.3f}, Z={self.current_target_pose.position.z:.3f}')
+                self.log(log_msg)
             else:
-                self.log(f'SYNC: TF Pose -> X={self.current_target_pose.position.x:.3f}, Y={self.current_target_pose.position.y:.3f}, Z={self.current_target_pose.position.z:.3f}', throttle=10.0)
+                self.log(log_msg, throttle=10.0, key="tf_sync_log")
             return True
         except Exception as e:
             if loud:
@@ -301,7 +319,8 @@ class ArmCartesianController(Node):
                 self.stop_sent = True
             
             if not self.blending_active:
-                self.sync_pose_to_actual(loud=False)
+                # Sync periodically while idle (1Hz)
+                self.sync_pose_to_actual(loud=False, throttle=1.0)
             return
 
         # START OF MOVE SESSION
