@@ -142,10 +142,11 @@ class ArmCartesianController(Node):
         self.log_throttle_map = {} # Track last log times for manual throttling
         
         # [JAMES:MOD] V18/V20: Atomic Movement Parameters
-        self.atomic_step_size = 0.020 # Base target 2cm displacement
-        self.min_step_size = 0.010    # Minimum 1cm safety limit
+        self.atomic_step_size = 0.010 # Reduced to 1cm for smoother tracking
+        self.min_step_size = 0.005    # Minimum 0.5cm safety limit
         self.is_active = False # Track if we are in an active move session
         self.stop_sent = True # Avoid repeating ST
+        self.last_ik_solution = None # Seed for IK continuity
         
         self.get_logger().info('Arm Cartesian Controller initialized (Atomic Beef V20 - ACK-Driven)')
         self.get_logger().info(f'EE Link: {self.ee_link}, Planning Frame: {self.planning_frame}')
@@ -274,6 +275,11 @@ class ArmCartesianController(Node):
             self.last_sync_pose.orientation = transform.transform.rotation
             
             self.tf_synced = True
+            
+            # [JAMES:MOD] Also seed last_ik_solution from TF if it's empty
+            if self.last_ik_solution is None:
+                self.last_ik_solution = self.current_joint_state
+
             # Log synchronization periodically to verify we have the correct starting pose
             log_msg = f'SYNC: TF Pose -> X={self.current_target_pose.position.x:.3f}, Y={self.current_target_pose.position.y:.3f}, Z={self.current_target_pose.position.z:.3f}'
             if loud:
@@ -418,7 +424,14 @@ class ArmCartesianController(Node):
             return
         req = GetPositionIK.Request()
         req.ik_request.group_name = self.group_name
-        req.ik_request.robot_state.joint_state = self.current_joint_state
+        
+        # [JAMES:MOD] IK Solution Chaining: Use last successful solution as seed
+        # This prevents the solver from jumping between different valid configurations.
+        if self.last_ik_solution:
+            req.ik_request.robot_state.joint_state = self.last_ik_solution
+        else:
+            req.ik_request.robot_state.joint_state = self.current_joint_state
+            
         req.ik_request.avoid_collisions = False # [DIAGNOSTIC] Disable to rule out spurious self-collisions
         pose_stamped = PoseStamped()
         pose_stamped.header.frame_id = self.planning_frame
@@ -445,13 +458,15 @@ class ArmCartesianController(Node):
                     cur = self.current_joint_state.position
                     if len(tgt) == len(cur):
                          diffs = [math.degrees(t - c) for t, c in zip(tgt, cur)]
-                         if any(abs(d) > 10.0 for d in diffs):
-                             self.get_logger().warn(f'SAFETY BLOCK: Large Jump ({max(diffs):.1f} deg). Re-syncing.')
+                         # Increased threshold to 20.0 deg but 90.0 is still a "flip"
+                         if any(abs(d) > 20.0 for d in diffs):
+                             self.get_logger().warn(f'SAFETY BLOCK: Large Jump ({max(diffs, key=abs):.1f} deg). Re-syncing.')
                              self.ik_success = False 
-                             # [V19] No direct retry. The 20Hz timer will pick up from re-synced pose.
+                             self.last_ik_solution = None # Force re-seed on next success
                              return
 
                 self.ik_success = True
+                self.last_ik_solution = response.solution.joint_state
                 cmd_msg = JointState()
                 cmd_msg.header.stamp = self.get_clock().now().to_msg()
                 cmd_msg.name = response.solution.joint_state.name
