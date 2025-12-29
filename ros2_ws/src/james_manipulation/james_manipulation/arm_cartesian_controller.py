@@ -419,11 +419,10 @@ class ArmCartesianController(Node):
         req = GetPositionIK.Request()
         req.ik_request.group_name = self.group_name
         
-        # [BioIK Optimization] Always seed with previous successful solution
-        if self.last_ik_solution:
-            req.ik_request.robot_state.joint_state = self.last_ik_solution
-        else:
-            req.ik_request.robot_state.joint_state = self.current_joint_state
+        # [Stability FIX] Always seed with physical state (ground truth)
+        # Chaining to 'last_ik_solution' can accumulate drift in singularities.
+        # Seeding with 'current_joint_state' matches verify_cartesian_movement.py logic.
+        req.ik_request.robot_state.joint_state = self.current_joint_state
             
         req.ik_request.avoid_collisions = False # Collision checking in solver via kinematics.yaml
         pose_stamped = PoseStamped()
