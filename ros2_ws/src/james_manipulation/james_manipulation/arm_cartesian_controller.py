@@ -142,7 +142,7 @@ class ArmCartesianController(Node):
         self.log_throttle_map = {} # Track last log times for manual throttling
         
         # [JAMES:MOD] V18/V20: Atomic Movement Parameters
-        self.atomic_step_size = 0.015 # Target 1.5cm displacement
+        self.atomic_step_size = 0.020 # Base target 2cm displacement
         self.min_step_size = 0.010    # Minimum 1cm safety limit
         self.is_active = False # Track if we are in an active move session
         self.stop_sent = True # Avoid repeating ST
@@ -358,8 +358,8 @@ class ArmCartesianController(Node):
         dz = self.pending_v_z
         mag = math.sqrt(dx**2 + dy**2 + dz**2)
         
-        # Step size clamped to minimum 1cm safety limit
-        step_len = max(self.min_step_size, self.atomic_step_size)
+        # Step size clamped to minimum 1cm safety limit, scaled by movement_lead
+        step_len = max(self.min_step_size, self.atomic_step_size * self.movement_lead)
 
         if mag > 1e-6:
              self.current_target_pose.position.x += (dx / mag) * step_len

@@ -29,13 +29,13 @@ teensy_serial_bridge:
 arm_cartesian_controller:
   ros__parameters:
     # Control scaling parameters
-    velocity_scale: 0.02       # m/s per joystick unit (increased to 5cm/s)
+    velocity_scale: 0.15       # m/s per joystick unit (approx 15% speed max)
     rotation_scale: 0.05        # rad/s per joystick unit
     
     # Control loop settings (V19: Stable Queueing Architecture)
     control_rate: 20.0          # Hz - Constant heartbeat for move generation
     command_timeout: 0.5       # seconds
-    movement_lead: 1.0         # V19: Multiplier for atomic 1.5cm step
+    movement_lead: 1.5         # Multiplier for atomic step size
     ik_timeout: 0.1            # seconds - increased for Jetson Nano (KDL Solver)
     
     # Workspace safety limits (meters)
