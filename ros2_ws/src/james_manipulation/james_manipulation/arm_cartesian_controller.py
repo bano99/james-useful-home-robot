@@ -394,7 +394,7 @@ class ArmCartesianController(Node):
              self.current_target_pose.position.z = self.last_sync_pose.position.z + cur_dz * scale
 
         self.current_target_pose = self.apply_workspace_limits(self.current_target_pose)
-        self.call_ik_service_async()
+        self.call_ik_service_async(retry_scale)
 
     def apply_yaw_step(self, delta_yaw):
         cos_y = math.cos(delta_yaw / 2.0)
@@ -421,7 +421,7 @@ class ArmCartesianController(Node):
         pose.position.z = max(self.workspace_limits['z_min'], min(self.workspace_limits['z_max'], pose.position.z))
         return pose
 
-    def call_ik_service_async(self):
+    def call_ik_service_async(self, retry_scale=1.0):
         if not self.ik_client.service_is_ready():
             self.get_logger().error('IK Service /compute_ik NOT READY', throttle_duration_sec=2.0)
             return
