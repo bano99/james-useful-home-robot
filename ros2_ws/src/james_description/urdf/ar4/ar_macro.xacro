@@ -170,7 +170,7 @@
         lower="${robot_parameters['j4_limit_min']}"
         upper="${robot_parameters['j4_limit_max']}"
         effort="-1"
-        velocity="1.0472"
+        velocity="0.05"
       />
     </joint>
     <link name="${tf_prefix}link_5">
@@ -238,7 +238,7 @@
         lower="${robot_parameters['j6_limit_min']}"
         upper="${robot_parameters['j6_limit_max']}"
         effort="-1"
-        velocity="1.0472"
+        velocity="0.05"
       />
     </joint>
 
