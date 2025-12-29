@@ -180,8 +180,8 @@ class ArmCartesianController(Node):
             data = json.loads(msg.data)
             
             if data.get('type') == 'manual_control':
-                if not self.joint_state_received:
-                    self.log('Manual cmd received but NO joint_state_received yet', level='warn', throttle=2.0)
+                if not self.joint_state_received or self.current_joint_state is None:
+                    self.log('Manual cmd received but NO joint_state received yet', level='warn', throttle=2.0)
                     return
 
                 # Always active if receiving data, but velocities might be zero
@@ -348,7 +348,7 @@ class ArmCartesianController(Node):
         # NOTE: No 'else' here. produce_next_segment is now triggered by joint_state_callback.
         return
  
-    def produce_next_segment(self):
+    def produce_next_segment(self, retry_scale=1.0):
         """Closed-loop Producer: Generates one 'Atomic Beef' segment (V20)"""
         if not self.is_active:
              return
@@ -356,6 +356,8 @@ class ArmCartesianController(Node):
         # IK Failure Recovery
         if not self.ik_success:
              self.sync_pose_to_actual(loud=False)
+             # If we failed on a micro-step, give up and let timer recovery handle it
+             if retry_scale < 0.9: return 
              self.ik_success = True
 
         # [JAMES:MOD] V20: ATOMIC STEP CALCULATION
@@ -364,15 +366,16 @@ class ArmCartesianController(Node):
         dz = self.pending_v_z
         mag = math.sqrt(dx**2 + dy**2 + dz**2)
         
-        # Step size clamped to minimum 1cm safety limit, scaled by movement_lead
-        step_len = max(self.min_step_size, self.atomic_step_size * self.movement_lead)
+        # Step size clamped to minimum 1cm safety limit, scaled by movement_lead and retry_scale
+        step_len = max(self.min_step_size, self.atomic_step_size * self.movement_lead * retry_scale)
 
         if mag > 1e-6:
              self.current_target_pose.position.x += (dx / mag) * step_len
              self.current_target_pose.position.y += (dy / mag) * step_len
              self.current_target_pose.position.z += (dz / mag) * step_len
-             # [Telemetry] Log target generation
-             self.log(f"JOY -> Pushing Target: X={self.current_target_pose.position.x:.3f}, Y={self.current_target_pose.position.y:.3f}, Z={self.current_target_pose.position.z:.3f} (Step: {step_len:.3f})", throttle=0.2)
+             # [Telemetry] Log target generation (higher throttle if micro-stepping)
+             t_val = 0.05 if retry_scale < 1.0 else 0.2
+             self.log(f"JOY -> Pushing Target: X={self.current_target_pose.position.x:.3f}, Y={self.current_target_pose.position.y:.3f}, Z={self.current_target_pose.position.z:.3f} (Step: {step_len:.3f})", throttle=t_val)
         elif abs(self.pending_v_yaw) > 1e-6:
              self.apply_yaw_step(self.pending_v_yaw * 0.05)
         else:
@@ -446,24 +449,38 @@ class ArmCartesianController(Node):
             self.log(f"IK Seed Joints: {js}", throttle=1.0)
 
         future = self.ik_client.call_async(req)
-        future.add_done_callback(self.ik_callback)
+        future.add_done_callback(lambda f: self.ik_callback(f, retry_scale))
 
-    def ik_callback(self, future):
+    def ik_callback(self, future, retry_scale=1.0):
         try:
             response = future.result()
             if response.error_code.val == response.error_code.SUCCESS:
-                # KINEMATICS SAFETY: Block Large Jumps (Configuration Flips)
-                if self.current_joint_state:
-                    tgt = response.solution.joint_state.position
-                    cur = self.current_joint_state.position
-                    if len(tgt) == len(cur):
-                         diffs = [math.degrees(t - c) for t, c in zip(tgt, cur)]
-                         # Increased threshold to 20.0 deg but 90.0 is still a "flip"
-                         if any(abs(d) > 20.0 for d in diffs):
-                             self.get_logger().warn(f'SAFETY BLOCK: Large Jump ({max(diffs, key=abs):.1f} deg). Re-syncing.')
-                             self.ik_success = False 
-                             self.last_ik_solution = None # Force re-seed on next success
+                # KINEMATICS SAFETY: IK Continuity 2.0 (Check for configuration flips)
+                tgt = response.solution.joint_state.position
+                names = response.solution.joint_state.name
+                
+                # Check against last SUCCESSFUL solution (the chain)
+                if self.last_ik_solution:
+                    prev = self.last_ik_solution.position
+                    diffs = [math.degrees(t - p) for t, p in zip(tgt, prev)]
+                    
+                    for i, (name, d) in enumerate(zip(names, diffs)):
+                        # Thresholds: Lenient for rotations (J1/J6), strict for configurations (J2/J3)
+                        limit = 75.0 if ('joint_1' in name or 'joint_6' in name) else 35.0
+                        if abs(d) > limit:
+                             self.get_logger().warn(f'IK BLOCKED: {name} jumped {d:.1f}°. Configuration flip detected.')
+                             self.handle_ik_failure(retry_scale)
                              return
+                
+                # Secondary Check: Lead over physical (Detect runaway)
+                if self.current_joint_state:
+                     cur = self.current_joint_state.position
+                     if len(tgt) == len(cur):
+                          abs_diffs = [abs(math.degrees(t - c)) for t, c in zip(tgt, cur)]
+                          if any(d > 90.0 for d in abs_diffs):
+                               self.get_logger().warn('SAFETY BLOCK: Target is >90° ahead of hardware. Slowing down.')
+                               self.handle_ik_failure(retry_scale)
+                               return
 
                 self.ik_success = True
                 self.last_ik_solution = response.solution.joint_state
@@ -475,11 +492,23 @@ class ArmCartesianController(Node):
                 self.joint_cmd_pub.publish(cmd_msg)
             else:
                 tp = self.current_target_pose.position
-                self.get_logger().warn(f'IK FAILED: Error {response.error_code.val} at Tgt(X:{tp.x:.3f}, Y:{tp.y:.3f}, Z:{tp.z:.3f})')
-                self.ik_success = False 
-                # [V19] No direct retry. Timer handles next tick.
+                self.get_logger().warn(f'IK FAILED (Error {response.error_code.val}) at Tgt(X:{tp.x:.3f}, Y:{tp.y:.3f}, Z:{tp.z:.3f})')
+                self.handle_ik_failure(retry_scale)
         except Exception as e:
             self.log(f'Error in ik_callback: {e}', level='error')
+
+    def handle_ik_failure(self, retry_scale):
+        """Logic for retries or re-syncing on IK failures/jumps"""
+        if retry_scale > 0.6:
+            # Automatic Micro-Step Retry (try half the distance)
+            self.get_logger().info('Attempting Micro-Step (Half distance) to bridge singularity...')
+            self.ik_success = True # Temporarily reset to allow retry call
+            self.sync_pose_to_actual(loud=False) # Start retry from actual position
+            self.produce_next_segment(retry_scale=0.5)
+        else:
+            # Hard failure
+            self.ik_success = False 
+            self.last_ik_solution = None # Reset chain
 
     def publish_status(self):
         status = {
