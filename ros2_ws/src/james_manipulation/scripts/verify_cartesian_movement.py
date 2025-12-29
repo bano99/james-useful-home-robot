@@ -62,9 +62,13 @@ class CartesianMovementVerifier(Node):
             return None
             
         req = GetPositionIK.Request()
-        req.ik_request.group_name = "arm"
+        req.ik_request.group_name = "ar_manipulator"
         req.ik_request.robot_state.joint_state = self.current_joint_state
-        req.ik_request.avoid_collisions = False # RELAXED for debugging
+        req.ik_request.avoid_collisions = False # Keep relaxed for verification
+        
+        # Log seed joints for debugging failing IK
+        j_str = ", ".join([f"{n}:{p:.3f}" for n, p in zip(self.current_joint_state.name, self.current_joint_state.position)])
+        # self.get_logger().info(f"IK Seed Joints: {j_str}") 
         
         pose_stamped = PoseStamped()
         pose_stamped.header.frame_id = "base_link"
@@ -222,9 +226,6 @@ def main():
     finally:
         node.destroy_node()
         rclpy.shutdown()
-
-if __name__ == "__main__":
-    main()
 
 if __name__ == "__main__":
     main()

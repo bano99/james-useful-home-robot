@@ -261,7 +261,7 @@ class ArmCartesianController(Node):
             if loud:
                 self.log(f'SYNC: TF Pose -> X={self.current_target_pose.position.x:.3f}, Y={self.current_target_pose.position.y:.3f}, Z={self.current_target_pose.position.z:.3f}')
             else:
-                self.log(f'SYNC: TF Pose -> X={self.current_target_pose.position.x:.3f}, Y={self.current_target_pose.position.y:.3f}, Z={self.current_target_pose.position.z:.3f}', throttle=2.0)
+                self.log(f'SYNC: TF Pose -> X={self.current_target_pose.position.x:.3f}, Y={self.current_target_pose.position.y:.3f}, Z={self.current_target_pose.position.z:.3f}', throttle=10.0)
             return True
         except Exception as e:
             if loud:
