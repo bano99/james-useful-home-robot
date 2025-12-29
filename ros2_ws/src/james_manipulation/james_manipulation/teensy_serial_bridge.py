@@ -20,10 +20,9 @@ import serial
 import glob
 import os as _os
 import threading
+import collections
 from collections import deque
 from datetime import datetime
-import os as _os
-import glob
 from ament_index_python.packages import get_package_share_directory
 
 
