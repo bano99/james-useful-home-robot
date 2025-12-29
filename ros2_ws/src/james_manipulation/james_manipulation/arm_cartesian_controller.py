@@ -140,6 +140,7 @@ class ArmCartesianController(Node):
         self.blending_active = False # [JAMES:MOD] Track firmware blending state
         self.last_sync_pose = Pose() # Track actual position for leash
         self.log_throttle_map = {} # Track last log times for manual throttling
+        self.session_start_pose = Pose() # [Stability] Lock orientation during translation
         
         # [JAMES:MOD] V18/V20: Atomic Movement Parameters
         self.atomic_step_size = 0.002 # Reduced to 2mm for high-frequency throughput
@@ -341,6 +342,12 @@ class ArmCartesianController(Node):
              self.blending_active = True
              self.stop_sent = False
              
+             # [Stability] Capture session start pose for orientation locking
+             self.session_start_pose.position.x = self.current_target_pose.position.x
+             self.session_start_pose.position.y = self.current_target_pose.position.y
+             self.session_start_pose.position.z = self.current_target_pose.position.z
+             self.session_start_pose.orientation = self.current_target_pose.orientation
+             
              # Initial burst of 3 moves to fill Teensy buffer (ACKs will take over from here)
              for _ in range(3):
                  self.produce_next_segment()
@@ -366,6 +373,11 @@ class ArmCartesianController(Node):
              self.current_target_pose.position.x += (dx / mag) * step_len
              self.current_target_pose.position.y += (dy / mag) * step_len
              self.current_target_pose.position.z += (dz / mag) * step_len
+             
+             # [Stability] If no rotation is requested, lock to session start orientation
+             if abs(self.pending_v_yaw) < 1e-6:
+                  self.current_target_pose.orientation = self.session_start_pose.orientation
+                  
              self.log(f"JOY -> Pushing Target: X={self.current_target_pose.position.x:.3f}, Y={self.current_target_pose.position.y:.3f}, Z={self.current_target_pose.position.z:.3f} (Step: {step_len:.3f})", throttle=0.2)
         elif abs(self.pending_v_yaw) > 1e-6:
              self.apply_yaw_step(self.pending_v_yaw * 0.05)
@@ -419,10 +431,12 @@ class ArmCartesianController(Node):
         req = GetPositionIK.Request()
         req.ik_request.group_name = self.group_name
         
-        # [Stability FIX] Always seed with physical state (ground truth)
-        # Chaining to 'last_ik_solution' can accumulate drift in singularities.
-        # Seeding with 'current_joint_state' matches verify_cartesian_movement.py logic.
-        req.ik_request.robot_state.joint_state = self.current_joint_state
+        # [Stability FIX] Use last successful solution as seed
+        # Chaining ensures that BioIK stays in the same configuration.
+        if self.last_ik_solution:
+            req.ik_request.robot_state.joint_state = self.last_ik_solution
+        else:
+            req.ik_request.robot_state.joint_state = self.current_joint_state
             
         req.ik_request.avoid_collisions = False # Collision checking in solver via kinematics.yaml
         pose_stamped = PoseStamped()
