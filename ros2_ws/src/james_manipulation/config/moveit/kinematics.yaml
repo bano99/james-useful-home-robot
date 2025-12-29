@@ -3,9 +3,11 @@
     ar_manipulator:
       kinematics_solver: bio_ik/BioIKKinematicsPlugin
       kinematics_solver_search_resolution: 0.005
-      mode: gd_c
-      threads: 1
-      minimal_displacement_weight: 500.0
-      center_joints_weight: 0.0
-      avoid_joint_limits_weight: 1.0
-      rotation_scale: 0.5
+      robot_description_kinematics:
+        ar_manipulator:
+          mode: gd_c
+          threads: 1
+          minimal_displacement_weight: 500.0
+          center_joints_weight: 0.0
+          avoid_joint_limits_weight: 1.0
+          rotation_scale: 0.5
