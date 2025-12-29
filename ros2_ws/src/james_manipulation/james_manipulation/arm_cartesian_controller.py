@@ -135,17 +135,19 @@ class ArmCartesianController(Node):
         self.joy_ly = 0.0
         self.joy_ry = 0.0
         self.joy_rr = 0.0
-        self.dynamic_sp = 5.0 # Default speed
+        self.dynamic_sp = 5.0 # Calculated Speed
         self.idle_start_time = None
         self.blending_active = False # [JAMES:MOD] Track firmware blending state
         self.last_sync_pose = Pose() # Track actual position for leash
         self.log_throttle_map = {} # Track last log times for manual throttling
         
-        # [JAMES:MOD] V18: Atomic Movement Parameters
-        self.atomic_step_size = 0.015 # [USER:CHANGE_HERE] Default 1.5cm steps
+        # [JAMES:MOD] V18/V20: Atomic Movement Parameters
+        self.atomic_step_size = 0.015 # Target 1.5cm displacement
+        self.min_step_size = 0.010    # Minimum 1cm safety limit
         self.is_active = False # Track if we are in an active move session
+        self.stop_sent = True # Avoid repeating ST
         
-        self.get_logger().info('Arm Cartesian Controller initialized (Atomic Beef V18 enabled)')
+        self.get_logger().info('Arm Cartesian Controller initialized (Atomic Beef V20 - ACK-Driven)')
         self.get_logger().info(f'EE Link: {self.ee_link}, Planning Frame: {self.planning_frame}')
 
     def log(self, msg, level='info', throttle=0.0):
@@ -192,7 +194,8 @@ class ArmCartesianController(Node):
                 # Calculate unit-velocities (V18: Magnitude decoupled from step size)
                 self.joy_lx, self.joy_ly, self.joy_ry, self.joy_rr = joy_lx, joy_ly, joy_ry, joy_rr
                 
-                # [JAMES:MOD] V18: Robust Deadzone (10%) to kill remote-switch noise
+                # [JAMES:MOD] V20: Calculate Speed based on Magnitude
+                # Map mag [0.1..1.0] to speed [2.0..motion_speed]
                 mag = math.sqrt(joy_lx**2 + joy_ly**2 + joy_ry**2 + joy_rr**2)
                 if mag < 0.10:
                     self.pending_v_x = 0.0
@@ -202,13 +205,20 @@ class ArmCartesianController(Node):
                     self.is_active = False
                     return
 
+                # Calculate dynamic speed (Sp factor for Teensy)
+                # If velocity_scale is e.g. 0.3 (standard for this robot), mag 1.0 -> 30% speed
+                # motion_speed parameter is usually around 30.0
+                max_speed_param = self.get_parameter('velocity_scale').value or 0.3
+                self.dynamic_sp = max(2.0, mag * max_speed_param * 100.0)
+
                 self.is_active = True
-                self.pending_v_x = -joy_lx * self.velocity_scale
-                self.pending_v_y = joy_ly * self.velocity_scale
+                self.stop_sent = False # Reset stop guard
+                self.pending_v_x = -joy_lx
+                self.pending_v_y = joy_ly
                 
                 if switch_mode == 'vertical':
-                    self.pending_v_z = joy_ry * self.velocity_scale
-                    self.pending_v_yaw = joy_rr * self.rotation_scale
+                    self.pending_v_z = joy_ry
+                    self.pending_v_yaw = joy_rr
                 else:
                     self.pending_v_z = 0.0
                     self.pending_v_yaw = 0.0
@@ -219,7 +229,10 @@ class ArmCartesianController(Node):
     def joint_state_callback(self, msg):
         self.current_joint_state = msg
         self.joint_state_received = True
-        # [V19] No auto-pulse here. Generation is now 20Hz timer-driven.
+
+        # [V20] CLOSED-LOOP TRIGGER: Pulse production on every feedback
+        if self.is_active and self.blending_active and self.ik_success:
+             self.produce_next_segment()
 
     def sync_pose_to_actual(self, loud=False):
         """Initialize current_target_pose from the actual arm position via TF"""
@@ -248,7 +261,7 @@ class ArmCartesianController(Node):
             if loud:
                 self.log(f'SYNC: TF Pose -> X={self.current_target_pose.position.x:.3f}, Y={self.current_target_pose.position.y:.3f}, Z={self.current_target_pose.position.z:.3f}')
             else:
-                 self.log(f'SYNC: TF Pose -> X={self.current_target_pose.position.x:.3f}, Y={self.current_target_pose.position.y:.3f}, Z={self.current_target_pose.position.z:.3f}', throttle=2.0)
+                self.log(f'SYNC: TF Pose -> X={self.current_target_pose.position.x:.3f}, Y={self.current_target_pose.position.y:.3f}, Z={self.current_target_pose.position.z:.3f}', throttle=2.0)
             return True
         except Exception as e:
             if loud:
@@ -263,6 +276,7 @@ class ArmCartesianController(Node):
         # Timeout Check
         if current_time - self.last_command_time > self.command_timeout:
             self.manual_control_active = False
+            self.is_active = False
         
         if not self.manual_control_active or not self.is_active:
             # Idle/Stopped
@@ -274,8 +288,8 @@ class ArmCartesianController(Node):
             if self.idle_start_time is None:
                 self.idle_start_time = current_time
             
-            # Stop Hysteresis
-            if self.blending_active and (current_time - self.idle_start_time > 0.3):
+            # Stop Hysteresis (Guard with stop_sent)
+            if self.blending_active and (current_time - self.idle_start_time > 0.3) and not self.stop_sent:
                 self.get_logger().info('Joystick Idle -> Sending STOP (BM0)')
                 stop_msg = String()
                 stop_msg.data = "BM0"
@@ -284,11 +298,13 @@ class ArmCartesianController(Node):
                 self.raw_cmd_pub.publish(stop_msg)
                 self.blending_active = False
                 self.manual_control_active = False 
+                self.stop_sent = True
             
             if not self.blending_active:
                 self.sync_pose_to_actual(loud=False)
             return
 
+        # START OF MOVE SESSION
         if not self.blending_active:
              self.get_logger().info('Starting Move -> Initial Priming (BM1)')
              if not self.sync_pose_to_actual(loud=True):
@@ -298,57 +314,51 @@ class ArmCartesianController(Node):
              start_msg.data = "BM1"
              self.raw_cmd_pub.publish(start_msg)
              self.blending_active = True
-             # Initial burst of 1 move to start the bridge pump. 
-             # The 20Hz loop will handle the rest.
-             self.produce_next_segment()
-        else:
-             # Constant Pulse: Generate next segment at 20Hz
-             self.produce_next_segment()
+             self.stop_sent = False
+             
+             # Initial burst of 3 moves to fill Teensy buffer (ACKs will take over from here)
+             for _ in range(3):
+                 self.produce_next_segment()
+        
+        # NOTE: No 'else' here. produce_next_segment is now triggered by joint_state_callback.
         return
  
     def produce_next_segment(self):
-        """Closed-loop Producer: Generates one 'Atomic Beef' segment (V18)"""
+        """Closed-loop Producer: Generates one 'Atomic Beef' segment (V20)"""
         if not self.is_active:
              return
 
-        # Use constant 5% speed for initial V18 baseline test (as requested)
-        self.dynamic_sp = 5.0
-        
         # IK Failure Recovery
         if not self.ik_success:
-             # [V19] Re-sync and continue. Timer will handle the next attempt.
              self.sync_pose_to_actual(loud=False)
              self.ik_success = True
 
-        # [JAMES:MOD] V18: ATOMIC STEP CALCULATION
-        # Calculate direction from current velocity vector
+        # [JAMES:MOD] V20: ATOMIC STEP CALCULATION
         dx = self.pending_v_x
         dy = self.pending_v_y
         dz = self.pending_v_z
         mag = math.sqrt(dx**2 + dy**2 + dz**2)
         
-        # Determine Atomic Step Size (Default 1.5cm scaled by movement_lead)
-        step_len = self.atomic_step_size * self.movement_lead
+        # Step size clamped to minimum 1cm safety limit
+        step_len = max(self.min_step_size, self.atomic_step_size)
 
         if mag > 1e-6:
-             # Normalize direction and multiply by atomic step length
              self.current_target_pose.position.x += (dx / mag) * step_len
              self.current_target_pose.position.y += (dy / mag) * step_len
              self.current_target_pose.position.z += (dz / mag) * step_len
         elif abs(self.pending_v_yaw) > 1e-6:
-             # Strictly rotation? Use a fixed time step for yaw
-             self.apply_yaw_step(self.pending_v_yaw * 0.1)
+             self.apply_yaw_step(self.pending_v_yaw * 0.05)
         else:
              return # No movement requested
         
-        # Carrot Leash (2cm) - strictly prevents carrot from running away
+        # Carriage/Leash Logic
         cur_dx = self.current_target_pose.position.x - self.last_sync_pose.position.x
         cur_dy = self.current_target_pose.position.y - self.last_sync_pose.position.y
         cur_dz = self.current_target_pose.position.z - self.last_sync_pose.position.z
         cur_dist = math.sqrt(cur_dx**2 + cur_dy**2 + cur_dz**2)
         
-        if cur_dist > 0.02:
-             scale = 0.02 / cur_dist
+        if cur_dist > 0.03: # 3cm carrot leash
+             scale = 0.03 / cur_dist
              self.current_target_pose.position.x = self.last_sync_pose.position.x + cur_dx * scale
              self.current_target_pose.position.y = self.last_sync_pose.position.y + cur_dy * scale
              self.current_target_pose.position.z = self.last_sync_pose.position.z + cur_dz * scale

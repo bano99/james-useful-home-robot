@@ -308,21 +308,46 @@ class TeensySerialBridge(Node):
             self.get_logger().error(f'Config Load Error: {e}')
 
     def send_configuration(self):
-        if not self.config: return
-        def get_val(key, default, cast=int):
-            try: return cast(self.config.get(key, default))
-            except: return default
+        if not self.config: 
+            self.get_logger().error('Cannot send configuration: No config loaded.')
+            return
 
-        # Motor Directions & Parameters
+        def get_val(key, default, cast=int):
+            try:
+                val = self.config.get(key)
+                if val is None or (isinstance(val, str) and val.strip() == ""):
+                    return default
+                return cast(val)
+            except (ValueError, TypeError):
+                return default
+
+        # 1. Tool Frame Offsets (A-F)
+        tfx = get_val('TFx', 0.0, float)
+        tfy = get_val('TFy', 0.0, float)
+        tfz = get_val('TFz', 0.0, float)
+        tfrx = get_val('TFrx', 0.0, float)
+        tfry = get_val('TFry', 0.0, float)
+        tfrz = get_val('TFrz', 0.0, float)
+
         cmd = "UP"
-        cmd += "A0B0C0D0E0F0" 
+        cmd += f"A{tfx:.3f}B{tfy:.3f}C{tfz:.3f}D{tfrz:.3f}E{tfry:.3f}F{tfrx:.3f}" 
+
+        # 2. Motor Directions (G-O)
         cmd += f"G{get_val('J1MotDir', 0)}H{get_val('J2MotDir', 1)}I{get_val('J3MotDir', 1)}J{get_val('J4MotDir', 1)}K{get_val('J5MotDir', 1)}L{get_val('J6MotDir', 1)}M{get_val('J7MotDir', 1)}N{get_val('J8MotDir', 1)}O{get_val('J9MotDir', 1)}"
+        
+        # 3. Calibration Directions (P-X)
         cmd += f"P{get_val('J1CalDir', 0)}Q{get_val('J2CalDir', 1)}R{get_val('J3CalDir', 1)}S{get_val('J4CalDir', 1)}T{get_val('J5CalDir', 1)}U{get_val('J6CalDir', 1)}V{get_val('J7CalDir', 1)}W{get_val('J8CalDir', 1)}X{get_val('J9CalDir', 1)}" 
+        
+        # 4. Axis Limits (Y-j)
         cmd += f"Y{get_val('J1PosLim', 150)}Z{get_val('J1NegLim', -150)}a{get_val('J2PosLim', 100)}b{get_val('J2NegLim', -100)}c{get_val('J3PosLim', 100)}d{get_val('J3NegLim', -100)}e{get_val('J4PosLim', 165)}f{get_val('J4NegLim', -165)}g{get_val('J5PosLim', 105)}h{get_val('J5NegLim', -105)}i{get_val('J6PosLim', 1000)}j{get_val('J6NegLim', -1000)}"
+        
+        # 5. Steps per Degree (k-p)
         cmd += f"k{get_val('J1StepDeg', 88.888, float):.3f}l{get_val('J2StepDeg', 55.555, float):.3f}m{get_val('J3StepDeg', 55.555, float):.3f}n{get_val('J4StepDeg', 48.888, float):.3f}o{get_val('J5StepDeg', 43.720, float):.3f}p{get_val('J6StepDeg', 44.444, float):.3f}"
+        
+        # 6. Encoder Multipliers (q-v)
         cmd += f"q{get_val('J1EncMult', 1)}r{get_val('J2EncMult', 1)}s{get_val('J3EncMult', 1)}t{get_val('J4EncMult', 1)}u{get_val('J5EncMult', 1)}v{get_val('J6EncMult', 1)}"
         
-        # DH Parameters
+        # 7. DH Parameters
         theta_key = '\u0398DHpar'
         alpha_key = '\u03b1DHpar'
         cmd += f"w{get_val('J1'+theta_key, 0, float)}x{get_val('J2'+theta_key, -90, float)}y{get_val('J3'+theta_key, 0, float)}z{get_val('J4'+theta_key, 0, float)}!{get_val('J5'+theta_key, 0, float)}@{get_val('J6'+theta_key, 180, float)}"
