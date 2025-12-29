@@ -58,7 +58,6 @@ class TeensySerialBridge(Node):
         
 
 
-
         # [JAMES:MOD] Motion Profile Parameters (Tunable)
         self.declare_parameter('motion_speed', 3.0)      # % Speed (was 30)
         self.declare_parameter('motion_accel', 10.0)      # % for Accel (was 35)
@@ -215,8 +214,7 @@ class TeensySerialBridge(Node):
                 # Note: parameter object is read-only, we rely on the instance var check in loop
                 # If param was false, we force it true here for this session?
                 # User preference 'send_up_on_startup' logic:
-                # If user said NO, we respect NO? Or do we enforce YES if unconfigured?
-                # Assuming safety: If unconfigured, we MUST send UP or robot is useless.
+                # If unconfigured, we MUST send UP or robot is useless.
                 self.send_up_on_startup = True
 
             # Send RP command to sync state (Read Position)
@@ -495,10 +493,12 @@ class TeensySerialBridge(Node):
             with self.flow_lock:
                 self.blending_enabled = True
             self.get_logger().info("Blending ENABLED (Joystick Mode: Latency prioritized, points may be skipped)")
+            return # Skip sending to Teensy as bridge handles this (Wait, Teensy also needs BM1)
         elif cmd_text == "BM0":
             with self.flow_lock:
                 self.blending_enabled = False
             self.get_logger().info("Blending DISABLED (Programmed Mode: Every point will be executed)")
+            # return # Keep sending to Teensy
 
         # [JAMES:MOD] Priority Stop Logic
         if cmd_text == "ST":
@@ -506,8 +506,19 @@ class TeensySerialBridge(Node):
                 self.pending_joint_cmd = None
                 self.move_queue.clear()
                 self.in_flight_count = 0
-                # Note: We keep blending_enabled state as set by controller
             self.get_logger().info("Priority STOP received: Clearing all queues and resetting flow control.")
+
+        # [JAMES:MOD] Translate J1, J2, J3 for raw movement commands (RJ, XJ)
+        # This ensures ROS scripts like calibrator work with the software inversion
+        # Markers for RJ/XJ: A (J1), B (J2), C (J3)
+        if cmd_text.startswith(("RJ", "XJ")):
+            def invert_val(match):
+                prefix = match.group(1)
+                val = float(match.group(2))
+                return f"{prefix}{-val:.4f}"
+            
+            # Invert A, B, C positions
+            cmd_text = re.sub(r'([ABC])([-+]?\d*\.?\d+)', invert_val, cmd_text)
 
         cmd = cmd_text + "\n"
         with self.serial_lock:
