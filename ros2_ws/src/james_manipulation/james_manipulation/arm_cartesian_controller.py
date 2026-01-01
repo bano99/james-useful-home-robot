@@ -146,6 +146,7 @@ class ArmCartesianController(Node):
         self.last_sync_pose = Pose() # Track actual position for leash
         self.log_throttle_map = {} # Track last log times for manual throttling
         self.session_start_pose = Pose() # [Stability] Lock orientation during translation
+        self.session_start_joint_state = None # [Stability] Lock joint values for non-active joints
         
         # [JAMES:MOD] V18/V20: Atomic Movement Parameters
         self.atomic_step_size = 0.002 # Reduced to 2mm for high-frequency throughput
@@ -349,6 +350,7 @@ class ArmCartesianController(Node):
              
              # [Stability] Capture session start pose for orientation locking (DEEP COPY)
              self.session_start_pose = copy.deepcopy(self.current_target_pose)
+             self.session_start_joint_state = copy.deepcopy(self.current_joint_state)
              
              # Initial burst of 3 moves to fill Teensy buffer (ACKs will take over from here)
              for _ in range(3):
@@ -450,11 +452,28 @@ class ArmCartesianController(Node):
         req.ik_request.group_name = group_name
         
         # [Stability FIX] Use last successful solution as seed
+        # Chaining ensures that BioIK stays in the same configuration.
+        seed_state = JointState()
         if self.last_ik_solution:
-            req.ik_request.robot_state.joint_state = self.last_ik_solution
+            seed_state = self.last_ik_solution
         else:
-            req.ik_request.robot_state.joint_state = self.current_joint_state
+            seed_state = self.current_joint_state
 
+        # [Iron Grip Locking] 
+        # If we are in translator mode, lock J4 and J6 to their SESSION START positions
+        if group_name == self.translator_group and self.session_start_joint_state:
+            new_positions = list(seed_state.position)
+            for i, name in enumerate(seed_state.name):
+                if name in ["arm_joint_4", "arm_joint_6"]:
+                    try:
+                        idx = self.session_start_joint_state.name.index(name)
+                        new_positions[i] = self.session_start_joint_state.position[idx]
+                    except ValueError:
+                        pass
+            seed_state.position = tuple(new_positions)
+
+        req.ik_request.robot_state.joint_state = seed_state
+            
         req.ik_request.avoid_collisions = False # Collision checking in solver via kinematics.yaml
         pose_stamped = PoseStamped()
         pose_stamped.header.frame_id = self.planning_frame
@@ -475,10 +494,9 @@ class ArmCartesianController(Node):
         try:
             response = future.result()
             if response.error_code.val == response.error_code.SUCCESS:
-                # [DEBUG] Verify which joints are in the solution
-                names = response.solution.joint_state.name
-                self.log(f"IK Success: Group={group_name}, Joints={names}", throttle=1.0)
+                # KINEMATICS SAFETY: IK Continuity 2.0 (Check for configuration flips)
                 tgt = response.solution.joint_state.position
+                names = response.solution.joint_state.name
                 
                 # Check against last SUCCESSFUL solution (the chain)
                 if self.last_ik_solution:

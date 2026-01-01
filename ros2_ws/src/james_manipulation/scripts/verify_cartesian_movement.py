@@ -13,6 +13,7 @@ import math
 import threading
 import sys
 import signal
+import copy
 from datetime import datetime
 
 def get_timestamp():
@@ -44,6 +45,8 @@ class CartesianMovementVerifier(Node):
             10
         )
         
+        self.start_joint_state = None
+        
         self.joint_names = [
             'arm_joint_1', 'arm_joint_2', 'arm_joint_3', 
             'arm_joint_4', 'arm_joint_5', 'arm_joint_6'
@@ -62,8 +65,22 @@ class CartesianMovementVerifier(Node):
             return None
             
         req = GetPositionIK.Request()
-        req.ik_request.group_name = "ar_manipulator"
-        req.ik_request.robot_state.joint_state = self.current_joint_state
+        req.ik_request.group_name = self.args.group
+        
+        # [Iron Grip Locking] 
+        # Clone current state but overwrite locked joints from session start
+        seed_state = JointState()
+        seed_state.name = self.current_joint_state.name
+        seed_state.position = list(self.current_joint_state.position)
+        
+        # If we are in translator mode, lock J4 and J6 to their START positions
+        if self.args.group == "ar_translator" and self.start_joint_state:
+            for i, name in enumerate(seed_state.name):
+                if name in ["arm_joint_4", "arm_joint_6"]:
+                    idx = self.start_joint_state.name.index(name)
+                    seed_state.position[i] = self.start_joint_state.position[idx]
+
+        req.ik_request.robot_state.joint_state = seed_state
         req.ik_request.avoid_collisions = False # Keep relaxed for verification
         
         # Log seed joints for debugging failing IK
@@ -137,6 +154,9 @@ class CartesianMovementVerifier(Node):
             return
 
         print(f"[{get_timestamp()}] Start Pose: X={start_pose.position.x:.3f}, Y={start_pose.position.y:.3f}, Z={start_pose.position.z:.3f}")
+        
+        # [Iron Grip] Capture start joint state
+        self.start_joint_state = copy.deepcopy(self.current_joint_state)
 
         # 2. Calculate Segments (Units: mm to m)
         dx_m = self.args.dx / 1000.0
@@ -196,8 +216,8 @@ def main():
     parser.add_argument('--dx', type=float, default=0.0, help='X offset in mm')
     parser.add_argument('--dy', type=float, default=0.0, help='Y offset in mm')
     parser.add_argument('--dz', type=float, default=0.0, help='Z offset in mm')
-    parser.add_argument('--segments', type=int, default=10, help='Number of segments')
     parser.add_argument('--speed', type=float, default=15.0, help='Speed value (%)')
+    parser.add_argument('--group', type=str, default='ar_translator', help='MoveIt planning group')
     
     args = parser.parse_args()
     rclpy.init()
