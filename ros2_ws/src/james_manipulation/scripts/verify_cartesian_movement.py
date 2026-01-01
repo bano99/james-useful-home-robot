@@ -13,7 +13,6 @@ import math
 import threading
 import sys
 import signal
-import copy
 from datetime import datetime
 
 def get_timestamp():
@@ -45,17 +44,15 @@ class CartesianMovementVerifier(Node):
             10
         )
         
-        self.start_joint_state = None
+        self.joint_names = [
+            'arm_joint_1', 'arm_joint_2', 'arm_joint_3', 
+            'arm_joint_4', 'arm_joint_5', 'arm_joint_6'
+        ]
         
-        self.joint_names = []
-        
-        self.last_ik_solution = None
         self.stop_requested = False
 
     def joint_state_callback(self, msg):
         self.current_joint_state = msg
-        if not self.joint_names:
-            self.joint_names = list(msg.name)
         if not self.sync_event.is_set():
             self.sync_event.set()
 
@@ -65,29 +62,8 @@ class CartesianMovementVerifier(Node):
             return None
             
         req = GetPositionIK.Request()
-        req.ik_request.group_name = self.args.group
-        
-        # [Iron Grip Locking] 
-        # Mirror the controller logic: Use last solution as seed but force locked joints
-        seed_state = JointState()
-        if self.last_ik_solution:
-            seed_state.name = self.last_ik_solution.name
-            seed_state.position = list(self.last_ik_solution.position)
-        else:
-            seed_state.name = self.current_joint_state.name
-            seed_state.position = list(self.current_joint_state.position)
-        
-        # Lock J4 and J6 to their START positions during translation
-        if self.args.group == "ar_translator" and self.start_joint_state:
-            for i, name in enumerate(seed_state.name):
-                if name in ["arm_joint_4", "arm_joint_6"]:
-                    try:
-                        idx = self.start_joint_state.name.index(name)
-                        seed_state.position[i] = self.start_joint_state.position[idx]
-                    except (ValueError, IndexError):
-                        pass
-
-        req.ik_request.robot_state.joint_state = seed_state
+        req.ik_request.group_name = "ar_manipulator"
+        req.ik_request.robot_state.joint_state = self.current_joint_state
         req.ik_request.avoid_collisions = False # Keep relaxed for verification
         
         # Log seed joints for debugging failing IK
@@ -99,8 +75,6 @@ class CartesianMovementVerifier(Node):
         pose_stamped.header.stamp = self.get_clock().now().to_msg()
         pose_stamped.pose = target_pose
         req.ik_request.pose_stamped = pose_stamped
-        req.ik_request.ik_link_name = "arm_ee_link"
-        req.ik_request.timeout = rclpy.duration.Duration(seconds=1.0).to_msg()
         
         # Use a synchronous call with timeout since we are in a MultiThreadedExecutor
         future = self.ik_client.call_async(req)
@@ -113,7 +87,6 @@ class CartesianMovementVerifier(Node):
         if future.done():
             res = future.result()
             if res.error_code.val == res.error_code.SUCCESS:
-                self.last_ik_solution = res.solution.joint_state
                 return res.solution.joint_state
             else:
                 self.get_logger().error(f'IK Failed with error code: {res.error_code.val}')
@@ -148,7 +121,7 @@ class CartesianMovementVerifier(Node):
         start_pose = None
         for i in range(5):
             try:
-                trans = self.tf_buffer.lookup_transform('base_link', 'arm_ee_link', rclpy.time.Time(), rclpy.duration.Duration(seconds=1.0))
+                trans = self.tf_buffer.lookup_transform('base_link', 'arm_link_6', rclpy.time.Time(), rclpy.duration.Duration(seconds=1.0))
                 start_pose = Pose()
                 start_pose.position.x = trans.transform.translation.x
                 start_pose.position.y = trans.transform.translation.y
@@ -164,9 +137,6 @@ class CartesianMovementVerifier(Node):
             return
 
         print(f"[{get_timestamp()}] Start Pose: X={start_pose.position.x:.3f}, Y={start_pose.position.y:.3f}, Z={start_pose.position.z:.3f}")
-        
-        # [Iron Grip] Capture start joint state
-        self.start_joint_state = copy.deepcopy(self.current_joint_state)
 
         # 2. Calculate Segments (Units: mm to m)
         dx_m = self.args.dx / 1000.0
@@ -228,7 +198,6 @@ def main():
     parser.add_argument('--dz', type=float, default=0.0, help='Z offset in mm')
     parser.add_argument('--segments', type=int, default=10, help='Number of segments')
     parser.add_argument('--speed', type=float, default=15.0, help='Speed value (%)')
-    parser.add_argument('--group', type=str, default='ar_translator', help='MoveIt planning group')
     
     args = parser.parse_args()
     rclpy.init()

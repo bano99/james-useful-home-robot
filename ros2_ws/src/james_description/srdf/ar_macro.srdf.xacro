@@ -16,14 +16,6 @@
     </group>
     <!-- Sub-group for stable cartesian translation (X, Y, Z). Locks J4 and J6. -->
     <group name="ar_translator">
-      <link name="${tf_prefix}base_link" />
-      <link name="${tf_prefix}link_1" />
-      <link name="${tf_prefix}link_2" />
-      <link name="${tf_prefix}link_3" />
-      <link name="${tf_prefix}link_4" />
-      <link name="${tf_prefix}link_5" />
-      <link name="${tf_prefix}link_6" />
-      <link name="${tf_prefix}ee_link" />
       <joint name="${tf_prefix}joint_1" />
       <joint name="${tf_prefix}joint_2" />
       <joint name="${tf_prefix}joint_3" />

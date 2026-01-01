@@ -67,7 +67,7 @@ arm_cartesian_controller:
     translator_group_name: "ar_translator"
     wrist_group_name: "ar_wrist"
     planning_frame: "base_link"
-    end_effector_link: "arm_ee_link"
+    end_effector_link: "arm_link_6"
     
     # Control mode settings
     default_mode: "manual"  # "manual" or "autonomous"

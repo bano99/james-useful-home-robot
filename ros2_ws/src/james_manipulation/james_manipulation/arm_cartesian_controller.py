@@ -146,7 +146,6 @@ class ArmCartesianController(Node):
         self.last_sync_pose = Pose() # Track actual position for leash
         self.log_throttle_map = {} # Track last log times for manual throttling
         self.session_start_pose = Pose() # [Stability] Lock orientation during translation
-        self.session_start_joint_state = None # [Stability] Lock joint values for non-active joints
         
         # [JAMES:MOD] V18/V20: Atomic Movement Parameters
         self.atomic_step_size = 0.002 # Reduced to 2mm for high-frequency throughput
@@ -350,7 +349,6 @@ class ArmCartesianController(Node):
              
              # [Stability] Capture session start pose for orientation locking (DEEP COPY)
              self.session_start_pose = copy.deepcopy(self.current_target_pose)
-             self.session_start_joint_state = copy.deepcopy(self.current_joint_state)
              
              # Initial burst of 3 moves to fill Teensy buffer (ACKs will take over from here)
              for _ in range(3):
@@ -453,26 +451,10 @@ class ArmCartesianController(Node):
         
         # [Stability FIX] Use last successful solution as seed
         # Chaining ensures that BioIK stays in the same configuration.
-        seed_state = JointState()
         if self.last_ik_solution:
-            seed_state = self.last_ik_solution
+            req.ik_request.robot_state.joint_state = self.last_ik_solution
         else:
-            seed_state = self.current_joint_state
-
-        # [Iron Grip Locking] 
-        # If we are in translator mode, lock J4 and J6 to their SESSION START positions
-        if group_name == self.translator_group and self.session_start_joint_state:
-            new_positions = list(seed_state.position)
-            for i, name in enumerate(seed_state.name):
-                if name in ["arm_joint_4", "arm_joint_6"]:
-                    try:
-                        idx = self.session_start_joint_state.name.index(name)
-                        new_positions[i] = self.session_start_joint_state.position[idx]
-                    except ValueError:
-                        pass
-            seed_state.position = tuple(new_positions)
-
-        req.ik_request.robot_state.joint_state = seed_state
+            req.ik_request.robot_state.joint_state = self.current_joint_state
             
         req.ik_request.avoid_collisions = False # Collision checking in solver via kinematics.yaml
         pose_stamped = PoseStamped()
@@ -480,7 +462,6 @@ class ArmCartesianController(Node):
         pose_stamped.header.stamp = self.get_clock().now().to_msg()
         pose_stamped.pose = self.current_target_pose
         req.ik_request.pose_stamped = pose_stamped
-        req.ik_request.ik_link_name = self.ee_link
         req.ik_request.timeout = rclpy.duration.Duration(seconds=self.ik_timeout).to_msg()
         
         # [Telemetry] Log seed state
