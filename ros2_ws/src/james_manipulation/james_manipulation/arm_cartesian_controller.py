@@ -79,9 +79,6 @@ class ArmCartesianController(Node):
         self.tf_synced = False
         self.joint_state_received = False
         self.ik_success = False
-        self.active_group = None
-        self.joint_name_to_index = {}
-        self.session_active_joints = None # Static reference for orientation locking
         
         # TF2 setup
         self.tf_buffer = tf2_ros.Buffer()
@@ -229,10 +226,6 @@ class ArmCartesianController(Node):
                 # motion_speed parameter is usually around 30.0
                 max_speed_param = self.get_parameter('velocity_scale').value or 0.3
                 self.dynamic_sp = max(2.0, mag * max_speed_param * 100.0)
-
-                if not self.is_active:
-                    self.session_active_joints = copy.deepcopy(self.current_joint_state)
-                    self.log(f"SESSION START: Orientation Locked to J4={math.degrees(self.session_active_joints.position[3]):.1f}, J6={math.degrees(self.session_active_joints.position[5]):.1f}")
 
                 self.is_active = True
                 self.stop_sent = False # Reset stop guard
@@ -452,8 +445,7 @@ class ArmCartesianController(Node):
         
         if group_name is None:
             group_name = self.group_name
-        
-        self.active_group = group_name
+
         req = GetPositionIK.Request()
         req.ik_request.group_name = group_name
         
@@ -497,58 +489,26 @@ class ArmCartesianController(Node):
                         # Thresholds: Lenient for rotations (J1/J6), strict for configurations (J2/J3)
                         limit = 75.0 if ('joint_1' in name or 'joint_6' in name) else 35.0
                         if abs(d) > limit:
-                            self.get_logger().warn(f'IK BLOCKED: {name} jumped {d:.1f}°. Configuration flip detected.')
-                            self.ik_success = False
-                            return
+                             self.get_logger().warn(f'IK BLOCKED: {name} jumped {d:.1f}°. Configuration flip detected.')
+                             self.ik_success = False
+                             return
                 
                 # Secondary Check: Lead over physical (Detect runaway)
                 if self.current_joint_state:
-                    cur = self.current_joint_state.position
-                    if len(tgt) == len(cur):
-                        abs_diffs = [abs(math.degrees(t - c)) for t, c in zip(tgt, cur)]
-                        if any(d > 90.0 for d in abs_diffs):
-                            self.get_logger().warn('SAFETY BLOCK: Target is >90° ahead of hardware.')
-                            self.ik_success = False
-                            return
+                     cur = self.current_joint_state.position
+                     if len(tgt) == len(cur):
+                          abs_diffs = [abs(math.degrees(t - c)) for t, c in zip(tgt, cur)]
+                          if any(d > 90.0 for d in abs_diffs):
+                               self.get_logger().warn('SAFETY BLOCK: Target is >90° ahead of hardware.')
+                               self.ik_success = False
+                               return
 
-                # [Group Enforcement] Standard ROS Sub-Group Protocol
-                # When using a sub-group (like ar_translator), we must ensure joints outside the group
-                # remain at their seed values to prevent drift accumulation from global solvers.
-                positions = list(response.solution.joint_state.position)
-                
-                if self.active_group == self.translator_group:
-                    # Explicitly Lock J4 and J6 for Translation
-                    # Use session_active_joints as the STATIC REFERENCE to stop the drift chain
-                    locked_count = 0
-                    ref = self.session_active_joints or self.last_ik_solution
-                    
-                    resp_name_to_idx = {name: i for i, name in enumerate(response.solution.joint_state.name)}
-                    seed_name_to_idx = {name: i for i, name in enumerate(ref.name)}
-                    
-                    for j_name in ['arm_joint_4', 'arm_joint_6']:
-                        if j_name in resp_name_to_idx and j_name in seed_name_to_idx:
-                            r_idx = resp_name_to_idx[j_name]
-                            s_idx = seed_name_to_idx[j_name]
-                            positions[r_idx] = ref.position[s_idx]
-                            locked_count += 1
-                    
-                    if locked_count > 0:
-                        self.get_logger().info(f"IRON GRIP: Locked {locked_count} joints to SESSION START values", throttle_duration_sec=5.0)
-                # Update position after locking
                 self.ik_success = True
                 self.last_ik_solution = response.solution.joint_state
-                # Sync locked positions to the state object to prevent seed drift
-                new_pos = list(self.last_ik_solution.position)
-                for j_name in ['arm_joint_4', 'arm_joint_6']:
-                    if j_name in self.joint_name_to_index:
-                        idx = self.joint_name_to_index[j_name]
-                        new_pos[idx] = positions[idx]
-                self.last_ik_solution.position = tuple(new_pos)
-                
                 cmd_msg = JointState()
                 cmd_msg.header.stamp = self.get_clock().now().to_msg()
                 cmd_msg.name = response.solution.joint_state.name
-                cmd_msg.position = tuple(positions)
+                cmd_msg.position = response.solution.joint_state.position
                 cmd_msg.velocity = [self.dynamic_sp]
                 self.joint_cmd_pub.publish(cmd_msg)
             else:

@@ -16,11 +16,16 @@
     </group>
     <!-- Sub-group for stable cartesian translation (X, Y, Z). Locks J4 and J6. -->
     <group name="ar_translator">
-      <chain base_link="${tf_prefix}base_link" tip_link="${tf_prefix}ee_link" />
+      <joint name="${tf_prefix}joint_1" />
+      <joint name="${tf_prefix}joint_2" />
+      <joint name="${tf_prefix}joint_3" />
+      <joint name="${tf_prefix}joint_5" />
+      <joint name="${tf_prefix}ee_joint"/>
     </group>
     <!-- Sub-group for wrist-only control. -->
     <group name="ar_wrist">
-      <chain base_link="${tf_prefix}link_5" tip_link="${tf_prefix}ee_link" />
+      <joint name="${tf_prefix}joint_6" />
+      <joint name="${tf_prefix}ee_joint"/>
     </group>
     <group_state name="home" group="ar_manipulator">
       <joint name="${tf_prefix}joint_1" value="0" />

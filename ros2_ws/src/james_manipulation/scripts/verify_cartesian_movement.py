@@ -36,7 +36,6 @@ class CartesianMovementVerifier(Node):
         
         # Subscriber for Sync
         self.current_joint_state = None
-        self.start_joint_state = None # To lock orientation joints
         self.sync_event = threading.Event()
         self.joint_state_sub = self.create_subscription(
             JointState,
@@ -56,20 +55,16 @@ class CartesianMovementVerifier(Node):
         self.current_joint_state = msg
         if not self.sync_event.is_set():
             self.sync_event.set()
-        
-        # Initialize joint index map once
-        if not hasattr(self, 'joint_name_to_index'):
-            self.joint_name_to_index = {name: i for i, name in enumerate(msg.name)}
 
-    def get_ik(self, target_pose, group_name="ar_translator"):
+    def get_ik(self, target_pose):
         if not self.ik_client.service_is_ready():
             self.get_logger().error('IK Service NOT READY')
             return None
             
         req = GetPositionIK.Request()
-        req.ik_request.group_name = group_name
+        req.ik_request.group_name = "ar_manipulator"
         req.ik_request.robot_state.joint_state = self.current_joint_state
-        req.ik_request.avoid_collisions = False
+        req.ik_request.avoid_collisions = False # Keep relaxed for verification
         
         # Log seed joints for debugging failing IK
         j_str = ", ".join([f"{n}:{p:.3f}" for n, p in zip(self.current_joint_state.name, self.current_joint_state.position)])
@@ -92,20 +87,7 @@ class CartesianMovementVerifier(Node):
         if future.done():
             res = future.result()
             if res.error_code.val == res.error_code.SUCCESS:
-                sol = res.solution.joint_state
-                
-                # [IRON GRIP] Enforce START-state for excluded joints in translator mode
-                # This stops the drift chain by locking to a static reference
-                if group_name == "ar_translator":
-                    positions = list(sol.position)
-                    if self.start_joint_state:
-                         for j_name in ['arm_joint_4', 'arm_joint_6']:
-                             idx = self.joint_name_to_index.get(j_name)
-                             if idx is not None:
-                                 positions[idx] = self.start_joint_state.position[idx]
-                         sol.position = tuple(positions)
-                
-                return sol
+                return res.solution.joint_state
             else:
                 self.get_logger().error(f'IK Failed with error code: {res.error_code.val}')
         else:
@@ -129,9 +111,6 @@ class CartesianMovementVerifier(Node):
         if not self.sync_event.wait(timeout=5.0):
             print("Failed to sync initial position. Is the bridge running?")
             return
-        
-        self.start_joint_state = self.current_joint_state
-        print(f"[{get_timestamp()}] Serial Start Joints Captured.")
         
         if not self.ik_client.wait_for_service(timeout_sec=5.0):
             print("IK Service not found. Is MoveIt running?")
@@ -179,8 +158,7 @@ class CartesianMovementVerifier(Node):
         joint_targets = []
         for i, p in enumerate(segments):
             if self.stop_requested: return
-            # Default to translator for standard verify tests (XYZ)
-            sol = self.get_ik(p, group_name="ar_translator")
+            sol = self.get_ik(p)
             if sol:
                 joint_targets.append(sol)
                 if (i+1) % 5 == 0 or i == 0:
