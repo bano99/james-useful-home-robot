@@ -7,7 +7,17 @@
         mode: gd_c
         threads: 1
         kinematics_solver_timeout: 0.5
-        minimal_displacement_weight: 50.0
-        center_joints_weight: 1.0
+        minimal_displacement_weight: 1.0
+        center_joints_weight: 0.1
         avoid_joint_limits_weight: 1.0
-        rotation_scale: 0.1
+        rotation_scale: 0.05
+      ar_translator:
+        kinematics_solver: bio_ik/BioIKKinematicsPlugin
+        kinematics_solver_search_resolution: 0.005
+        mode: gd_c
+        threads: 1
+        kinematics_solver_timeout: 0.2
+        position_only_ik: True
+        minimal_displacement_weight: 1.0
+      ar_wrist:
+        kinematics_solver: kdl_kinematics_plugin/KDLKinematicsPlugin

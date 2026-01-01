@@ -1,5 +1,24 @@
 {
   "mcpServers": {
+    "local-llm-server": {
+      "command": "node",
+      "args": ["path/to/your/custom/mcp-server.js"], // You might need a custom script if not using standard tools
+      "disabled": false,
+      "autoApprove": ["*"],
+      "env": {
+        "LOCAL_LLM_API_URL": "http://192.168.0.97:11434/v1", // Replace with your LLM server's actual URL
+        "LOCAL_LLM_API_KEY": "" // Or an actual key if required
+      },
+      "transportType": "stdio" // or "http" if you create a specific http server
+    },
+    "local-ollama": {
+      "command": "ollama",
+      "args": ["serve"],
+      "env": {
+        "OLLAMA_HOST": "http://192.168.0.97:11434"
+      },
+      "disabled": false
+    },
     "github": {
       "command": "uvx",
       "args": ["mcp-server-github"],

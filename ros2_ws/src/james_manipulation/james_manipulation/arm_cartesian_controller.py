@@ -43,6 +43,8 @@ class ArmCartesianController(Node):
         self.declare_parameter('move_group_name', "")
         self.declare_parameter('planning_frame', "")
         self.declare_parameter('end_effector_link', "")
+        self.declare_parameter('translator_group_name', "ar_translator")
+        self.declare_parameter('wrist_group_name', "ar_wrist")
         
         # Get parameters
         self.velocity_scale = self.get_parameter('velocity_scale').value
@@ -56,6 +58,8 @@ class ArmCartesianController(Node):
         self.planning_frame = self.get_parameter('planning_frame').value
         self.ee_link = self.get_parameter('end_effector_link').value
         self.group_name = self.get_parameter('move_group_name').value
+        self.translator_group = self.get_parameter('translator_group_name').value
+        self.wrist_group = self.get_parameter('wrist_group_name').value
         
         # Workspace limits
         self.workspace_limits = {
@@ -396,7 +400,18 @@ class ArmCartesianController(Node):
              self.current_target_pose.position.z = self.last_sync_pose.position.z + cur_dz * scale
 
         self.current_target_pose = self.apply_workspace_limits(self.current_target_pose)
-        self.call_ik_service_async()
+        
+        # [Multi-Group Selection]
+        # Translation active -> use translator group (locks J4, J6)
+        # Only rotation active -> use wrist group (locks J1-J5)
+        # The translator group has position_only_ik enabled in kinematics.yaml
+        target_group = self.group_name # Default: ar_manipulator
+        if mag > 1e-6:
+            target_group = self.translator_group
+        elif abs(self.pending_v_yaw) > 1e-6:
+            target_group = self.wrist_group
+
+        self.call_ik_service_async(group_name=target_group)
 
     def apply_yaw_step(self, delta_yaw):
         cos_y = math.cos(delta_yaw / 2.0)
@@ -423,12 +438,16 @@ class ArmCartesianController(Node):
         pose.position.z = max(self.workspace_limits['z_min'], min(self.workspace_limits['z_max'], pose.position.z))
         return pose
 
-    def call_ik_service_async(self):
+    def call_ik_service_async(self, group_name=None):
         if not self.ik_client.service_is_ready():
             self.get_logger().error('IK Service /compute_ik NOT READY', throttle_duration_sec=2.0)
             return
+        
+        if group_name is None:
+            group_name = self.group_name
+
         req = GetPositionIK.Request()
-        req.ik_request.group_name = self.group_name
+        req.ik_request.group_name = group_name
         
         # [Stability FIX] Use last successful solution as seed
         # Chaining ensures that BioIK stays in the same configuration.
