@@ -47,15 +47,15 @@ class CartesianMovementVerifier(Node):
         
         self.start_joint_state = None
         
-        self.joint_names = [
-            'arm_joint_1', 'arm_joint_2', 'arm_joint_3', 
-            'arm_joint_4', 'arm_joint_5', 'arm_joint_6'
-        ]
+        self.joint_names = []
         
+        self.last_ik_solution = None
         self.stop_requested = False
 
     def joint_state_callback(self, msg):
         self.current_joint_state = msg
+        if not self.joint_names:
+            self.joint_names = list(msg.name)
         if not self.sync_event.is_set():
             self.sync_event.set()
 
@@ -68,17 +68,24 @@ class CartesianMovementVerifier(Node):
         req.ik_request.group_name = self.args.group
         
         # [Iron Grip Locking] 
-        # Clone current state but overwrite locked joints from session start
+        # Mirror the controller logic: Use last solution as seed but force locked joints
         seed_state = JointState()
-        seed_state.name = self.current_joint_state.name
-        seed_state.position = list(self.current_joint_state.position)
+        if self.last_ik_solution:
+            seed_state.name = self.last_ik_solution.name
+            seed_state.position = list(self.last_ik_solution.position)
+        else:
+            seed_state.name = self.current_joint_state.name
+            seed_state.position = list(self.current_joint_state.position)
         
-        # If we are in translator mode, lock J4 and J6 to their START positions
+        # Lock J4 and J6 to their START positions during translation
         if self.args.group == "ar_translator" and self.start_joint_state:
             for i, name in enumerate(seed_state.name):
                 if name in ["arm_joint_4", "arm_joint_6"]:
-                    idx = self.start_joint_state.name.index(name)
-                    seed_state.position[i] = self.start_joint_state.position[idx]
+                    try:
+                        idx = self.start_joint_state.name.index(name)
+                        seed_state.position[i] = self.start_joint_state.position[idx]
+                    except (ValueError, IndexError):
+                        pass
 
         req.ik_request.robot_state.joint_state = seed_state
         req.ik_request.avoid_collisions = False # Keep relaxed for verification
@@ -104,6 +111,7 @@ class CartesianMovementVerifier(Node):
         if future.done():
             res = future.result()
             if res.error_code.val == res.error_code.SUCCESS:
+                self.last_ik_solution = res.solution.joint_state
                 return res.solution.joint_state
             else:
                 self.get_logger().error(f'IK Failed with error code: {res.error_code.val}')
@@ -216,6 +224,7 @@ def main():
     parser.add_argument('--dx', type=float, default=0.0, help='X offset in mm')
     parser.add_argument('--dy', type=float, default=0.0, help='Y offset in mm')
     parser.add_argument('--dz', type=float, default=0.0, help='Z offset in mm')
+    parser.add_argument('--segments', type=int, default=10, help='Number of segments')
     parser.add_argument('--speed', type=float, default=15.0, help='Speed value (%)')
     parser.add_argument('--group', type=str, default='ar_translator', help='MoveIt planning group')
     
