@@ -406,13 +406,10 @@ class ArmCartesianController(Node):
         # Only rotation active -> use wrist group (locks J1-J5)
         # The translator group has position_only_ik enabled in kinematics.yaml
         target_group = self.group_name # Default: ar_manipulator
-        
-        # We always use the main group now because we use 'consistency_limits' 
-        # for precise joint locking, but we keep the logic here for future flexibility.
         if mag > 1e-6:
-            target_group = self.group_name 
+            target_group = self.translator_group
         elif abs(self.pending_v_yaw) > 1e-6:
-            target_group = self.group_name
+            target_group = self.wrist_group
 
         self.call_ik_service_async(group_name=target_group)
 
@@ -458,18 +455,7 @@ class ArmCartesianController(Node):
         else:
             req.ik_request.robot_state.joint_state = self.current_joint_state
 
-        # [IRON GRIP] Joint Locking Strategy
-        # Consistency limits of 0.001 trigger high-weighted JointVariableGoals in our BioIK plugin
-        # Order must match the planning group joint order (A-F)
-        if group_name == self.group_name: # ar_manipulator
-             if abs(self.pending_v_yaw) > 1e-6:
-                  # Wrist rotation: Lock J1, J2, J3, J4, J5
-                  req.ik_request.consistency_limits = [0.001, 0.001, 0.001, 0.001, 0.001, 0.0]
-             else:
-                  # Translation: Lock J4, J6
-                  req.ik_request.consistency_limits = [0.0, 0.0, 0.0, 0.001, 0.0, 0.001]
-             
-        req.ik_request.avoid_collisions = False
+        req.ik_request.avoid_collisions = False # Collision checking in solver via kinematics.yaml
         pose_stamped = PoseStamped()
         pose_stamped.header.frame_id = self.planning_frame
         pose_stamped.header.stamp = self.get_clock().now().to_msg()
