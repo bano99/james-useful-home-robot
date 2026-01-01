@@ -99,7 +99,7 @@ class CartesianMovementVerifier(Node):
         pose_stamped.header.stamp = self.get_clock().now().to_msg()
         pose_stamped.pose = target_pose
         req.ik_request.pose_stamped = pose_stamped
-        req.ik_request.ik_link_name = "arm_link_6"
+        req.ik_request.ik_link_name = "arm_ee_link"
         req.ik_request.timeout = rclpy.duration.Duration(seconds=1.0).to_msg()
         
         # Use a synchronous call with timeout since we are in a MultiThreadedExecutor
@@ -148,7 +148,7 @@ class CartesianMovementVerifier(Node):
         start_pose = None
         for i in range(5):
             try:
-                trans = self.tf_buffer.lookup_transform('base_link', 'arm_link_6', rclpy.time.Time(), rclpy.duration.Duration(seconds=1.0))
+                trans = self.tf_buffer.lookup_transform('base_link', 'arm_ee_link', rclpy.time.Time(), rclpy.duration.Duration(seconds=1.0))
                 start_pose = Pose()
                 start_pose.position.x = trans.transform.translation.x
                 start_pose.position.y = trans.transform.translation.y
