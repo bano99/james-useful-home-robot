@@ -81,6 +81,7 @@ class ArmCartesianController(Node):
         self.ik_success = False
         self.active_group = None
         self.joint_name_to_index = {}
+        self.session_active_joints = None # Static reference for orientation locking
         
         # TF2 setup
         self.tf_buffer = tf2_ros.Buffer()
@@ -228,6 +229,10 @@ class ArmCartesianController(Node):
                 # motion_speed parameter is usually around 30.0
                 max_speed_param = self.get_parameter('velocity_scale').value or 0.3
                 self.dynamic_sp = max(2.0, mag * max_speed_param * 100.0)
+
+                if not self.is_active:
+                    self.session_active_joints = copy.deepcopy(self.current_joint_state)
+                    self.log(f"SESSION START: Orientation Locked to J4={math.degrees(self.session_active_joints.position[3]):.1f}, J6={math.degrees(self.session_active_joints.position[5]):.1f}")
 
                 self.is_active = True
                 self.stop_sent = False # Reset stop guard
@@ -512,17 +517,23 @@ class ArmCartesianController(Node):
                 positions = list(response.solution.joint_state.position)
                 
                 if self.active_group == self.translator_group:
-                    if self.last_ik_solution:
-                        seed = self.last_ik_solution
-                        if not self.joint_name_to_index:
-                            self.joint_name_to_index = {name: i for i, name in enumerate(seed.name)}
-                        
-                        # Explicitly Lock J4 and J6 for Translation
-                        for j_name in ['arm_joint_4', 'arm_joint_6']:
-                            if j_name in self.joint_name_to_index:
-                                idx = self.joint_name_to_index[j_name]
-                                positions[idx] = seed.position[idx]
-                                # self.get_logger().info(f"LOCKED: {j_name} at {math.degrees(positions[idx]):.2f}deg")
+                    # Explicitly Lock J4 and J6 for Translation
+                    # Use session_active_joints as the STATIC REFERENCE to stop the drift chain
+                    locked_count = 0
+                    ref = self.session_active_joints or self.last_ik_solution
+                    
+                    resp_name_to_idx = {name: i for i, name in enumerate(response.solution.joint_state.name)}
+                    seed_name_to_idx = {name: i for i, name in enumerate(ref.name)}
+                    
+                    for j_name in ['arm_joint_4', 'arm_joint_6']:
+                        if j_name in resp_name_to_idx and j_name in seed_name_to_idx:
+                            r_idx = resp_name_to_idx[j_name]
+                            s_idx = seed_name_to_idx[j_name]
+                            positions[r_idx] = ref.position[s_idx]
+                            locked_count += 1
+                    
+                    if locked_count > 0:
+                        self.get_logger().info(f"IRON GRIP: Locked {locked_count} joints to SESSION START values", throttle_duration_sec=5.0)
                 # Update position after locking
                 self.ik_success = True
                 self.last_ik_solution = response.solution.joint_state
