@@ -431,14 +431,28 @@ class TeensySerialBridge(Node):
     def _send_move_command(self, msg):
         """Helper to format and send RJ or XJ command to Teensy"""
         # [JAMES:MOD] Use XJ (eXtra/eXecute Joint) for low-latency mode, RJ for precise mode
-        # Changed from BJ to XJ to avoid conflict with 'B' joint label on firmware
         prefix = "XJ" if self.blending_enabled else "RJ"
+        
+        # [ROBUST MAPPING] Create a map of label -> value to handle arbitrary joint counts
+        # This matches ROS joint names to their firmware axes (A-F)
+        joint_values = {}
+        for name, pos in zip(msg.name, msg.position):
+             # Map 'arm_joint_1' -> 'A', 'arm_joint_2' -> 'B', etc.
+             if name in self.joint_names:
+                  idx = self.joint_names.index(name)
+                  label = self.joint_labels[idx]
+                  joint_values[label] = pos
+
+        if not joint_values:
+             return
+
         cmd = prefix
-        for i in range(min(len(msg.position), 6)):
-            cmd += f"{self.joint_labels[i]}{math.degrees(msg.position[i]):.4f}"
+        # Order A-F is important for some firmware parsers
+        for label in self.joint_labels:
+             if label in joint_values:
+                  cmd += f"{label}{math.degrees(joint_values[label]):.4f}"
         
         # Motion Profile Parameters
-        # [JAMES:MOD] Use dynamic speed from msg if provided (V9)
         if len(msg.velocity) > 0:
             sp = float(msg.velocity[0])
         else:
@@ -449,10 +463,8 @@ class TeensySerialBridge(Node):
         rm = self.get_parameter('motion_ramp').value
         
         if prefix == "XJ":
-            # XJ is lean: no extra joints, just basic motion profile
             cmd += f"Sp{sp:.2f}Ac{ac:.2f}Dc{dc:.2f}Rm{rm:.2f}\n"
         else:
-            # RJ is standard: full set of robot parameters
             cmd += f"J70.0000J80.0000J90.0000Sp{sp:.2f}Ac{ac:.2f}Dc{dc:.2f}Rm{rm:.2f}W0Lm111111111\n"
 
         with self.serial_lock:

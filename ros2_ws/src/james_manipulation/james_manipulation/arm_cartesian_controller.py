@@ -406,10 +406,13 @@ class ArmCartesianController(Node):
         # Only rotation active -> use wrist group (locks J1-J5)
         # The translator group has position_only_ik enabled in kinematics.yaml
         target_group = self.group_name # Default: ar_manipulator
+        
+        # We always use the main group now because we use 'consistency_limits' 
+        # for precise joint locking, but we keep the logic here for future flexibility.
         if mag > 1e-6:
-            target_group = self.translator_group
+            target_group = self.group_name 
         elif abs(self.pending_v_yaw) > 1e-6:
-            target_group = self.wrist_group
+            target_group = self.group_name
 
         self.call_ik_service_async(group_name=target_group)
 
@@ -450,13 +453,23 @@ class ArmCartesianController(Node):
         req.ik_request.group_name = group_name
         
         # [Stability FIX] Use last successful solution as seed
-        # Chaining ensures that BioIK stays in the same configuration.
         if self.last_ik_solution:
             req.ik_request.robot_state.joint_state = self.last_ik_solution
         else:
             req.ik_request.robot_state.joint_state = self.current_joint_state
-            
-        req.ik_request.avoid_collisions = False # Collision checking in solver via kinematics.yaml
+
+        # [IRON GRIP] Joint Locking Strategy
+        # Consistency limits of 0.001 trigger high-weighted JointVariableGoals in our BioIK plugin
+        # Order must match the planning group joint order (A-F)
+        if group_name == self.group_name: # ar_manipulator
+             if abs(self.pending_v_yaw) > 1e-6:
+                  # Wrist rotation: Lock J1, J2, J3, J4, J5
+                  req.ik_request.consistency_limits = [0.001, 0.001, 0.001, 0.001, 0.001, 0.0]
+             else:
+                  # Translation: Lock J4, J6
+                  req.ik_request.consistency_limits = [0.0, 0.0, 0.0, 0.001, 0.0, 0.001]
+             
+        req.ik_request.avoid_collisions = False
         pose_stamped = PoseStamped()
         pose_stamped.header.frame_id = self.planning_frame
         pose_stamped.header.stamp = self.get_clock().now().to_msg()
@@ -476,9 +489,10 @@ class ArmCartesianController(Node):
         try:
             response = future.result()
             if response.error_code.val == response.error_code.SUCCESS:
-                # KINEMATICS SAFETY: IK Continuity 2.0 (Check for configuration flips)
-                tgt = response.solution.joint_state.position
+                # [DEBUG] Verify which joints are in the solution
                 names = response.solution.joint_state.name
+                self.log(f"IK Success: Group={group_name}, Joints={names}", throttle=1.0)
+                tgt = response.solution.joint_state.position
                 
                 # Check against last SUCCESSFUL solution (the chain)
                 if self.last_ik_solution:
