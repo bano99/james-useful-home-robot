@@ -99,6 +99,8 @@ class CartesianMovementVerifier(Node):
         pose_stamped.header.stamp = self.get_clock().now().to_msg()
         pose_stamped.pose = target_pose
         req.ik_request.pose_stamped = pose_stamped
+        req.ik_request.ik_link_name = "arm_link_6"
+        req.ik_request.timeout = rclpy.duration.Duration(seconds=1.0).to_msg()
         
         # Use a synchronous call with timeout since we are in a MultiThreadedExecutor
         future = self.ik_client.call_async(req)

@@ -480,6 +480,7 @@ class ArmCartesianController(Node):
         pose_stamped.header.stamp = self.get_clock().now().to_msg()
         pose_stamped.pose = self.current_target_pose
         req.ik_request.pose_stamped = pose_stamped
+        req.ik_request.ik_link_name = self.ee_link
         req.ik_request.timeout = rclpy.duration.Duration(seconds=self.ik_timeout).to_msg()
         
         # [Telemetry] Log seed state
