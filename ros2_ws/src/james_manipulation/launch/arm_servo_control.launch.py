@@ -78,17 +78,27 @@ def generate_launch_description():
         parameters=[robot_description],
     )
 
-    # MoveIt Servo Node
-    servo_node = Node(
-        package='moveit_ros_servo',
-        executable='servo_node',
-        name='servo_node',
-        parameters=[
-            servo_yaml,
-            robot_description,
-            robot_description_semantic,
-            kinematics_yaml,
-            joint_limits_yaml,
+    # MoveIt Servo Node (Composable Node in Foxy)
+    from launch_ros.descriptions import ComposableNode
+    from launch_ros.actions import ComposableNodeContainer
+
+    servo_node = ComposableNodeContainer(
+        name='servo_server_container',
+        package='rclcpp_components',
+        executable='component_container',
+        composable_node_descriptions=[
+            ComposableNode(
+                package='moveit_servo',
+                plugin='moveit_servo::ServoServer',
+                name='servo_server',
+                parameters=[
+                    servo_yaml,
+                    robot_description,
+                    robot_description_semantic,
+                    kinematics_yaml,
+                    joint_limits_yaml,
+                ],
+            ),
         ],
         output='screen',
     )
