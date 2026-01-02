@@ -6,6 +6,7 @@ from sensor_msgs.msg import JointState
 from geometry_msgs.msg import Pose, PoseStamped
 from std_msgs.msg import String
 from moveit_msgs.srv import GetPositionIK
+from moveit_msgs.msg import Constraints, JointConstraint
 import tf2_ros
 import time
 import argparse
@@ -62,9 +63,27 @@ class CartesianMovementVerifier(Node):
             return None
             
         req = GetPositionIK.Request()
-        req.ik_request.group_name = "ar_manipulator"
+        req.ik_request.group_name = self.args.group
         req.ik_request.robot_state.joint_state = self.current_joint_state
         req.ik_request.avoid_collisions = False # Keep relaxed for verification
+        
+        # [JAMES:MOD] Add Joint Constraints to lock specific joints if requested
+        if self.args.lock:
+            constraints = Constraints()
+            # We want to lock J4 and J6 to their current seed position
+            joints_to_lock = ['arm_joint_4', 'arm_joint_6']
+            for name in joints_to_lock:
+                if name in self.current_joint_state.name:
+                    idx = self.current_joint_state.name.index(name)
+                    jc = JointConstraint()
+                    jc.joint_name = name
+                    jc.position = self.current_joint_state.position[idx]
+                    jc.tolerance_above = 0.1 # ~5 degrees as per briefing
+                    jc.tolerance_below = 0.1
+                    jc.weight = 1.0 # High priority
+                    constraints.joint_constraints.append(jc)
+            req.ik_request.constraints = constraints
+            # self.get_logger().info(f"Applying JointConstraints to lock J4 and J6 (tolerance: 0.1 rad)")
         
         # Log seed joints for debugging failing IK
         j_str = ", ".join([f"{n}:{p:.3f}" for n, p in zip(self.current_joint_state.name, self.current_joint_state.position)])
@@ -198,6 +217,8 @@ def main():
     parser.add_argument('--dz', type=float, default=0.0, help='Z offset in mm')
     parser.add_argument('--segments', type=int, default=10, help='Number of segments')
     parser.add_argument('--speed', type=float, default=15.0, help='Speed value (%)')
+    parser.add_argument('--group', type=str, default='ar_manipulator', help='MoveIt planning group')
+    parser.add_argument('--lock', action='store_true', help='Enable J4/J6 locking via JointConstraints')
     
     args = parser.parse_args()
     rclpy.init()
