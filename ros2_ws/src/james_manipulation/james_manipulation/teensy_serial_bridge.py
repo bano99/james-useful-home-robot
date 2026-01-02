@@ -12,6 +12,7 @@ Date: December 2024
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
+from trajectory_msgs.msg import JointTrajectory
 from std_msgs.msg import String, Int32
 import json
 import time
@@ -139,6 +140,7 @@ class TeensySerialBridge(Node):
         # ROS2 publishers and subscribers
         self.joint_state_pub = self.create_publisher(JointState, '/joint_states', 10)
         self.joint_cmd_sub = self.create_subscription(JointState, '/arm/joint_commands', self.joint_command_callback, 10)
+        self.servo_cmd_sub = self.create_subscription(JointTrajectory, '/joint_trajectory_controller/joint_trajectory', self.servo_command_callback, 10)
         self.raw_cmd_sub = self.create_subscription(String, '/arm/teensy_raw_cmd', self.raw_command_callback, 10)
         self.status_pub = self.create_publisher(String, '/teensy_bridge/status', 10)
         self.collision_pub = self.create_publisher(String, '/teensy/collision_status', 10)
@@ -475,6 +477,40 @@ class TeensySerialBridge(Node):
                 else:
                     # Non-Blending Mode: Strict FIFO queue (do not skip points)
                     self.move_queue.append(msg)
+
+    def servo_command_callback(self, msg):
+        """Callback for MoveIt Servo output (JointTrajectory with single point)"""
+        if not self.connected or not self.serial_conn: return
+        if not msg.points: return
+        
+        # Convert JointTrajectory point to a JointState-like message for the internal move command
+        # Servo usually sends only one point per message
+        point = msg.points[0]
+        
+        # Create a proxy object that looks like a JointState msg for _send_move_command
+        class JointStateProxy:
+            def __init__(self, pos, vel):
+                self.position = pos
+                self.velocity = vel
+        
+        # [JAMES:MOD] Scale servo velocity to the bridge's expected range if needed
+        # moveit_servo usually sends velocities in rad/s. 
+        # Here we just pass the positions.
+        proxy_msg = JointStateProxy(point.positions, point.velocities)
+        
+        with self.flow_lock:
+            # For real-time servoing, we aggressively overwrite 'pending' if blending is on
+            if self.blending_enabled:
+                if self.in_flight_count < 3:
+                     self._send_move_command(proxy_msg)
+                else:
+                     self.pending_joint_cmd = proxy_msg
+            else:
+                # Fallback to standard queueing
+                if self.in_flight_count < 3:
+                    self._send_move_command(proxy_msg)
+                else:
+                    self.move_queue.append(proxy_msg)
 
     def raw_command_callback(self, msg):
         if not self.connected or not self.serial_conn: return

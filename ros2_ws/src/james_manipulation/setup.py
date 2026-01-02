@@ -30,6 +30,7 @@ setup(
             'arm_cartesian_controller = james_manipulation.arm_cartesian_controller:main',
             'teensy_serial_bridge = james_manipulation.teensy_serial_bridge:main',
             'calibrate_arm = james_manipulation.calibrate_arm:main',
+            'arm_servo_controller = james_manipulation.arm_servo_controller:main',
         ],
     },
 )

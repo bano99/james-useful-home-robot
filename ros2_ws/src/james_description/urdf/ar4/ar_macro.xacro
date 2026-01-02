@@ -172,6 +172,9 @@
         effort="-1"
         velocity="1.0472"
       />
+      <safety_controller k_position="20.0" k_velocity="10.0" 
+                         soft_lower_limit="${robot_parameters['j4_limit_min'] + 0.05}"
+                         soft_upper_limit="${robot_parameters['j4_limit_max'] - 0.05}" />
     </joint>
     <link name="${tf_prefix}link_5">
       <inertial>
@@ -240,6 +243,9 @@
         effort="-1"
         velocity="1.0472"
       />
+      <safety_controller k_position="20.0" k_velocity="10.0" 
+                         soft_lower_limit="${robot_parameters['j6_limit_min'] + 0.05}"
+                         soft_upper_limit="${robot_parameters['j6_limit_max'] - 0.05}" />
     </joint>
 
     <!-- center of the end effector mounting surface on link_6 -->
