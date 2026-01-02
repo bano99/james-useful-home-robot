@@ -84,6 +84,7 @@ def generate_launch_description():
 
     servo_node = ComposableNodeContainer(
         name='servo_server_container',
+        namespace='',
         package='rclcpp_components',
         executable='component_container',
         composable_node_descriptions=[
