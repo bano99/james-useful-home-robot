@@ -6,6 +6,7 @@ from sensor_msgs.msg import JointState
 from geometry_msgs.msg import Pose, PoseStamped
 import tf2_ros
 from moveit_msgs.srv import GetPositionIK
+from moveit_msgs.msg import Constraints, JointConstraint
 import json
 import time
 import math
@@ -450,11 +451,14 @@ class ArmCartesianController(Node):
         req.ik_request.group_name = group_name
         
         # [Stability FIX] Use last successful solution as seed
-        # Chaining ensures that BioIK stays in the same configuration.
         if self.last_ik_solution:
             req.ik_request.robot_state.joint_state = self.last_ik_solution
         else:
             req.ik_request.robot_state.joint_state = self.current_joint_state
+
+        # [JAMES:DIAG] Target Pose details
+        p = self.current_target_pose.position
+        self.log(f"Target Pose: X:{p.x:.3f}, Y:{p.y:.3f}, Z:{p.z:.3f}", throttle=0.5)
             
         req.ik_request.avoid_collisions = False # Collision checking in solver via kinematics.yaml
         pose_stamped = PoseStamped()
@@ -463,6 +467,21 @@ class ArmCartesianController(Node):
         pose_stamped.pose = self.current_target_pose
         req.ik_request.pose_stamped = pose_stamped
         req.ik_request.timeout = rclpy.duration.Duration(seconds=self.ik_timeout).to_msg()
+
+        # [JAMES:STABILITY] Add "Iron Grip" Constraints - Lock J4 and J6
+        constraints = Constraints()
+        joints_to_lock = ['arm_joint_4', 'arm_joint_6']
+        for name in joints_to_lock:
+            if name in self.current_joint_state.name:
+                idx = self.current_joint_state.name.index(name)
+                jc = JointConstraint()
+                jc.joint_name = name
+                jc.position = self.current_joint_state.position[idx]
+                jc.tolerance_above = 0.1 # 5.7 degrees
+                jc.tolerance_below = 0.1
+                jc.weight = 1.0
+                constraints.joint_constraints.append(jc)
+        req.ik_request.constraints = constraints
         
         # [Telemetry] Log seed state
         if self.current_joint_state:
