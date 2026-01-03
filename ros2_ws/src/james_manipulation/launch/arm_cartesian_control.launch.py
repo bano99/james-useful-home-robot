@@ -10,7 +10,9 @@ from launch_ros.substitutions import FindPackageShare
 def generate_launch_description():
     # UNMISSABLE VERSION CHECK FOR DEBUGGING
     print("\n" + "="*60)
-    print("  LAUNCHING ARM CARTESIAN CONTROL - VERSION: 2024-12-21-V6-FIXED")
+    print("  LAUNCHING ARM CARTESIAN CONTROL (IRON GRIP) - VERSION: 2026-01-03")
+    print("  BACKEND: MoveIt Servo (ar_translator group)")
+    print("  INPUT: Manual Joystick -> Servo Twist/Jog")
     print("="*60 + "\n")
 
     # Define directories
@@ -188,7 +190,7 @@ def generate_launch_description():
     arm_servo_controller_node = Node(
         package='james_manipulation',
         executable='arm_servo_controller',
-        name='arm_servo_controller',
+        name='arm_cartesian_controller',
         parameters=[
             config_file,
             {'use_sim_time': use_sim_time}

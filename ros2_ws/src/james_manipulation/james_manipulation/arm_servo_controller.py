@@ -23,8 +23,8 @@ class ArmServoController(Node):
         self.declare_parameter('planning_frame', 'base_link')
         
         # Publishers for MoveIt Servo
-        self.twist_pub = self.create_publisher(TwistStamped, '/servo_node/delta_twist_cmds', 10)
-        self.joint_pub = self.create_publisher(JointJog, '/servo_node/delta_joint_cmds', 10)
+        self.twist_pub = self.create_publisher(TwistStamped, '/servo_server/delta_twist_cmds', 10)
+        self.joint_pub = self.create_publisher(JointJog, '/servo_server/delta_joint_cmds', 10)
         
         # Subscriber for manual commands
         self.manual_cmd_sub = self.create_subscription(
@@ -40,13 +40,19 @@ class ArmServoController(Node):
     def manual_command_callback(self, msg):
         try:
             data = json.loads(msg.data)
-            joy_lx = data.get('joy_lx', 0.0)
-            joy_ly = data.get('joy_ly', 0.0)
-            joy_ry = data.get('joy_ry', 0.0)
-            joy_rr = data.get('joy_rr', 0.0)
-            switch_mode = data.get('switch_mode', 'platform')
-            if 'mode' in data:
-                switch_mode = 'vertical' if data['mode'] == 1 else 'platform'
+            # Support both 'lx' and 'joy_lx' formats
+            joy_lx = data.get('lx', data.get('joy_lx', 0.0))
+            joy_ly = data.get('ly', data.get('joy_ly', 0.0))
+            joy_ry = data.get('ry', data.get('joy_ry', 0.0))
+            joy_rr = data.get('rr', data.get('joy_rr', 0.0))
+            switch_mode = data.get('mode', data.get('switch_mode', 'platform'))
+            
+            if isinstance(switch_mode, int):
+                switch_mode = 'vertical' if switch_mode == 1 else 'platform'
+
+            # Log incoming Data for debugging
+            if abs(joy_lx) > 0.05 or abs(joy_ly) > 0.05 or abs(joy_ry) > 0.05 or abs(joy_rr) > 0.05:
+                self.get_logger().info(f'Joystick Active: LX:{joy_lx:.2f}, LY:{joy_ly:.2f}, RY:{joy_ry:.2f}, RR:{joy_rr:.2f}, Mode:{switch_mode}', throttle_duration_sec=0.5)
 
             v_scale = self.get_parameter('velocity_scale').value
             r_scale = self.get_parameter('rotation_scale').value
@@ -70,6 +76,7 @@ class ArmServoController(Node):
 
             # Publish twist if there is translation input
             if abs(joy_lx) > 0.05 or abs(joy_ly) > 0.05 or (switch_mode == 'vertical' and abs(joy_ry) > 0.05):
+                self.get_logger().debug(f'Publishing Twist: X:{twist.twist.linear.x:.3f}, Y:{twist.twist.linear.y:.3f}, Z:{twist.twist.linear.z:.3f}')
                 self.twist_pub.publish(twist)
 
             # 2. Joint Jogging (J6)
@@ -84,6 +91,7 @@ class ArmServoController(Node):
                     jog.joint_names = ['arm_joint_6']
                     jog.velocities = [joy_rr * r_scale * 5.0] # Scale for joint speed
                 
+                self.get_logger().debug(f'Publishing JointJog: {jog.joint_names} -> {jog.velocities}')
                 self.joint_pub.publish(jog)
 
         except Exception as e:
