@@ -231,15 +231,17 @@ class ArmCartesianController(Node):
                 self.is_active = True
                 self.stop_sent = False # Reset stop guard
 
-                # [Fixed Mapping] V21: Standard ROS Frames (X+ Front, Y+ Left)
-                # Left Stick LY+ (Push Forward) -> Robot X+ (Move Front)
-                # Left Stick LX- (Push Left)    -> Robot Y+ (Move Left)
-                self.pending_v_x = joy_ly
-                self.pending_v_y = -joy_lx
+                # [Fixed Mapping] V22: User Setup Alignment (Y=Forward, X=Left)
+                # Joystick usually: Forward is negative LY, Left is negative LX
+                # Goal: LY- -> Y+ (Forward), LX- -> X+ (Left)
+                self.pending_v_y = -joy_ly
+                self.pending_v_x = -joy_lx
                 
                 if switch_mode == 'vertical':
-                    self.pending_v_z = joy_ry
-                    self.pending_v_yaw = joy_rr
+                    # Vertical Move: RY- -> Z+ (Up)
+                    # Yaw: RR- -> Yaw+ (Left)
+                    self.pending_v_z = -joy_ry
+                    self.pending_v_yaw = -joy_rr
                 else:
                     self.pending_v_z = 0.0
                     self.pending_v_yaw = 0.0
