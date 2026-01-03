@@ -108,21 +108,6 @@ def generate_launch_description():
         respawn_delay=2.0
     )
     
-    # Arm Cartesian Controller Node
-    arm_controller_node = Node(
-        package='james_manipulation',
-        executable='arm_cartesian_controller',
-        name='arm_cartesian_controller',
-        parameters=[
-            config_file,
-            {'use_sim_time': use_sim_time}
-        ],
-        arguments=['--ros-args', '--log-level', log_level],
-        output='screen',
-        respawn=True,
-        respawn_delay=2.0
-    )
-    
     # Teensy Serial Bridge Node
     teensy_bridge_node = Node(
         package='james_manipulation',
@@ -150,6 +135,69 @@ def generate_launch_description():
         output="both",
         parameters=[robot_description],
     )
+
+    # --- MoveIt 2 Configuration (Required for Servo) ---
+    
+    # Get SRDF via xacro
+    srdf_path = os.path.join(pkg_james_description, 'srdf', 'james.srdf.xacro')
+    import xacro
+    robot_description_semantic_config = xacro.process_file(srdf_path)
+    robot_description_semantic = {'robot_description_semantic': robot_description_semantic_config.toxml()}
+
+    # Load YAML configs
+    def load_yaml(package_name, file_path):
+        package_path = get_package_share_directory(package_name)
+        absolute_file_path = os.path.join(package_path, file_path)
+        try:
+            with open(absolute_file_path, 'r') as file:
+                import yaml
+                return yaml.safe_load(file)
+        except EnvironmentError:
+            return None
+
+    kinematics_yaml = load_yaml('james_manipulation', 'config/moveit/kinematics.yaml')
+    joint_limits_yaml = load_yaml('james_manipulation', 'config/moveit/joint_limits.yaml')
+    servo_yaml = load_yaml('james_manipulation', 'config/moveit/moveit_servo.yaml')
+
+    # MoveIt Servo Node (Composable Node in Foxy)
+    from launch_ros.descriptions import ComposableNode
+    from launch_ros.actions import ComposableNodeContainer
+    servo_node = ComposableNodeContainer(
+        name='servo_server_container',
+        namespace='',
+        package='rclcpp_components',
+        executable='component_container',
+        composable_node_descriptions=[
+            ComposableNode(
+                package='moveit_servo',
+                plugin='moveit_servo::ServoServer',
+                name='servo_server',
+                parameters=[
+                    servo_yaml,
+                    robot_description,
+                    robot_description_semantic,
+                    kinematics_yaml,
+                    joint_limits_yaml,
+                ],
+            ),
+        ],
+        output='screen',
+    )
+
+    # Arm Servo Teleop Controller (Maps joystick to Servo)
+    arm_servo_controller_node = Node(
+        package='james_manipulation',
+        executable='arm_servo_controller',
+        name='arm_servo_controller',
+        parameters=[
+            config_file,
+            {'use_sim_time': use_sim_time}
+        ],
+        arguments=['--ros-args', '--log-level', log_level],
+        output='screen',
+        respawn=True,
+        respawn_delay=2.0
+    )
     
     return LaunchDescription([
         # Launch arguments
@@ -163,7 +211,8 @@ def generate_launch_description():
         
         # Nodes
         platform_bridge_node,
-        arm_controller_node,
         teensy_bridge_node,
         robot_state_publisher_node,
+        servo_node,
+        arm_servo_controller_node,
     ])
