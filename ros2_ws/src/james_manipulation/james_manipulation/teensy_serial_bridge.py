@@ -440,7 +440,19 @@ class TeensySerialBridge(Node):
         prefix = "XJ" if self.blending_enabled else "RJ"
         cmd = prefix
         for i in range(min(len(msg.position), 6)):
-            cmd += f"{self.joint_labels[i]}{math.degrees(msg.position[i]):.4f}"
+            # [JAMES:STABILITY] Target Unwrapping
+            # If high-level ROS nodes use normalized angles (+/- 180), but the Teensy 
+            # has accumulated state (e.g. 475 degrees), we must unwrap to the nearest 
+            # equivalent to prevent a massive 360-degree spin-back.
+            target_deg = math.degrees(msg.position[i])
+            current_deg = math.degrees(self.last_joint_state.position[i])
+            
+            # Minimize travel by wrapping target to nearest equivalent multiple of 360
+            diff = target_deg - current_deg
+            if abs(diff) > 180.0:
+                 target_deg -= round(diff / 360.0) * 360.0
+            
+            cmd += f"{self.joint_labels[i]}{target_deg:.4f}"
         
         # Motion Profile Parameters
         # [JAMES:MOD] Use dynamic speed from msg if provided (V9)

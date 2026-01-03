@@ -228,10 +228,11 @@ class ArmCartesianController(Node):
                 max_speed_param = self.get_parameter('velocity_scale').value or 0.3
                 self.dynamic_sp = max(2.0, mag * max_speed_param * 100.0)
 
-                self.is_active = True
-                self.stop_sent = False # Reset stop guard
-                self.pending_v_x = -joy_lx   # Stick Left -> Robot +X (Left)
-                self.pending_v_y = -joy_ly   # Stick Forward -> Robot +Y (Forward) [FLIPPED]
+                # [Fixed Mapping] V21: Standard ROS Frames (X+ Front, Y+ Left)
+                # Left Stick LY+ (Push Forward) -> Robot X+ (Move Front)
+                # Left Stick LX- (Push Left)    -> Robot Y+ (Move Left)
+                self.pending_v_x = joy_ly
+                self.pending_v_y = -joy_lx
                 
                 if switch_mode == 'vertical':
                     self.pending_v_z = joy_ry
@@ -453,6 +454,14 @@ class ArmCartesianController(Node):
         # [Stability FIX] Use last successful solution as seed
         if self.last_ik_solution:
             req.ik_request.robot_state.joint_state = self.last_ik_solution
+        elif self.current_joint_state:
+            # [JAMES:FIX] Normalize seed joints to [-pi, pi] to prevent IK failure 
+            # if joint states drift or wrap (e.g. J6 reaching 8.3 rad)
+            normalized_js = copy.deepcopy(self.current_joint_state)
+            normalized_js.position = [
+                (p + math.pi) % (2 * math.pi) - math.pi for p in normalized_js.position
+            ]
+            req.ik_request.robot_state.joint_state = normalized_js
         else:
             req.ik_request.robot_state.joint_state = self.current_joint_state
 
