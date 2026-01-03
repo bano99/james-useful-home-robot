@@ -243,7 +243,7 @@ class TeensySerialBridge(Node):
         for port in candidate_ports:
             self.get_logger().info(f"Probing {port}...")
             try:
-                for br in [9600, 115200]:
+                for br in [115200]:  # [STABILITY] Force high-speed baud to prevent buffer congestion
                     test_conn = serial.Serial(port, br, timeout=0.1)
                     
                     # Send Echo Test Message (TM)

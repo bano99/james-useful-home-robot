@@ -1319,10 +1319,14 @@ void updatePosFast() {
 
 void sendRobotPosFast() {
   updatePosFast();
-  // Simplified string for speed: only A-F, no G-L (FK), no delay
-  // Add 'G' as a terminator for 'F' to satisfy bridge parser
-  String sendPos = "A" + String(JangleIn[0], 3) + "B" + String(JangleIn[1], 3) + "C" + String(JangleIn[2], 3) + "D" + String(JangleIn[3], 3) + "E" + String(JangleIn[4], 3) + "F" + String(JangleIn[5], 3) + "G";
-  Serial.println(sendPos);
+  // Optimized: Use Serial.print instead of String concatenation to avoid heap fragmentation
+  Serial.print("A"); Serial.print(JangleIn[0], 3);
+  Serial.print("B"); Serial.print(JangleIn[1], 3);
+  Serial.print("C"); Serial.print(JangleIn[2], 3);
+  Serial.print("D"); Serial.print(JangleIn[3], 3);
+  Serial.print("E"); Serial.print(JangleIn[4], 3);
+  Serial.print("F"); Serial.print(JangleIn[5], 3);
+  Serial.println("G");
   flag = "";
 }
 
@@ -2483,6 +2487,10 @@ int32_t modbusQuerry(String inData, int function) {
 void processSerial() {
   while (Serial.available() > 0) {
     char recieved = Serial.read();
+    
+    // [STABILITY] Guard against unbounded string growth if newline is missed
+    if (recData.length() > 256) recData = ""; 
+    
     recData += recieved;
     // Process message when new line character is recieved
     if (recieved == '\n') {
