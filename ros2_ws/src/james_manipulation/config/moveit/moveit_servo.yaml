@@ -29,7 +29,7 @@
 
     # If is_primary_planning_scene_monitor is set to true, the Servo server's PlanningScene advertises the /get_planning_scene service,
     # which other nodes can use as a source for information about the planning environment.
-    is_primary_planning_scene_monitor: false
+    is_primary_planning_scene_monitor: true
     check_octomap_collisions: false # Check collision against the octomap (if a 3D sensor plugin is available)
 
     ## MoveIt properties
