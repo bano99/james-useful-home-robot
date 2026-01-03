@@ -483,9 +483,6 @@ class TeensySerialBridge(Node):
         if not self.connected or not self.serial_conn: return
         if not msg.points: return
         
-        # [JAMES:MOD] Add Debug Logging for servo reception
-        self.get_logger().info(f"Received Servo Trajectory with {len(msg.points)} points", throttle_duration_sec=2.0)
-        
         # Convert JointTrajectory point to a JointState-like message for the internal move command
         # Servo usually sends only one point per message
         point = msg.points[0]

@@ -39,7 +39,22 @@ class ArmServoController(Node):
         
         self.planning_frame = self.get_parameter('planning_frame').value
         self.last_bm_sent = 0
+        self.last_input_time = 0
+        self.is_moving = False
+        
+        # Timer for inactivity cleanup (BM0, ST)
+        self.cleanup_timer = self.create_timer(0.2, self.cleanup_callback)
         self.get_logger().info('Arm Servo Controller initialized')
+
+    def cleanup_callback(self):
+        """Reverts to precise mode (BM0) and stops the arm after inactivity"""
+        if self.is_moving and (time.time() - self.last_input_time > 0.5):
+            self.get_logger().info('Inactivity detected. Reverting to Precise Mode (BM0) and sending STOP.')
+            self.raw_cmd_pub.publish(String(data="BM0"))
+            time.sleep(0.05)
+            self.raw_cmd_pub.publish(String(data="ST"))
+            self.is_moving = False
+            self.last_bm_sent = 0
 
     def manual_command_callback(self, msg):
         try:
@@ -54,29 +69,34 @@ class ArmServoController(Node):
             if isinstance(switch_mode, int):
                 switch_mode = 'vertical' if switch_mode == 1 else 'platform'
 
-            # Low deadzone for high precision (0.01)
-            active_input = abs(joy_lx) > 0.01 or abs(joy_ly) > 0.01 or abs(joy_ry) > 0.01 or abs(joy_rr) > 0.01
+            # User requested 0.05 deadzone
+            active_input = abs(joy_lx) > 0.05 or abs(joy_ly) > 0.05 or abs(joy_ry) > 0.05 or abs(joy_rr) > 0.05
 
-            # Log incoming Data for debugging
             if active_input:
-                self.get_logger().info(f'Joystick Active: LX:{joy_lx:.2f}, LY:{joy_ly:.2f}, RY:{joy_ry:.2f}, RR:{joy_rr:.2f}, Mode:{switch_mode}', throttle_duration_sec=0.5)
+                self.last_input_time = time.time()
                 
-                # Automatically ensure Blending Mode (BM1) is active on the bridge for Servo
+                # Automatically ensure Blending Mode (BM1) is active only during movement
+                if not self.is_moving:
+                    self.get_logger().info('Movement detected. Enabling Blending Mode (BM1).')
+                    self.raw_cmd_pub.publish(String(data="BM1"))
+                    self.is_moving = True
+                    self.last_bm_sent = time.time()
+                
+                # Periodically re-send BM1 to ensure bridge is in sync
                 now = time.time()
-                if now - self.last_bm_sent > 2.0:
+                if now - self.last_bm_sent > 3.0:
                     self.raw_cmd_pub.publish(String(data="BM1"))
                     self.last_bm_sent = now
+
+                self.get_logger().info(f'Joystick Active: LX:{joy_lx:.2f}, LY:{joy_ly:.2f}, RY:{joy_ry:.2f}, RR:{joy_rr:.2f}, Mode:{switch_mode}', throttle_duration_sec=0.5)
 
             v_scale = self.get_parameter('velocity_scale').value
             r_scale = self.get_parameter('rotation_scale').value
 
             # 1. Cartesian Translation (X, Y, Z) via Twist
-            # These will be handled by the 'ar_translator' group in servo_node
             twist = TwistStamped()
             twist.header.stamp = self.get_clock().now().to_msg()
             twist.header.frame_id = self.planning_frame
-            
-            # Map Joystick to Twist
             twist.twist.linear.x = -joy_lx * v_scale
             twist.twist.linear.y = -joy_ly * v_scale
             
@@ -85,13 +105,13 @@ class ArmServoController(Node):
             else:
                 twist.twist.linear.z = 0.0
 
-            # Publish twist if there is translation input
-            if abs(joy_lx) > 0.01 or abs(joy_ly) > 0.01 or (switch_mode == 'vertical' and abs(joy_ry) > 0.01):
+            # Publish twist if there is translation input (> 0.05)
+            if abs(joy_lx) > 0.05 or abs(joy_ly) > 0.05 or (switch_mode == 'vertical' and abs(joy_ry) > 0.05):
                 self.get_logger().info(f'SENT Twist: X:{twist.twist.linear.x:.3f}, Y:{twist.twist.linear.y:.3f}, Z:{twist.twist.linear.z:.3f}', throttle_duration_sec=0.2)
                 self.twist_pub.publish(twist)
 
             # 2. Joint Jogging (J6)
-            if abs(joy_rr) > 0.01:
+            if abs(joy_rr) > 0.05:
                 jog = JointJog()
                 jog.header.stamp = self.get_clock().now().to_msg()
                 jog.header.frame_id = self.planning_frame

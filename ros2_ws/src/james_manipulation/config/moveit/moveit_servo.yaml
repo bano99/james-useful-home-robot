@@ -45,8 +45,8 @@ ee_frame_name: arm_ee_link
 robot_link_command_frame: base_link
 
 ## Configure handling of singularities and joint limits
-lower_singularity_threshold: 17.0 # Threshold for starting to dampen (Briefing recommendation)
-hard_stop_singularity_threshold: 30.0 # Threshold for stopping movement
+lower_singularity_threshold: 0.01 # Threshold for starting to dampen (Sane default)
+hard_stop_singularity_threshold: 0.005 # Threshold for stopping movement (Sane default)
 leaving_singularity_threshold_multiplier: 2.0
 # Added as a buffer to joint variable position bounds [in that joint variable's respective units].
 # Can be of size 1, which applies the margin to all joints, or the same size as the number of degrees of freedom of the active joint group.
