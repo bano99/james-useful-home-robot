@@ -80,6 +80,20 @@ class ArmCartesianController(Node):
         self.tf_synced = False
         self.joint_state_received = False
         self.ik_success = False
+        self.last_ik_solution = None
+        self.last_sync_pose = Pose()
+        self.session_start_pose = Pose()
+        self.last_manual_time = 0.0
+        self.idle_start_time = None
+        self.stop_sent = False
+        self.is_active = False
+        self.blending_active = False
+        self.log_throttle_map = {}
+        self.dynamic_sp = 25.0 # Default speed
+        
+        # Leash and step parameters
+        self.atomic_step_size = 0.003 # 3mm per Beefy segment
+        self.min_step_size = 0.001
         
         # TF2 setup
         self.tf_buffer = tf2_ros.Buffer()
@@ -238,10 +252,8 @@ class ArmCartesianController(Node):
                 self.pending_v_x = -joy_lx
                 
                 if switch_mode == 'vertical':
-                    # Vertical Move: RY- -> Z+ (Up)
-                    # Yaw: RR- -> Yaw+ (Left)
-                    self.pending_v_z = -joy_ry
-                    self.pending_v_yaw = -joy_rr
+                    self.pending_v_z = joy_ry
+                    self.pending_v_yaw = joy_rr
                 else:
                     self.pending_v_z = 0.0
                     self.pending_v_yaw = 0.0
@@ -252,6 +264,24 @@ class ArmCartesianController(Node):
     def joint_state_callback(self, msg):
         self.current_joint_state = msg
         self.joint_state_received = True
+
+        # [JAMES:STABILITY] Update leash origin from feedback
+        # This ensures the 3cm "carrot" is always relative to where the robot actually is.
+        # We try to get this from TF for accurate cartesian position.
+        try:
+             transform = self.tf_buffer.lookup_transform(
+                  self.planning_frame,
+                  self.ee_link,
+                  rclpy.time.Time(),
+                  timeout=rclpy.duration.Duration(seconds=0.01) # Fast lookup
+             )
+             self.last_sync_pose.position.x = transform.transform.translation.x
+             self.last_sync_pose.position.y = transform.transform.translation.y
+             self.last_sync_pose.position.z = transform.transform.translation.z
+             self.last_sync_pose.orientation = transform.transform.rotation
+             self.last_manual_time = time.time() # Activity heartbeat
+        except:
+             pass # Use last successful target if TF is slow
 
         # [V20] CLOSED-LOOP TRIGGER: Pulse production on every feedback
         if self.is_active and self.blending_active and self.ik_success:
@@ -509,40 +539,48 @@ class ArmCartesianController(Node):
         try:
             response = future.result()
             if response.error_code.val == response.error_code.SUCCESS:
-                # KINEMATICS SAFETY: IK Continuity 2.0 (Check for configuration flips)
+                # KINEMATICS SAFETY: IK Continuity 2.1 (Name-aware check)
                 tgt = response.solution.joint_state.position
                 names = response.solution.joint_state.name
                 
                 # Check against last SUCCESSFUL solution (the chain)
                 if self.last_ik_solution:
-                    prev = self.last_ik_solution.position
-                    diffs = [math.degrees(t - p) for t, p in zip(tgt, prev)]
+                    # Map names to values for safe comparison
+                    current_map = dict(zip(names, tgt))
+                    prev_map = dict(zip(self.last_ik_solution.name, self.last_ik_solution.position))
                     
-                    for i, (name, d) in enumerate(zip(names, diffs)):
-                        # Thresholds: Lenient for rotations (J1/J6), strict for configurations (J2/J3)
-                        limit = 75.0 if ('joint_1' in name or 'joint_6' in name) else 35.0
-                        if abs(d) > limit:
-                             self.get_logger().warn(f'IK BLOCKED: {name} jumped {d:.1f}°. Configuration flip detected.')
-                             self.ik_success = False
-                             return
+                    for name in names:
+                        if name in prev_map:
+                             # Use shortest angular distance for revolute joints
+                             t = current_map[name]
+                             p = prev_map[name]
+                             diff_deg = abs(math.degrees((t - p + math.pi) % (2 * math.pi) - math.pi))
+                             
+                             # Thresholds: Lenient for rotations (J1/J6), strict for configurations (J2/J3)
+                             limit = 75.0 if ('joint_1' in name or 'joint_6' in name) else 35.0
+                             if diff_deg > limit:
+                                  self.get_logger().warn(f'IK BLOCKED: {name} jumped {diff_deg:.1f}°. Configuration flip detected.')
+                                  self.ik_success = False
+                                  # Force a re-sync on jump to prevent runaway
+                                  self.sync_pose_to_actual(loud=False)
+                                  return
                 
                 # Secondary Check: Lead over physical (Detect runaway)
                 if self.current_joint_state:
-                     cur = self.current_joint_state.position
-                     if len(tgt) == len(cur):
-                          abs_diffs = [abs(math.degrees(t - c)) for t, c in zip(tgt, cur)]
-                          if any(d > 90.0 for d in abs_diffs):
-                               self.get_logger().warn('SAFETY BLOCK: Target is >90° ahead of hardware.')
-                               self.ik_success = False
-                               return
+                     cur_map = dict(zip(self.current_joint_state.name, self.current_joint_state.position))
+                     for i, name in enumerate(names):
+                          if name in cur_map:
+                               t = tgt[i]
+                               c = cur_map[name]
+                               diff_deg = abs(math.degrees((t - c + math.pi) % (2 * math.pi) - math.pi))
+                               if diff_deg > 90.0:
+                                    self.get_logger().warn(f'SAFETY BLOCK: {name} is {diff_deg:.1f}° ahead of hardware.')
+                                    self.ik_success = False
+                                    return
 
                 self.ik_success = True
                 self.last_ik_solution = response.solution.joint_state
                 
-                # [JAMES:MOD] Rolling Leash: Update the leash origin to the successful target
-                # This allows continuous movement beyond the initial 3cm leash radius.
-                self.last_sync_pose = copy.deepcopy(self.current_target_pose)
-
                 cmd_msg = JointState()
                 cmd_msg.header.stamp = self.get_clock().now().to_msg()
                 cmd_msg.name = response.solution.joint_state.name

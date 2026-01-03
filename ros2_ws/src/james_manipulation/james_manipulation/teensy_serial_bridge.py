@@ -22,6 +22,7 @@ import glob
 import os as _os
 import threading
 import collections
+import copy
 from collections import deque
 from datetime import datetime
 from ament_index_python.packages import get_package_share_directory
@@ -410,7 +411,18 @@ class TeensySerialBridge(Node):
         pc_msg = Int32()
         pc_msg.data = self.packet_count
         self.packet_count_pub.publish(pc_msg)
-        self.publish_joint_state()
+        
+        # [JAMES:STABILITY] Normalize Published Joint States
+        # Higher-level ROS nodes (MoveIt, BioIK) prefer normalized [-pi, pi] angles.
+        # We keep the absolute state in self.last_joint_state for our internal bridge logic,
+        # but we send a normalized version to the rest of the system.
+        norm_msg = copy.deepcopy(self.last_joint_state)
+        for i in range(len(norm_msg.position)):
+            pos = norm_msg.position[i]
+            norm_msg.position[i] = (pos + math.pi) % (2 * math.pi) - math.pi
+        
+        norm_msg.header.stamp = self.get_clock().now().to_msg()
+        self.joint_state_pub.publish(norm_msg)
 
         # [JAMES:MOD] Flow Control - Move completed, aggressively refill pipeline (V12)
         with self.flow_lock:
