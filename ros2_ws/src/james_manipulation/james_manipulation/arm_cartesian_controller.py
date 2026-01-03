@@ -351,6 +351,9 @@ class ArmCartesianController(Node):
             self.pending_v_y = 0.0
             self.pending_v_z = 0.0
             self.pending_v_yaw = 0.0
+            
+            # [JAMES:MOD] Reset continuity chain on idle to prevent ghosting between sessions
+            self.last_ik_solution = None
 
             if self.idle_start_time is None:
                 self.idle_start_time = current_time
@@ -539,30 +542,33 @@ class ArmCartesianController(Node):
         try:
             response = future.result()
             if response.error_code.val == response.error_code.SUCCESS:
-                # KINEMATICS SAFETY: IK Continuity 2.1 (Name-aware check)
+                # KINEMATICS SAFETY: IK Continuity 2.2 (Chain Protection)
                 tgt = response.solution.joint_state.position
                 names = response.solution.joint_state.name
                 
-                # Check against last SUCCESSFUL solution (the chain)
-                if self.last_ik_solution:
+                # Baseline: Compare against last solution, or current physical state if starting move
+                baseline = self.last_ik_solution if self.last_ik_solution else self.current_joint_state
+                
+                if baseline:
                     # Map names to values for safe comparison
                     current_map = dict(zip(names, tgt))
-                    prev_map = dict(zip(self.last_ik_solution.name, self.last_ik_solution.position))
+                    prev_map = dict(zip(baseline.name, baseline.position))
                     
                     for name in names:
                         if name in prev_map:
                              # Use shortest angular distance for revolute joints
                              t = current_map[name]
                              p = prev_map[name]
-                             diff_deg = abs(math.degrees((t - p + math.pi) % (2 * math.pi) - math.pi))
+                             diff_rad = (t - p + math.pi) % (2 * math.pi) - math.pi
+                             diff_deg = abs(math.degrees(diff_rad))
                              
-                             # Thresholds: Lenient for rotations (J1/J6), strict for configurations (J2/J3)
+                             # Thresholds: Lenient for rotations (J1/J6), strict for configurations (J2/J3/J5)
                              limit = 75.0 if ('joint_1' in name or 'joint_6' in name) else 35.0
                              if diff_deg > limit:
-                                  self.get_logger().warn(f'IK BLOCKED: {name} jumped {diff_deg:.1f}°. Configuration flip detected.')
+                                  self.get_logger().warn(f'IK BLOCKED: {name} jumped {diff_deg:.1f}° from baseline. Configuration flip detected.')
                                   self.ik_success = False
-                                  # Force a re-sync on jump to prevent runaway
-                                  self.sync_pose_to_actual(loud=False)
+                                  self.last_ik_solution = None # Reset chain to force re-sync
+                                  self.sync_pose_to_actual(loud=True)
                                   return
                 
                 # Secondary Check: Lead over physical (Detect runaway)

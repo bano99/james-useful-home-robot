@@ -1607,8 +1607,18 @@ void driveMotorsXJ(int J1step, int J2step, int J3step, int J4step, int J5step, i
        if (!nextReady) break; 
        // If somehow we got here with nextReady but 0 steps, load next immediately
     } else {
+        // [STABILITY] PH2 optimisation: Defensive math for trapezoidal profile
         float ACCStep = HighStep * (ACCspd / 100.0f);
         float DCCStep = HighStep * (DCCspd / 100.0f);
+        
+        if (ACCStep < 0) ACCStep = 0;
+        if (DCCStep < 0) DCCStep = 0;
+        if (ACCStep + DCCStep > HighStep) {
+          float scale = (float)HighStep / (ACCStep + DCCStep);
+          ACCStep *= scale;
+          DCCStep *= scale;
+        }
+        
         float NORStep = HighStep - ACCStep - DCCStep;
 
         if(ACCramp < 10) ACCramp = 10;
@@ -1618,16 +1628,21 @@ void driveMotorsXJ(int J1step, int J2step, int J3step, int J4step, int J5step, i
         float calcStepGap;
         if (SpeedType == "s") {
           float speedSP = (SpeedVal * 1000000.0f);
+          // [STABILITY] PH2 optimisation: Ensure denominator is safe
           float denom = NORStep + (ACCStep * (1.0f + k_acc) + DCCStep * (1.0f + k_dec)) * 0.5f;
-          calcStepGap = (denom > 0) ? speedSP / denom : minSpeedDelay;
+          if (denom < 1.0f) denom = 1.0f;
+          calcStepGap = speedSP / denom;
         } else {
           calcStepGap = minSpeedDelay / (SpeedVal / 100.0f);
         }
         
+        // [STABILITY] PH2 optimisation: Clamp calculated gap
+        if (calcStepGap < minSpeedDelay) calcStepGap = minSpeedDelay;
+        
         float startDelay = calcStepGap * k_acc;
         float endDelay = calcStepGap * k_dec;
-        float calcACCstepInc = (ACCStep > 0) ? (startDelay - calcStepGap) / ACCStep : 0;
-        float calcDCCstepInc = (DCCStep > 0) ? (endDelay - calcStepGap) / DCCStep : 0;
+        float calcACCstepInc = (ACCStep > 0.5f) ? (startDelay - calcStepGap) / ACCStep : 0;
+        float calcDCCstepInc = (DCCStep > 0.5f) ? (endDelay - calcStepGap) / DCCStep : 0;
 
         if (firstSegment) curDelay = startDelay;
         else curDelay = lastCruiseDelay;
@@ -1635,9 +1650,23 @@ void driveMotorsXJ(int J1step, int J2step, int J3step, int J4step, int J5step, i
         for (int i = 0; i < 6; i++) digitalWrite(dirPins[i], (dirs[i] == motDirs[i] ? HIGH : LOW));
 
         int highStepCur = 0;
-        int cur[] = {0,0,0,0,0,0,0,0,0};
+        int curCount[9] = {0};
+        
+        // [STABILITY] PH2 optimisation: Pre-calculate bresenham-like patterns outside tight loop
         int PE[9], SE_1[9], SE_2[9], LO_1[9], LO_2[9];
         int PEcur[9] = {0}, SE_1cur[9] = {0}, SE_2cur[9] = {0};
+        
+        for (int i = 0; i < 6; i++) {
+          if (steps[i] > 0) {
+            PE[i] = (HighStep / steps[i]);
+            LO_1[i] = (HighStep - (steps[i] * PE[i]));
+            SE_1[i] = (LO_1[i] > 0) ? (HighStep / LO_1[i]) : 0;
+            LO_2[i] = (SE_1[i] > 0) ? (HighStep - ((steps[i] * PE[i]) + ((steps[i] * PE[i]) / SE_1[i]))) : 0;
+            SE_2[i] = (LO_2[i] > 0) ? (HighStep / LO_2[i]) : 0;
+          } else {
+            PE[i] = 1; SE_1[i] = 0; SE_2[i] = 0;
+          }
+        }
 
         nextReady = false;
         while (highStepCur < HighStep && !estopActive) {
@@ -1656,12 +1685,8 @@ void driveMotorsXJ(int J1step, int J2step, int J3step, int J4step, int J5step, i
 
           float disDelayCur = 0;
           for (int i = 0; i < 6; i++) {
-            if (cur[i] < steps[i]) {
-              PE[i] = (HighStep / steps[i]);
-              LO_1[i] = (HighStep - (steps[i] * PE[i]));
-              SE_1[i] = (LO_1[i] > 0) ? (HighStep / LO_1[i]) : 0;
-              LO_2[i] = (SE_1[i] > 0) ? (HighStep - ((steps[i] * PE[i]) + ((steps[i] * PE[i]) / SE_1[i]))) : 0;
-              SE_2[i] = (LO_2[i] > 0) ? (HighStep / LO_2[i]) : 0;
+            if (curCount[i] < steps[i]) {
+              // [STABILITY] PH2 Fix: Restoration of core Bresenham guards
               if (SE_2[i] == 0) SE_2cur[i] = SE_2[i] + 1;
               if (SE_2cur[i] != SE_2[i]) {
                 SE_2cur[i]++;
@@ -1669,7 +1694,7 @@ void driveMotorsXJ(int J1step, int J2step, int J3step, int J4step, int J5step, i
                 if (SE_1cur[i] != SE_1[i]) {
                   SE_1cur[i]++; PEcur[i]++;
                   if (PEcur[i] == PE[i]) {
-                    cur[i]++; PEcur[i] = 0;
+                    curCount[i]++; PEcur[i] = 0;
                     digitalWrite(stepPins[i], LOW);
                     delayMicroseconds(30); disDelayCur += 30;
                     if (dirs[i] == 0) stepMonitors[i]--; else stepMonitors[i]++;
@@ -1680,9 +1705,11 @@ void driveMotorsXJ(int J1step, int J2step, int J3step, int J4step, int J5step, i
           }
           highStepCur++;
           for (int i = 0; i < 6; i++) digitalWrite(stepPins[i], HIGH);
+          
+          // [STABILITY] PH2 optimisation: Guard against NaN or extreme values
           float wait = curDelay - disDelayCur;
-          if (wait < minSpeedDelay) wait = minSpeedDelay;
-          delayMicroseconds(wait);
+          if (!isfinite(wait) || wait < minSpeedDelay) wait = minSpeedDelay;
+          delayMicroseconds((uint32_t)wait);
         }
         lastCruiseDelay = calcStepGap;
     }
@@ -1700,13 +1727,22 @@ void driveMotorsXJ(int J1step, int J2step, int J3step, int J4step, int J5step, i
     cmdBuffer1 = "";
     shiftCMDarray();
     
+    // [STABILITY] PH3 optimisation: Zero-heap parsing using atof on direct pointers
+    const char* ptr = nextData.c_str();
     int J1s = nextData.indexOf("A"), J2s = nextData.indexOf("B"), J3s = nextData.indexOf("C"), J4s = nextData.indexOf("D"), J5s = nextData.indexOf("E"), J6s = nextData.indexOf("F"), SPs = nextData.indexOf("S"), Acs = nextData.indexOf("Ac"), Dcs = nextData.indexOf("Dc"), Rms = nextData.indexOf("Rm");
-    float J1A = nextData.substring(J1s + 1, J2s).toFloat(), J2A = nextData.substring(J2s + 1, J3s).toFloat(), J3A = nextData.substring(J3s + 1, J4s).toFloat(), J4A = nextData.substring(J4s + 1, J5s).toFloat(), J5A = nextData.substring(J5s + 1, J6s).toFloat(), J6A = nextData.substring(J6s + 1, SPs).toFloat();
-    SpeedType = nextData.substring(SPs + 1, SPs + 2);
-    SpeedVal = nextData.substring(SPs + 2, Acs).toFloat();
-    ACCspd = nextData.substring(Acs + 2, Dcs).toFloat();
-    DCCspd = nextData.substring(Dcs + 2, Rms).toFloat();
-    ACCramp = nextData.substring(Rms + 2).toFloat();
+    
+    float J1A = (J1s != -1) ? atof(ptr + J1s + 1) : 0;
+    float J2A = (J2s != -1) ? atof(ptr + J2s + 1) : 0;
+    float J3A = (J3s != -1) ? atof(ptr + J3s + 1) : 0;
+    float J4A = (J4s != -1) ? atof(ptr + J4s + 1) : 0;
+    float J5A = (J5s != -1) ? atof(ptr + J5s + 1) : 0;
+    float J6A = (J6s != -1) ? atof(ptr + J6s + 1) : 0;
+    
+    SpeedType = (SPs != -1) ? nextData.substring(SPs + 1, SPs + 2) : "s"; // Small substring fine here, only 1 char
+    SpeedVal = (SPs != -1) ? atof(ptr + SPs + 2) : 20.0;
+    ACCspd = (Acs != -1) ? atof(ptr + Acs + 2) : 10;
+    DCCspd = (Dcs != -1) ? atof(ptr + Dcs + 2) : 10;
+    ACCramp = (Rms != -1) ? atof(ptr + Rms + 2) : 20;
     
     steps[0] = abs(stepMonitors[0] - (int)((J1A + J1axisLimNeg) * J1StepDeg));
     steps[1] = abs(stepMonitors[1] - (int)((J2A + J2axisLimNeg) * J2StepDeg));
@@ -2488,17 +2524,22 @@ void processSerial() {
   while (Serial.available() > 0) {
     char recieved = Serial.read();
     
-    // [STABILITY] Guard against unbounded string growth if newline is missed
-    if (recData.length() > 256) recData = ""; 
+    // [STABILITY] PH1 optimisation: Guard against unbounded string growth if newline is missed
+    // Increased to 4096 to prevent killing large UP commands while still providing safety.
+    if (recData.length() > 4096) recData = ""; 
     
     recData += recieved;
     // Process message when new line character is recieved
     if (recieved == '\n') {
       recData.trim();
-      String procCMDtype = recData.substring(0, 2);
+      // [STABILITY] PH3 optimisation: Direct index check instead of substring(0, 2)
+      bool isST = (recData.length() >= 2 && recData[0] == 'S' && recData[1] == 'T');
+      bool isBM = (recData.length() >= 2 && recData[0] == 'B' && recData[1] == 'M');
+      bool isSS = (recData.length() >= 2 && recData[0] == 'S' && recData[1] == 'S');
+      bool isMS = (recData.length() >= 2 && recData[0] == 'M' && recData[1] == 'S');
 
       // [JAMES:MOD] Priority Commands: Process even if buffers are full
-      if (procCMDtype == "ST") {
+      if (isST) {
           estopActive = true;       // Trigger soft E-stop to break loops
           moveSequence = "";        // Clear sequences
           cmdBuffer1 = "";          // Clear all buffers
@@ -2511,8 +2552,8 @@ void processSerial() {
           return;
       }
 
-      if (procCMDtype == "BM") {
-          int val = recData.substring(2).toInt();
+      if (isBM) {
+          int val = atoi(recData.c_str() + 2);
           blendingEnabled = (val == 1);
           Serial.print("BLENDING:");
           Serial.println(blendingEnabled ? "ON" : "OFF");
@@ -2523,7 +2564,7 @@ void processSerial() {
       // [JAMES:MOD] Regular Commands: Only buffer if there is room
       if (cmdBuffer3 == "") {
           cmdBuffer3 = recData;
-          if (procCMDtype == "SS") {
+          if (isSS) {
             splineTrue = false;
             splineEndReceived = true;
           }
@@ -2546,7 +2587,7 @@ void processSerial() {
 
 
       //if second position is empty and first move command read in process second move ahead of time
-      if (procCMDtype == "MS" and moveSequence == "firsMoveActive" and cmdBuffer2 == "" and cmdBuffer1 != "" and splineTrue == true) {
+      if (isMS and moveSequence == "firsMoveActive" and cmdBuffer2 == "" and cmdBuffer1 != "" and splineTrue == true) {
         moveSequence = "secondMoveProcessed";
         while (cmdBuffer2 == "") {
           if (Serial.available() > 0) {
@@ -2555,8 +2596,7 @@ void processSerial() {
             if (recieved == '\n') {
               cmdBuffer2 = recData;
               recData.trim();
-              procCMDtype = recData.substring(0, 2);
-              if (procCMDtype == "MS") {
+              if (recData.length() >= 2 && recData[0] == 'M' && recData[1] == 'S') {
                 //close serial so next command can be read in
                 delay(5);
                 if (Alarm == "0") {
@@ -2660,6 +2700,14 @@ void setup() {
   digitalWrite(J7stepPin, HIGH);
   digitalWrite(J8stepPin, HIGH);
   digitalWrite(J9stepPin, HIGH);
+
+  // [STABILITY] PH1/PH3 optimisation: Heap protection
+  // Reserve memory once at startup to prevent fragmentation during moves
+  recData.reserve(4096);
+  inData.reserve(4096);
+  cmdBuffer1.reserve(1024);
+  cmdBuffer2.reserve(1024);
+  cmdBuffer3.reserve(1024);
 
   //clear command buffer array
   cmdBuffer1 = "";
