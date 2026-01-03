@@ -13,7 +13,7 @@ import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
 from trajectory_msgs.msg import JointTrajectory
-from std_msgs.msg import String, Int32
+from std_msgs.msg import String, Int32, Int8
 import json
 import time
 import math
@@ -147,6 +147,9 @@ class TeensySerialBridge(Node):
         self.packet_count_pub = self.create_publisher(Int32, '/teensy/packet_count', 10)
         self.raw_rx_pub = self.create_publisher(String, '/arm/teensy_raw_rx', 10) # For debug CLI
         self.packet_count = 0
+        
+        # [JAMES:DIAG] Servo Status Subscriber
+        self.servo_status_sub = self.create_subscription(Int8, '/servo_server/status', self.servo_status_callback, 10)
         
         # Timer for publishing joint states
         self.joint_state_timer = self.create_timer(1.0 / self.publish_rate, self.publish_joint_state)
@@ -483,6 +486,11 @@ class TeensySerialBridge(Node):
         if not self.connected or not self.serial_conn: return
         if not msg.points: return
         
+        # [JAMES:DIAG] Log reception of joint trajectory
+        p = msg.points[0]
+        pos_str = ", ".join([f"{v:.3f}" for v in p.positions])
+        self.get_logger().info(f"RECEIVED Servo Move: {pos_str}", throttle_duration_sec=1.0)
+        
         # Convert JointTrajectory point to a JointState-like message for the internal move command
         # Servo usually sends only one point per message
         point = msg.points[0]
@@ -545,6 +553,11 @@ class TeensySerialBridge(Node):
             self.last_joint_state.header.stamp = self.get_clock().now().to_msg()
             self.joint_state_pub.publish(self.last_joint_state)
     
+    def servo_status_callback(self, msg):
+        """Log MoveIt Servo status codes"""
+        # Status codes: 0=NO_CONTROL, 1=CONTROLLING, 2=JOINT_BOUND, 3=SINGULARITY, etc.
+        self.get_logger().info(f"MoveIt Servo Status: {msg.data}", throttle_duration_sec=2.0)
+
     def publish_status(self):
         msg = String()
         msg.data = json.dumps({'connected': self.connected, 'baud': self.baud_rate, 'ts': time.time()})

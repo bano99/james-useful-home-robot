@@ -75,9 +75,10 @@ class ArmServoController(Node):
             if active_input:
                 self.last_input_time = time.time()
                 
-                # Automatically ensure Blending Mode (BM1) is active only during movement
-                if not self.is_moving:
-                    self.get_logger().info('Movement detected. Enabling Blending Mode (BM1).')
+                # Only enable Blending Mode (BM1) if input is significant (> 0.1)
+                # This prevents drift from triggering the high-latency mode prematurely
+                if not self.is_moving and (abs(joy_lx) > 0.1 or abs(joy_ly) > 0.1 or abs(joy_ry) > 0.1 or abs(joy_rr) > 0.1):
+                    self.get_logger().info('Significant movement detected. Enabling Blending Mode (BM1).')
                     self.raw_cmd_pub.publish(String(data="BM1"))
                     self.is_moving = True
                     self.last_bm_sent = time.time()
