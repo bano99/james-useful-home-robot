@@ -9,6 +9,7 @@ from rclpy.node import Node
 from std_msgs.msg import String
 from geometry_msgs.msg import TwistStamped
 from control_msgs.msg import JointJog
+import tf2_ros
 import json
 import time
 import math
@@ -21,6 +22,10 @@ class ArmServoController(Node):
         self.declare_parameter('velocity_scale', 0.5)
         self.declare_parameter('rotation_scale', 0.1)
         self.declare_parameter('planning_frame', 'arm_base_link')
+        
+        # TF Listener for diagnostics
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
         
         # Publishers for MoveIt Servo
         self.twist_pub = self.create_publisher(TwistStamped, '/servo_server/delta_twist_cmds', 10)
@@ -83,11 +88,17 @@ class ArmServoController(Node):
                     self.is_moving = True
                     self.last_bm_sent = time.time()
                 
-                # Periodically re-send BM1 to ensure bridge is in sync
                 now = time.time()
                 if now - self.last_bm_sent > 3.0:
                     self.raw_cmd_pub.publish(String(data="BM1"))
                     self.last_bm_sent = now
+
+                # [JAMES:DIAG] Log Current Pose for debugging
+                try:
+                    trans = self.tf_buffer.lookup_transform('arm_base_link', 'arm_ee_link', rclpy.time.Time())
+                    self.get_logger().info(f"Current EE Pose: X:{trans.transform.translation.x:.3f}, Y:{trans.transform.translation.y:.3f}, Z:{trans.transform.translation.z:.3f}", throttle_duration_sec=2.0)
+                except Exception:
+                    pass
 
                 self.get_logger().info(f'Joystick Active: LX:{joy_lx:.2f}, LY:{joy_ly:.2f}, RY:{joy_ry:.2f}, RR:{joy_rr:.2f}, Mode:{switch_mode}', throttle_duration_sec=0.5)
 
