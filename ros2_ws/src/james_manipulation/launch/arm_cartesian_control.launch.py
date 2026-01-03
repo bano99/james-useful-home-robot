@@ -140,26 +140,16 @@ def generate_launch_description():
 
     # --- MoveIt 2 Configuration (Required for Servo) ---
     
+    # Paths to YAML configs
+    kinematics_yaml_path = os.path.join(pkg_james_manipulation, 'config', 'moveit', 'kinematics.yaml')
+    joint_limits_yaml_path = os.path.join(pkg_james_manipulation, 'config', 'moveit', 'joint_limits.yaml')
+    servo_yaml_path = os.path.join(pkg_james_manipulation, 'config', 'moveit', 'moveit_servo.yaml')
+
     # Get SRDF via xacro
     srdf_path = os.path.join(pkg_james_description, 'srdf', 'james.srdf.xacro')
     import xacro
     robot_description_semantic_config = xacro.process_file(srdf_path)
     robot_description_semantic = {'robot_description_semantic': robot_description_semantic_config.toxml()}
-
-    # Load YAML configs
-    def load_yaml(package_name, file_path):
-        package_path = get_package_share_directory(package_name)
-        absolute_file_path = os.path.join(package_path, file_path)
-        try:
-            with open(absolute_file_path, 'r') as file:
-                import yaml
-                return yaml.safe_load(file)
-        except EnvironmentError:
-            return None
-
-    kinematics_yaml = load_yaml('james_manipulation', 'config/moveit/kinematics.yaml')
-    joint_limits_yaml = load_yaml('james_manipulation', 'config/moveit/joint_limits.yaml')
-    servo_yaml = load_yaml('james_manipulation', 'config/moveit/moveit_servo.yaml')
 
     # MoveIt Servo Node (Composable Node in Foxy)
     from launch_ros.descriptions import ComposableNode
@@ -175,11 +165,11 @@ def generate_launch_description():
                 plugin='moveit_servo::ServoServer',
                 name='servo_server',
                 parameters=[
-                    servo_yaml,
+                    servo_yaml_path,
                     robot_description,
                     robot_description_semantic,
-                    kinematics_yaml,
-                    joint_limits_yaml,
+                    kinematics_yaml_path,
+                    joint_limits_yaml_path,
                 ],
             ),
         ],

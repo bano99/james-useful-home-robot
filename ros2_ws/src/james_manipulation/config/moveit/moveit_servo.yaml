@@ -40,9 +40,9 @@ is_primary_planning_scene_monitor: false
 check_octomap_collisions: false # Check collision against the octomap (if a 3D sensor plugin is available)
 
 ## MoveIt properties
-move_group_name: ar_translator # Optimized for stability (Locks J4/J6)
+move_group_name: ar_manipulator # Diagnostic: use main group
 ee_frame_name: arm_ee_link
-robot_link_command_frame: base_link
+robot_link_command_frame: arm_base_link # Diagnostic: use arm base
 
 ## Configure handling of singularities and joint limits
 lower_singularity_threshold: 0.01 # Threshold for starting to dampen (Sane default)

@@ -20,7 +20,7 @@ class ArmServoController(Node):
         # Declare parameters
         self.declare_parameter('velocity_scale', 0.5)
         self.declare_parameter('rotation_scale', 0.1)
-        self.declare_parameter('planning_frame', 'base_link')
+        self.declare_parameter('planning_frame', 'arm_base_link')
         
         # Publishers for MoveIt Servo
         self.twist_pub = self.create_publisher(TwistStamped, '/servo_server/delta_twist_cmds', 10)
