@@ -26,6 +26,9 @@ class ArmServoController(Node):
         self.twist_pub = self.create_publisher(TwistStamped, '/servo_server/delta_twist_cmds', 10)
         self.joint_pub = self.create_publisher(JointJog, '/servo_server/delta_joint_cmds', 10)
         
+        # Publisher for raw bridge commands (to enable BM1)
+        self.raw_cmd_pub = self.create_publisher(String, '/arm/teensy_raw_cmd', 10)
+        
         # Subscriber for manual commands
         self.manual_cmd_sub = self.create_subscription(
             String,
@@ -35,6 +38,7 @@ class ArmServoController(Node):
         )
         
         self.planning_frame = self.get_parameter('planning_frame').value
+        self.last_bm_sent = 0
         self.get_logger().info('Arm Servo Controller initialized')
 
     def manual_command_callback(self, msg):
@@ -50,9 +54,18 @@ class ArmServoController(Node):
             if isinstance(switch_mode, int):
                 switch_mode = 'vertical' if switch_mode == 1 else 'platform'
 
+            # Low deadzone for high precision (0.01)
+            active_input = abs(joy_lx) > 0.01 or abs(joy_ly) > 0.01 or abs(joy_ry) > 0.01 or abs(joy_rr) > 0.01
+
             # Log incoming Data for debugging
-            if abs(joy_lx) > 0.05 or abs(joy_ly) > 0.05 or abs(joy_ry) > 0.05 or abs(joy_rr) > 0.05:
+            if active_input:
                 self.get_logger().info(f'Joystick Active: LX:{joy_lx:.2f}, LY:{joy_ly:.2f}, RY:{joy_ry:.2f}, RR:{joy_rr:.2f}, Mode:{switch_mode}', throttle_duration_sec=0.5)
+                
+                # Automatically ensure Blending Mode (BM1) is active on the bridge for Servo
+                now = time.time()
+                if now - self.last_bm_sent > 2.0:
+                    self.raw_cmd_pub.publish(String(data="BM1"))
+                    self.last_bm_sent = now
 
             v_scale = self.get_parameter('velocity_scale').value
             r_scale = self.get_parameter('rotation_scale').value
@@ -64,8 +77,6 @@ class ArmServoController(Node):
             twist.header.frame_id = self.planning_frame
             
             # Map Joystick to Twist
-            # Stick Left -> Robot +X (Left)
-            # Stick Forward -> Robot +Y (Forward)
             twist.twist.linear.x = -joy_lx * v_scale
             twist.twist.linear.y = -joy_ly * v_scale
             
@@ -75,23 +86,21 @@ class ArmServoController(Node):
                 twist.twist.linear.z = 0.0
 
             # Publish twist if there is translation input
-            if abs(joy_lx) > 0.05 or abs(joy_ly) > 0.05 or (switch_mode == 'vertical' and abs(joy_ry) > 0.05):
-                self.get_logger().debug(f'Publishing Twist: X:{twist.twist.linear.x:.3f}, Y:{twist.twist.linear.y:.3f}, Z:{twist.twist.linear.z:.3f}')
+            if abs(joy_lx) > 0.01 or abs(joy_ly) > 0.01 or (switch_mode == 'vertical' and abs(joy_ry) > 0.01):
+                self.get_logger().info(f'SENT Twist: X:{twist.twist.linear.x:.3f}, Y:{twist.twist.linear.y:.3f}, Z:{twist.twist.linear.z:.3f}', throttle_duration_sec=0.2)
                 self.twist_pub.publish(twist)
 
             # 2. Joint Jogging (J6)
-            # Map joy_rr (rotation) or other axes to specific joints
-            if abs(joy_rr) > 0.05:
+            if abs(joy_rr) > 0.01:
                 jog = JointJog()
                 jog.header.stamp = self.get_clock().now().to_msg()
                 jog.header.frame_id = self.planning_frame
                 
-                # If in vertical mode, RR is Yaw (J6 rotation)
                 if switch_mode == 'vertical':
                     jog.joint_names = ['arm_joint_6']
-                    jog.velocities = [joy_rr * r_scale * 5.0] # Scale for joint speed
+                    jog.velocities = [joy_rr * r_scale * 5.0]
                 
-                self.get_logger().debug(f'Publishing JointJog: {jog.joint_names} -> {jog.velocities}')
+                self.get_logger().info(f'SENT Jog: {jog.joint_names} -> {jog.velocities[0]:.3f}', throttle_duration_sec=0.2)
                 self.joint_pub.publish(jog)
 
         except Exception as e:
