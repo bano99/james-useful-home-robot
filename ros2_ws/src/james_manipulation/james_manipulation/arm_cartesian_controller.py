@@ -228,6 +228,9 @@ class ArmCartesianController(Node):
                 max_speed_param = self.get_parameter('velocity_scale').value or 0.3
                 self.dynamic_sp = max(2.0, mag * max_speed_param * 100.0)
 
+                self.is_active = True
+                self.stop_sent = False # Reset stop guard
+
                 # [Fixed Mapping] V21: Standard ROS Frames (X+ Front, Y+ Left)
                 # Left Stick LY+ (Push Forward) -> Robot X+ (Move Front)
                 # Left Stick LX- (Push Left)    -> Robot Y+ (Move Left)
@@ -533,6 +536,11 @@ class ArmCartesianController(Node):
 
                 self.ik_success = True
                 self.last_ik_solution = response.solution.joint_state
+                
+                # [JAMES:MOD] Rolling Leash: Update the leash origin to the successful target
+                # This allows continuous movement beyond the initial 3cm leash radius.
+                self.last_sync_pose = copy.deepcopy(self.current_target_pose)
+
                 cmd_msg = JointState()
                 cmd_msg.header.stamp = self.get_clock().now().to_msg()
                 cmd_msg.name = response.solution.joint_state.name
