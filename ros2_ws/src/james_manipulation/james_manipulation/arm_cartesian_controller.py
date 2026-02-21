@@ -151,6 +151,13 @@ class ArmCartesianController(Node):
         self.pending_v_y = 0.0
         self.pending_v_z = 0.0
         self.pending_v_yaw = 0.0
+        
+        # [Direct Joint Control]
+        self.pending_j4 = 0.0
+        self.pending_j5 = 0.0
+        self.pending_j6 = 0.0
+        self.joy_lz = 0.0
+        self.joy_rx = 0.0
         self.joy_lx = 0.0
         self.joy_ly = 0.0
         self.joy_ry = 0.0
@@ -224,21 +231,17 @@ class ArmCartesianController(Node):
                 
                 # Calculate unit-velocities (V18: Magnitude decoupled from step size)
                 self.joy_lx, self.joy_ly, self.joy_ry, self.joy_rr = joy_lx, joy_ly, joy_ry, joy_rr
+                self.joy_lz, self.joy_rx = joy_lz, joy_rx
                 
                 # [JAMES:MOD] V20: Calculate Speed based on Magnitude
-                # Map mag [0.1..1.0] to speed [2.0..motion_speed]
-                mag = math.sqrt(joy_lx**2 + joy_ly**2 + joy_ry**2 + joy_rr**2)
+                mag = math.sqrt(joy_lx**2 + joy_ly**2 + joy_ry**2 + joy_rr**2 + joy_lz**2 + joy_rx**2)
                 if mag < 0.10:
-                    self.pending_v_x = 0.0
-                    self.pending_v_y = 0.0
-                    self.pending_v_z = 0.0
-                    self.pending_v_yaw = 0.0
+                    self.pending_v_x, self.pending_v_y, self.pending_v_z, self.pending_v_yaw = 0.0, 0.0, 0.0, 0.0
+                    self.pending_j4, self.pending_j5, self.pending_j6 = 0.0, 0.0, 0.0
                     self.is_active = False
                     return
 
-                # Calculate dynamic speed (Sp factor for Teensy)
-                # If velocity_scale is e.g. 0.3 (standard for this robot), mag 1.0 -> 30% speed
-                # motion_speed parameter is usually around 30.0
+                # Calculate dynamic speed
                 max_speed_param = self.get_parameter('velocity_scale').value or 0.3
                 self.dynamic_sp = max(2.0, mag * max_speed_param * 100.0)
 
@@ -246,17 +249,20 @@ class ArmCartesianController(Node):
                 self.stop_sent = False # Reset stop guard
 
                 # [Fixed Mapping] V22: User Setup Alignment (Y=Forward, X=Left)
-                # Joystick usually: Forward is negative LY, Left is negative LX
-                # Goal: LY- -> Y+ (Forward), LX- -> X+ (Left)
                 self.pending_v_y = -joy_ly
                 self.pending_v_x = -joy_lx
                 
                 if switch_mode == 'vertical':
                     self.pending_v_z = joy_ry
-                    self.pending_v_yaw = joy_rr
+                    self.pending_v_yaw = 0.0 # Bypassed for direct J4
                 else:
                     self.pending_v_z = 0.0
                     self.pending_v_yaw = 0.0
+
+                # Direct Joint Control Mappings
+                self.pending_j6 = joy_lz  # Left Joystick Rotate
+                self.pending_j4 = joy_rr  # Right Joystick Rotate
+                self.pending_j5 = joy_rx  # Right Joystick Left/Right
                 
         except Exception as e:
             self.log(f'Error processing manual command: {e}', level='error')
@@ -402,6 +408,31 @@ class ArmCartesianController(Node):
         if not self.is_active:
              return
 
+        # [Direct Joint Control Integration]
+        # We apply joint increments BEFORE IK to ensure the solver sees the new constraints
+        has_joint_move = abs(self.pending_j4) > 1e-6 or abs(self.pending_j5) > 1e-6 or abs(self.pending_j6) > 1e-6
+        if has_joint_move:
+             # Use current state as baseline if no solution exists
+             baseline = self.last_ik_solution if self.last_ik_solution else self.current_joint_state
+             if baseline:
+                  # Create working copy
+                  if not self.last_ik_solution:
+                       self.last_ik_solution = copy.deepcopy(self.current_joint_state)
+                  
+                  # Apply increments (rotation_scale is typical 0.05 rad per atomic step)
+                  j_inc = self.rotation_scale * 1.5 # Boosted for responsiveness
+                  names = self.last_ik_solution.name
+                  pos = list(self.last_ik_solution.position)
+                  
+                  if 'arm_joint_4' in names:
+                       pos[names.index('arm_joint_4')] += self.pending_j4 * j_inc
+                  if 'arm_joint_5' in names:
+                       pos[names.index('arm_joint_5')] += self.pending_j5 * j_inc
+                  if 'arm_joint_6' in names:
+                       pos[names.index('arm_joint_6')] += self.pending_j6 * j_inc
+                  
+                  self.last_ik_solution.position = tuple(pos)
+
         # [JAMES:MOD] V20: ATOMIC STEP CALCULATION
         dx = self.pending_v_x
         dy = self.pending_v_y
@@ -418,12 +449,25 @@ class ArmCartesianController(Node):
              
              # [Stability] If no rotation is requested, lock to session start orientation
              # Increased threshold to 1e-4 to ignore joystick idle noise
-             if abs(self.pending_v_yaw) < 1e-4:
+             if abs(self.pending_v_yaw) < 1e-4 and not has_joint_move:
                   self.current_target_pose.orientation = copy.deepcopy(self.session_start_pose.orientation)
                   
              self.log(f"JOY -> Pushing Target: X={self.current_target_pose.position.x:.3f}, Y={self.current_target_pose.position.y:.3f}, Z={self.current_target_pose.position.z:.3f} (Step: {step_len:.3f})", throttle=0.2)
         elif abs(self.pending_v_yaw) > 1e-6:
              self.apply_yaw_step(self.pending_v_yaw * 0.05)
+        elif has_joint_move:
+             # Only joint move active -> skip IK and publish immediately
+             cmd_msg = JointState()
+             cmd_msg.header.stamp = self.get_clock().now().to_msg()
+             cmd_msg.name = self.last_ik_solution.name
+             cmd_msg.position = self.last_ik_solution.position
+             cmd_msg.velocity = [self.dynamic_sp]
+             self.joint_cmd_pub.publish(cmd_msg)
+             
+             # Synchronize Cartesian target via Forward Kinematics (TF)
+             # This ensures that when we resume Cartesian move, we start from where the wrist is now.
+             self.sync_pose_to_actual(throttle=0.1)
+             return 
         else:
              return # No movement requested
         
@@ -515,17 +559,25 @@ class ArmCartesianController(Node):
         req.ik_request.pose_stamped = pose_stamped
         req.ik_request.timeout = rclpy.duration.Duration(seconds=self.ik_timeout).to_msg()
 
-        # [JAMES:STABILITY] Add "Iron Grip" Constraints - Lock J4 and J6
+        # [JAMES:STABILITY] Add "Iron Grip" Constraints - Lock J4, J5, J6
+        # When direct joint control is active, we MUST lock these joints in the IK request.
         constraints = Constraints()
         joints_to_lock = ['arm_joint_4', 'arm_joint_6']
+        
+        # Lock J5 if translator group or if J5 is being manually moved
+        if group_name == self.translator_group or abs(self.pending_j5) > 1e-6:
+             joints_to_lock.append('arm_joint_5')
+             
         for name in joints_to_lock:
-            if name in self.current_joint_state.name:
-                idx = self.current_joint_state.name.index(name)
+             # Use the target solution if we have one (it contains the manual increments)
+             baseline = self.last_ik_solution if self.last_ik_solution else self.current_joint_state
+             if baseline and name in baseline.name:
+                idx = baseline.name.index(name)
                 jc = JointConstraint()
                 jc.joint_name = name
-                jc.position = self.current_joint_state.position[idx]
-                jc.tolerance_above = 0.1 # 5.7 degrees
-                jc.tolerance_below = 0.1
+                jc.position = baseline.position[idx]
+                jc.tolerance_above = 0.01 # Tight lock for direct control
+                jc.tolerance_below = 0.01
                 jc.weight = 1.0
                 constraints.joint_constraints.append(jc)
         req.ik_request.constraints = constraints

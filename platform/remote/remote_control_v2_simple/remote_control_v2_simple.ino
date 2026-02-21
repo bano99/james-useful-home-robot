@@ -9,6 +9,7 @@
 #include <esp_now.h>
 #include <WiFi.h>
 #include <esp_wifi.h>
+#include <esp_mac.h>
 #include <Arduino_GFX_Library.h>
 
 // Display configuration (Portrait mode)
@@ -34,6 +35,37 @@ const int adcDeadZoneMin = 1900;
 const int adcDeadZoneMax = 2250;
 
 // Updated data structure for arm control
+// Gripper Control Data
+#define CMD_SET_POS    1
+#define CMD_SET_MIDDLE 2
+#define CMD_SET_TORQUE 3
+
+typedef struct GripperCommand {
+  int command;
+  int id;
+  int pos;
+  int speed;
+  int torque;
+} GripperCommand;
+
+typedef struct GripperStatus {
+  int id;
+  int pos;
+  int load;
+  float voltage;
+  bool connected;
+} GripperStatus;
+
+GripperCommand gripperCmd;
+GripperStatus gripperStatus;
+
+// POT filtering
+const int gripperPotPin = 16;
+int lastGripperPotValue = -1;
+const int potThreshold = 10;
+bool gripperConnected = false;
+unsigned long lastGripperMessageTime = 0;
+
 typedef struct RemoteControlData {
   // Right joystick (platform control)
   int right_y;      // Pin 13 - forward/back
@@ -48,14 +80,15 @@ typedef struct RemoteControlData {
   // Switch state
   bool switch_platform_mode;  // Pin 45 - true = platform mode, false = vertical arm mode
   
-  // Gripper (placeholder for future)
-  int gripper_pot;  // Pin 16 (not yet implemented)
+  // Gripper (retained in struct but we use separate ESP-NOW for Phase 1)
+  int gripper_pot;  // Pin 16
 } RemoteControlData;
 
 RemoteControlData controlData;
 
-// Receiver MAC address
-uint8_t broadcastAddress[] = {0x24, 0x58, 0x7C, 0xD3, 0x6B, 0x30};
+// Receiver MAC addresses
+uint8_t robotBroadcastAddress[] = {0x24, 0x58, 0x7C, 0xD3, 0x6B, 0x30}; // Robot receiver (Teensy/ROS2)
+uint8_t gripperBroadcastAddress[] = {0x14, 0x33, 0x5C, 0x25, 0x05, 0x78}; // Gripper controller MAC
 
 // Connection status
 bool lastSendSuccess = false;
@@ -227,6 +260,12 @@ void updateDisplay() {
   bool connected = lastSendSuccess && (currentTime - lastSuccessTime < 1000);
   uint16_t bannerColor = connected ? GREEN : RED;
   gfx2->fillRect(0, 0, 240, 30, bannerColor);
+  
+  // Gripper connection indicator (small circle in top right)
+  uint16_t gripperColor = (millis() - lastGripperMessageTime < 2000) ? GREEN : RED;
+  gfx2->fillCircle(220, 15, 8, gripperColor);
+  gfx2->drawCircle(220, 15, 8, WHITE);
+
   gfx2->setTextColor(BLACK);
   gfx2->setTextSize(2);
   gfx2->setCursor(20, 8);
@@ -317,6 +356,14 @@ void onDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
   }
 }
 
+void onDataRecv(const esp_now_recv_info_t *esp_now_info, const uint8_t *incomingData, int len) {
+  if (len == sizeof(gripperStatus)) {
+    memcpy(&gripperStatus, incomingData, sizeof(gripperStatus));
+    lastGripperMessageTime = millis();
+    gripperConnected = true;
+  }
+}
+
 void sendControlData() {
   // Read right joystick (platform control)
   controlData.right_y = mapJoystickToSpeed(analogRead(rightJoystickUpDownPin));
@@ -331,17 +378,42 @@ void sendControlData() {
   // Read switch state
   controlData.switch_platform_mode = digitalRead(leftSwitchPin) == HIGH;
   
-  // Gripper pot (placeholder)
-  controlData.gripper_pot = 0;
+  // Gripper pot control with filtering and midpoint calibration
+  int currentPot = analogRead(gripperPotPin);
+  controlData.gripper_pot = currentPot;
   
-  // Send via ESP-NOW
-  esp_err_t result = esp_now_send(NULL, (uint8_t *)&controlData, sizeof(controlData));
+  // Midpoint calibration: POT 2060 -> Servo 2047
+  // Using piece-wise linear mapping to ensure the center is exact
+  int servoPos;
+  if (abs(currentPot - 2060) <= 15) {
+    servoPos = 2047; // Deadband around midpoint
+  } else if (currentPot < 2060) {
+    servoPos = map(currentPot, 0, 2045, 0, 2046);
+  } else {
+    servoPos = map(currentPot, 2075, 4095, 2048, 4095);
+  }
+  
+  if (abs(currentPot - lastGripperPotValue) > potThreshold) {
+    lastGripperPotValue = currentPot;
+    
+    gripperCmd.command = CMD_SET_POS;
+    gripperCmd.id = 1; 
+    gripperCmd.pos = servoPos; 
+    gripperCmd.speed = 1000;
+    gripperCmd.torque = 1;
+
+    esp_now_send(gripperBroadcastAddress, (uint8_t *)&gripperCmd, sizeof(gripperCmd));
+    Serial.printf("Gripper POT: %d -> Servo POS: %d\n", currentPot, servoPos);
+  }
+  
+  // Send platform/arm data via ESP-NOW to robot receiver
+  esp_err_t result = esp_now_send(robotBroadcastAddress, (uint8_t *)&controlData, sizeof(controlData));
   
   if (result == ESP_OK) {
-    Serial.printf("Sent: R[%d,%d,%d] L[%d,%d,%d] SW:%d\n", 
-                  controlData.right_y, controlData.right_x, controlData.right_rot,
-                  controlData.left_y, controlData.left_x, controlData.left_z,
-                  controlData.switch_platform_mode);
+    // Serial.printf("Sent: R[%d,%d,%d] L[%d,%d,%d] SW:%d\n", 
+    //               controlData.right_y, controlData.right_x, controlData.right_rot,
+    //               controlData.left_y, controlData.left_x, controlData.left_z,
+    //               controlData.switch_platform_mode);
   } else {
     Serial.println("Send failed");
   }
@@ -368,9 +440,14 @@ void setup() {
   // Setup switch pin
   pinMode(leftSwitchPin, INPUT_PULLUP);
 
-  // Initialize WiFi
   Serial.println("Initializing ESP-NOW...");
   WiFi.mode(WIFI_STA);
+  delay(100); // Give radio a moment to initialize
+  
+  uint8_t baseMac[6];
+  esp_read_mac(baseMac, ESP_MAC_WIFI_STA);
+  Serial.printf("Remote MAC: %02X:%02X:%02X:%02X:%02X:%02X\n", 
+                baseMac[0], baseMac[1], baseMac[2], baseMac[3], baseMac[4], baseMac[5]);
   
   if (esp_now_init() != ESP_OK) {
     Serial.println("ESP-NOW init failed");
@@ -382,20 +459,24 @@ void setup() {
   }
   
   esp_now_register_send_cb(onDataSent);
+  esp_now_register_recv_cb(onDataRecv);
 
-  // Register peer
-  esp_now_peer_info_t peerInfo;
-  memcpy(peerInfo.peer_addr, broadcastAddress, 6);
-  peerInfo.channel = 0;  
-  peerInfo.encrypt = false;
+  // Register Peer 1: Robot Receiver
+  esp_now_peer_info_t peerInfoRobot = {};
+  memcpy(peerInfoRobot.peer_addr, robotBroadcastAddress, 6);
+  peerInfoRobot.channel = 0;  
+  peerInfoRobot.encrypt = false;
+  if (esp_now_add_peer(&peerInfoRobot) != ESP_OK) {
+    Serial.println("Failed to add robot peer");
+  }
 
-  if (esp_now_add_peer(&peerInfo) != ESP_OK) {
-    Serial.println("Failed to add peer");
-    gfx2->setCursor(10, 450);
-    gfx2->setTextColor(RED);
-    gfx2->println("PEER ADD FAILED!");
-    gfx2->flush();
-    return;
+  // Register Peer 2: Gripper Controller
+  esp_now_peer_info_t peerInfoGripper = {};
+  memcpy(peerInfoGripper.peer_addr, gripperBroadcastAddress, 6);
+  peerInfoGripper.channel = 0;  
+  peerInfoGripper.encrypt = false;
+  if (esp_now_add_peer(&peerInfoGripper) != ESP_OK) {
+    Serial.println("Failed to add gripper peer");
   }
 
   Serial.println("Setup complete!");

@@ -1731,12 +1731,24 @@ void driveMotorsXJ(int J1step, int J2step, int J3step, int J4step, int J5step, i
     const char* ptr = nextData.c_str();
     int J1s = nextData.indexOf("A"), J2s = nextData.indexOf("B"), J3s = nextData.indexOf("C"), J4s = nextData.indexOf("D"), J5s = nextData.indexOf("E"), J6s = nextData.indexOf("F"), SPs = nextData.indexOf("S"), Acs = nextData.indexOf("Ac"), Dcs = nextData.indexOf("Dc"), Rms = nextData.indexOf("Rm");
     
-    float J1A = (J1s != -1) ? atof(ptr + J1s + 1) : 0;
-    float J2A = (J2s != -1) ? atof(ptr + J2s + 1) : 0;
-    float J3A = (J3s != -1) ? atof(ptr + J3s + 1) : 0;
-    float J4A = (J4s != -1) ? atof(ptr + J4s + 1) : 0;
-    float J5A = (J5s != -1) ? atof(ptr + J5s + 1) : 0;
-    float J6A = (J6s != -1) ? atof(ptr + J6s + 1) : 0;
+    // [STABILITY] PH3 Part 2: Ghost Zero Prevention - Require Rm marker
+    if (Rms == -1) { nextReady = false; break; }
+
+    // [STABILITY] PH3 Part 2: Sticky Joint Parameters
+    // Missing joints default to current target position instead of 0.0
+    float curJ1 = (stepMonitors[0] - J1zeroStep) / J1StepDeg;
+    float curJ2 = (stepMonitors[1] - J2zeroStep) / J2StepDeg;
+    float curJ3 = (stepMonitors[2] - J3zeroStep) / J3StepDeg;
+    float curJ4 = (stepMonitors[3] - J4zeroStep) / J4StepDeg;
+    float curJ5 = (stepMonitors[4] - J5zeroStep) / J5StepDeg;
+    float curJ6 = (stepMonitors[5] - J6zeroStep) / J6StepDeg;
+
+    float J1A = (J1s != -1) ? atof(ptr + J1s + 1) : curJ1;
+    float J2A = (J2s != -1) ? atof(ptr + J2s + 1) : curJ2;
+    float J3A = (J3s != -1) ? atof(ptr + J3s + 1) : curJ3;
+    float J4A = (J4s != -1) ? atof(ptr + J4s + 1) : curJ4;
+    float J5A = (J5s != -1) ? atof(ptr + J5s + 1) : curJ5;
+    float J6A = (J6s != -1) ? atof(ptr + J6s + 1) : curJ6;
     
     SpeedType = (SPs != -1) ? nextData.substring(SPs + 1, SPs + 2) : "s"; // Small substring fine here, only 1 char
     SpeedVal = (SPs != -1) ? atof(ptr + SPs + 2) : 20.0;
@@ -5057,18 +5069,31 @@ void loop() {
       int DcStart = inData.indexOf("Dc");
       int RmStart = inData.indexOf("Rm");
 
-      float J1Angle = inData.substring(J1start + 1, J2start).toFloat();
-      float J2Angle = inData.substring(J2start + 1, J3start).toFloat();
-      float J3Angle = inData.substring(J3start + 1, J4start).toFloat();
-      float J4Angle = inData.substring(J4start + 1, J5start).toFloat();
-      float J5Angle = inData.substring(J5start + 1, J6start).toFloat();
-      float J6Angle = inData.substring(J6start + 1, SPstart).toFloat();
+      // [STABILITY] PH3 Part 2: Ghost Zero Prevention - Require Rm marker
+      if (RmStart == -1) { inData = ""; return; }
+
+      // [STABILITY] PH3 Part 2: Sticky Joint Parameters for loop handler
+      // If first packet of a sequence is truncated/partial, missing joints default to current position
+      const char* ptr = inData.c_str();
+      float curJ1 = (J1StepM - J1zeroStep) / J1StepDeg;
+      float curJ2 = (J2StepM - J2zeroStep) / J2StepDeg;
+      float curJ3 = (J3StepM - J3zeroStep) / J3StepDeg;
+      float curJ4 = (J4StepM - J4zeroStep) / J4StepDeg;
+      float curJ5 = (J5StepM - J5zeroStep) / J5StepDeg;
+      float curJ6 = (J6StepM - J6zeroStep) / J6StepDeg;
+
+      float J1Angle = (J1start != -1) ? atof(ptr + J1start + 1) : curJ1;
+      float J2Angle = (J2start != -1) ? atof(ptr + J2start + 1) : curJ2;
+      float J3Angle = (J3start != -1) ? atof(ptr + J3start + 1) : curJ3;
+      float J4Angle = (J4start != -1) ? atof(ptr + J4start + 1) : curJ4;
+      float J5Angle = (J5start != -1) ? atof(ptr + J5start + 1) : curJ5;
+      float J6Angle = (J6start != -1) ? atof(ptr + J6start + 1) : curJ6;
 
       String SpeedType = inData.substring(SPstart + 1, SPstart + 2);
-      float SpeedVal = inData.substring(SPstart + 2, AcStart).toFloat();
-      float ACCspd = inData.substring(AcStart + 2, DcStart).toFloat();
-      float DCCspd = inData.substring(DcStart + 2, RmStart).toFloat();
-      float ACCramp = inData.substring(RmStart + 2).toFloat();
+      float SpeedVal = atof(ptr + SPstart + 2);
+      float ACCspd = atof(ptr + AcStart + 2);
+      float DCCspd = atof(ptr + DcStart + 2);
+      float ACCramp = atof(ptr + RmStart + 2);
 
       int J1stepDif = J1StepM - (int)((J1Angle + J1axisLimNeg) * J1StepDeg);
       int J2stepDif = J2StepM - (int)((J2Angle + J2axisLimNeg) * J2StepDeg);
