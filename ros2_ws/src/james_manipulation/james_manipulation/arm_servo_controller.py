@@ -139,14 +139,12 @@ class ArmServoController(Node):
                 self.twist_pub.publish(twist)
 
             # 2. Joint Jogging (J6)
-            if abs(joy_rr) > 0.05:
+            if abs(joy_rr) > 0.05 and switch_mode == 'vertical':
                 jog = JointJog()
                 jog.header.stamp = self.get_clock().now().to_msg()
                 jog.header.frame_id = self.planning_frame
-                
-                if switch_mode == 'vertical':
-                    jog.joint_names = ['arm_joint_6']
-                    jog.velocities = [joy_rr * r_scale * 5.0]
+                jog.joint_names = ['arm_joint_6']
+                jog.velocities = [joy_rr * r_scale * 5.0]
                 
                 self.get_logger().info(f'SENT Jog: {jog.joint_names} -> {jog.velocities[0]:.3f}', throttle_duration_sec=0.2)
                 self.joint_pub.publish(jog)

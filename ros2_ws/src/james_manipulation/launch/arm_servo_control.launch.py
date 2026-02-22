@@ -90,7 +90,7 @@ def generate_launch_description():
         composable_node_descriptions=[
             ComposableNode(
                 package='moveit_servo',
-                plugin='moveit_servo::ServoNode',
+                plugin='moveit_servo::ServoServer',
                 name='servo_server',
                 parameters=[
                     servo_yaml,
