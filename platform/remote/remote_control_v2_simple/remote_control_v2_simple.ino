@@ -249,26 +249,18 @@ void drawUI() {
   gfx2->setTextColor(WHITE);
   
   // Position indicator (X/Y)
-  gfx2->setCursor(10, 45);
+  gfx2->setCursor(10, 75);
   gfx2->println("Position:");
-  gfx2->drawCircle(120, 150, 70, DARKGREY);  // Outer circle
-  gfx2->drawCircle(120, 150, 3, WHITE);      // Center dot
-  gfx2->drawFastHLine(50, 150, 140, DARKGREY);  // Crosshair
-  gfx2->drawFastVLine(120, 80, 140, DARKGREY);
+  gfx2->drawCircle(120, 180, 70, DARKGREY);  // Outer circle
+  gfx2->drawCircle(120, 180, 3, WHITE);      // Center dot
+  gfx2->drawFastHLine(50, 180, 140, DARKGREY);  // Crosshair
+  gfx2->drawFastVLine(120, 110, 140, DARKGREY);
   
   // Rotation indicator
-  gfx2->setCursor(10, 270);
+  gfx2->setCursor(10, 300);
   gfx2->println("Rotation:");
-  gfx2->drawCircle(120, 350, 50, DARKGREY);  // Rotation circle
-  gfx2->drawFastVLine(120, 300, 100, DARKGREY);  // Center line
-  
-  // Value displays
-  gfx2->setCursor(10, 450);
-  gfx2->println("X:");
-  gfx2->setCursor(10, 470);
-  gfx2->println("Y:");
-  gfx2->setCursor(10, 490);
-  gfx2->println("R:");
+  gfx2->drawCircle(120, 380, 50, DARKGREY);  // Rotation circle
+  gfx2->drawFastVLine(120, 330, 100, DARKGREY);  // Center line
   
   gfx2->flush();
 }
@@ -385,42 +377,39 @@ void updateDisplay() {
   gfx2->setCursor(10, 8);
   gfx2->print(statusText);
   
+  // Second line: Control mode (Platform vs Arm)
+  gfx2->fillRect(0, 30, 240, 30, BLACK);
+  gfx2->setTextSize(2);
+  gfx2->setTextColor(WHITE);
+  gfx2->setCursor(10, 38);
+  gfx2->print("Mode: ");
+  
+  if (controlData.switch_platform_mode) {
+    gfx2->setTextColor(CYAN);
+    gfx2->print("PLATFORM");
+  } else {
+    gfx2->setTextColor(MAGENTA);
+    gfx2->print("ARM");
+  }
+  
   // Draw joystick position (X/Y combined) - showing RIGHT joystick (platform control)
-  drawJoystickPosition(120, 150, controlData.right_x, controlData.right_y);
+  drawJoystickPosition(120, 180, controlData.right_x, controlData.right_y);
   
   // Draw rotation indicator - showing RIGHT joystick rotation
-  drawRotationIndicator(120, 350, controlData.right_rot);
+  drawRotationIndicator(120, 380, controlData.right_rot);
   
-  // Update value displays with larger font
-  char buf[20];
-  gfx2->setTextSize(2);  // Larger font
+  // BOTTOM: Signal quality only
+  gfx2->fillRect(0, 490, 240, 46, BLACK);
+  gfx2->setTextSize(2);
   gfx2->setTextColor(WHITE);
-  
-  // Right joystick X value (Left/Right)
-  snprintf(buf, sizeof(buf), "X:%4d", controlData.right_x);
-  gfx2->fillRect(10, 440, 110, 20, BLACK);
-  gfx2->setCursor(10, 440);
-  gfx2->print(buf);
-  
-  // Right joystick Y value (Forward/Back)
-  snprintf(buf, sizeof(buf), "Y:%4d", controlData.right_y);
-  gfx2->fillRect(10, 465, 110, 20, BLACK);
-  gfx2->setCursor(10, 465);
-  gfx2->print(buf);
-  
-  // Right joystick Rotation value
-  snprintf(buf, sizeof(buf), "R:%4d", controlData.right_rot);
-  gfx2->fillRect(10, 490, 110, 20, BLACK);
-  gfx2->setCursor(10, 490);
-  gfx2->print(buf);
   
   // Signal quality (success rate)
   int totalSends = sendSuccessCount + sendFailCount;
   if (totalSends > 0) {
     int signalPercent = (sendSuccessCount * 100) / totalSends;
-    snprintf(buf, sizeof(buf), "Q:%3d%%", signalPercent);  // Q for Quality
-    gfx2->fillRect(130, 490, 100, 20, BLACK);
-    gfx2->setCursor(130, 490);
+    char buf[20];
+    snprintf(buf, sizeof(buf), "Signal: %3d%%", signalPercent);
+    gfx2->setCursor(10, 505);
     
     if (signalPercent > 80) {
       gfx2->setTextColor(GREEN);
@@ -623,7 +612,7 @@ void setup() {
   gfx2->setTextSize(2);
   gfx2->setCursor(10, 8);
   gfx2->println("CALIBRATING...");
-  gfx2->setCursor(10, 450);
+  gfx2->setCursor(10, 480);
   gfx2->setTextColor(YELLOW);
   gfx2->println("Hands off joysticks!");
   gfx2->flush();
@@ -639,11 +628,11 @@ void setup() {
   gfx2->setTextColor(BLACK);
   gfx2->setCursor(10, 8);
   gfx2->println("DISARMED");
-  gfx2->setCursor(10, 450);
+  gfx2->setCursor(10, 480);
   gfx2->setTextColor(GREEN);
-  gfx2->println("Ready! Press center button");
-  gfx2->setCursor(10, 470);
-  gfx2->println("(Pin 39) to ARM");
+  gfx2->println("Ready! Press center");
+  gfx2->setCursor(10, 500);
+  gfx2->println("button (Pin 39) to ARM");
   gfx2->flush();
   
   delay(1000);  // Show message briefly

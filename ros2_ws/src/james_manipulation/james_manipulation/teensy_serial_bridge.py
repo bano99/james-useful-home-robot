@@ -360,17 +360,21 @@ class TeensySerialBridge(Node):
         cmd += f"<{get_val('J1aDHpar', 0, float)}>{get_val('J2aDHpar', 0, float)}?{get_val('J3aDHpar', 0, float)}{{{get_val('J4aDHpar', 0, float)}}}{get_val('J5aDHpar', 0, float)}~{get_val('J6aDHpar', 0, float)}"
         cmd += "\n"
         
-        with self.serial_lock:
-            if self.connected and self.serial_conn:
-                self.log_file.write(f'[{datetime.now().strftime("%H:%M:%S.%f")[:-3]}] TX: {cmd}')
-                self.serial_conn.write(cmd.encode('utf-8'))
-                self.get_logger().info('Sent configuration (UP) to Teensy')
-                
-                # Mark as Configured (State[0] = 1)
-                time.sleep(0.1)
-                set_state_cmd = "GSA0B1\n"
-                self.serial_conn.write(set_state_cmd.encode('utf-8'))
-                self.get_logger().info('Sent GSA0B1 (Mark Configured)')
+        try:
+            with self.serial_lock:
+                if self.connected and self.serial_conn:
+                    self.log_file.write(f'[{datetime.now().strftime("%H:%M:%S.%f")[:-3]}] TX: {cmd}')
+                    self.serial_conn.write(cmd.encode('utf-8'))
+                    self.get_logger().info('Sent configuration (UP) to Teensy')
+                    
+                    # Mark as Configured (State[0] = 1)
+                    time.sleep(0.1)
+                    set_state_cmd = "GSA0B1\n"
+                    self.serial_conn.write(set_state_cmd.encode('utf-8'))
+                    self.get_logger().info('Sent GSA0B1 (Mark Configured)')
+        except (OSError, serial.SerialException) as e:
+            self.get_logger().error(f'Serial write failed in send_configuration: {e}. Marking disconnected.')
+            self.connected = False
 
     def process_teensy_message(self, message):
         try:
@@ -484,11 +488,15 @@ class TeensySerialBridge(Node):
             # RJ is standard: full set of robot parameters
             cmd += f"J70.0000J80.0000J90.0000Sp{sp:.2f}Ac{ac:.2f}Dc{dc:.2f}Rm{rm:.2f}W0Lm111111111\n"
 
-        with self.serial_lock:
-            if self.connected and self.serial_conn:
-                self.log_file.write(f'[{datetime.now().strftime("%H:%M:%S.%f")[:-3]}] TX: {cmd}')
-                self.serial_conn.write(cmd.encode('utf-8'))
-                self.in_flight_count += 1
+        try:
+            with self.serial_lock:
+                if self.connected and self.serial_conn:
+                    self.log_file.write(f'[{datetime.now().strftime("%H:%M:%S.%f")[:-3]}] TX: {cmd}')
+                    self.serial_conn.write(cmd.encode('utf-8'))
+                    self.in_flight_count += 1
+        except (OSError, serial.SerialException) as e:
+            self.get_logger().error(f'Serial write failed in _send_move_command: {e}. Marking disconnected.')
+            self.connected = False
 
     def joint_command_callback(self, msg):
         if not self.connected or not self.serial_conn: return
@@ -568,9 +576,13 @@ class TeensySerialBridge(Node):
             self.get_logger().info("Priority STOP received: Clearing all queues and resetting flow control.")
 
         cmd = cmd_text + "\n"
-        with self.serial_lock:
-            self.log_file.write(f'[{datetime.now().strftime("%H:%M:%S.%f")[:-3]}] TX: {cmd}')
-            self.serial_conn.write(cmd.encode('utf-8'))
+        try:
+            with self.serial_lock:
+                self.log_file.write(f'[{datetime.now().strftime("%H:%M:%S.%f")[:-3]}] TX: {cmd}')
+                self.serial_conn.write(cmd.encode('utf-8'))
+        except (OSError, serial.SerialException) as e:
+            self.get_logger().error(f'Serial write failed: {e}. Marking disconnected.')
+            self.connected = False
 
     def publish_joint_state(self):
         if self.connected and self.first_data_received:

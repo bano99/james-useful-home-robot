@@ -338,13 +338,13 @@ void drawUI() {
   
   gfx2->fillScreen(COLOR_BG);
   
-  // Draw static layout elements
+  // Draw static layout elements (moved down by 30px for second header line)
   // Left: Connection status circle placeholder
-  gfx2->drawCircle(120, 120, 80, COLOR_BAR_BG);
+  gfx2->drawCircle(120, 150, 80, COLOR_BAR_BG);
   
   // Right: Movement direction circle
-  gfx2->drawCircle(400, 120, 80, COLOR_BAR_BG);
-  gfx2->drawCircle(400, 120, 3, COLOR_TEXT);  // Center dot
+  gfx2->drawCircle(400, 150, 80, COLOR_BAR_BG);
+  gfx2->drawCircle(400, 150, 3, COLOR_TEXT);  // Center dot
   
   gfx2->flush();
 }
@@ -436,7 +436,7 @@ void updateDisplay() {
   bool autoConnected = (currentTime - lastAutonomousCommandTime) < CONNECTION_TIMEOUT_MS;
   bool armConnected = (currentTime - lastArmCommandTime) < CONNECTION_TIMEOUT_MS;
   
-  // LEFT: Connection Status with Safety State
+  // LEFT: Connection Status with Safety State (moved down)
   bool connected = manualConnected || autoConnected;
   const char* statusLabel;
   uint16_t statusColor;
@@ -465,23 +465,23 @@ void updateDisplay() {
     }
   }
   
-  // Draw connection status with color-coded circle
-  gfx2->fillCircle(120, 120, 80, COLOR_BG);
-  gfx2->fillCircle(120, 120, 75, statusColor);
-  gfx2->drawCircle(120, 120, 80, COLOR_TEXT);
+  // Draw connection status with color-coded circle (moved down by 30px)
+  gfx2->fillCircle(120, 150, 80, COLOR_BG);
+  gfx2->fillCircle(120, 150, 75, statusColor);
+  gfx2->drawCircle(120, 150, 80, COLOR_TEXT);
   
   // Draw label below
   gfx2->setTextSize(2);
   gfx2->setTextColor(COLOR_TEXT);
   int textWidth = strlen(statusLabel) * 12;
-  gfx2->setCursor(120 - textWidth/2, 120 + 85);
+  gfx2->setCursor(120 - textWidth/2, 150 + 85);
   gfx2->print(statusLabel);
   
-  // RIGHT: Movement Direction Indicator (Large Circle with Arrow)
-  drawMovementIndicator(400, 120, 80);
+  // RIGHT: Movement Direction Indicator (moved down by 30px)
+  drawMovementIndicator(400, 150, 80);
   
-  // TOP: Mode indicator (small text)
-  gfx2->fillRect(0, 0, SCREEN_WIDTH, 30, COLOR_BG);
+  // TOP LINE 1: Title
+  gfx2->fillRect(0, 0, SCREEN_WIDTH, 60, COLOR_BG);
   gfx2->setTextSize(2);
   gfx2->setTextColor(COLOR_TEXT);
   gfx2->setCursor(10, 8);
@@ -502,6 +502,20 @@ void updateDisplay() {
       gfx2->setTextColor(COLOR_ERROR);
       gfx2->print("STOP");
       break;
+  }
+  
+  // TOP LINE 2: Control Mode (Platform vs Arm)
+  gfx2->setTextSize(2);
+  gfx2->setCursor(10, 35);
+  gfx2->setTextColor(COLOR_TEXT);
+  gfx2->print("Mode: ");
+  
+  if (controlData.switch_platform_mode) {
+    gfx2->setTextColor(CYAN);
+    gfx2->print("PLATFORM");
+  } else {
+    gfx2->setTextColor(MAGENTA);
+    gfx2->print("ARM");
   }
   
   // BOTTOM: Velocity values and Jetson status (small text)
@@ -779,20 +793,25 @@ void onDataReceive(const esp_now_recv_info *info, const uint8_t *incomingData, i
         joystickData.x = controlData.right_x;
         joystickData.y = controlData.right_y;
         joystickData.rot = controlData.right_rot;
+        
+        // Manual control takes priority - set mode
+        currentMode = MODE_MANUAL;
+        
+        // Calculate movement values and control mecanum wheels
+        joystickValues = calculateMovement(joystickData.x, joystickData.y, joystickData.rot);
+        controlMecanumWheels(joystickValues, motorFL, motorFR, motorBL, motorBR);
       } else {
-        // Vertical arm mode: Use right joystick for vertical arm control
-        // For now, still control platform but could be modified later
-        joystickData.x = controlData.right_x;
-        joystickData.y = controlData.right_y;
-        joystickData.rot = controlData.right_rot;
+        // Vertical arm mode: Right joystick controls arm, stop platform
+        // Stop platform motors
+        joystickData.x = 0;
+        joystickData.y = 0;
+        joystickData.rot = 0;
+        
+        joystickValues = calculateMovement(0, 0, 0);
+        controlMecanumWheels(joystickValues, motorFL, motorFR, motorBL, motorBR);
+        
+        currentMode = MODE_MANUAL;
       }
-      
-      // Manual control takes priority - set mode
-      currentMode = MODE_MANUAL;
-      
-      // Calculate movement values and control mecanum wheels
-      joystickValues = calculateMovement(joystickData.x, joystickData.y, joystickData.rot);
-      controlMecanumWheels(joystickValues, motorFL, motorFR, motorBL, motorBR);
       
     } else {
       // NOT ARMED: Stop all motors immediately
