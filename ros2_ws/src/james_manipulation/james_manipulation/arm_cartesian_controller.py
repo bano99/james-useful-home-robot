@@ -214,8 +214,13 @@ class ArmCartesianController(Node):
                 
                 # SAFETY: Check armed state - only process commands if armed
                 armed = data.get('armed', False)
+                
+                # DEBUG: Log armed state
+                self.log(f'Armed state: {armed}', level='info', throttle=1.0)
+                
                 if not armed:
                     # System is disarmed - stop all motion
+                    self.log('System DISARMED - blocking arm commands', level='warn', throttle=1.0)
                     self.manual_control_active = False
                     self.is_active = False
                     self.pending_v_x, self.pending_v_y, self.pending_v_z, self.pending_v_yaw = 0.0, 0.0, 0.0, 0.0

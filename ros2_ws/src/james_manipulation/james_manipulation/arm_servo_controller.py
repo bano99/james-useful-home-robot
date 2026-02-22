@@ -64,6 +64,22 @@ class ArmServoController(Node):
     def manual_command_callback(self, msg):
         try:
             data = json.loads(msg.data)
+            
+            # SAFETY: Check armed state - only process commands if armed
+            armed = data.get('armed', False)
+            
+            if not armed:
+                # System is disarmed - stop all motion
+                self.get_logger().warn('System DISARMED - blocking arm commands', throttle_duration_sec=1.0)
+                
+                # Send stop command if we were moving
+                if self.is_moving:
+                    self.raw_cmd_pub.publish(String(data="ST"))
+                    self.is_moving = False
+                    self.get_logger().info('Sent STOP due to disarm')
+                
+                return
+            
             # Support both 'lx' and 'joy_lx' formats
             joy_lx = data.get('lx', data.get('joy_lx', 0.0))
             joy_ly = data.get('ly', data.get('joy_ly', 0.0))
