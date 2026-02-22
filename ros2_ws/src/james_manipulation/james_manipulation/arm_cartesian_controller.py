@@ -215,16 +215,25 @@ class ArmCartesianController(Node):
                 # SAFETY: Check armed state - only process commands if armed
                 armed = data.get('armed', False)
                 
-                # DEBUG: Log armed state
-                self.log(f'Armed state: {armed}', level='info', throttle=1.0)
-                
                 if not armed:
-                    # System is disarmed - stop all motion
+                    # System is disarmed - stop all motion IMMEDIATELY
                     self.log('System DISARMED - blocking arm commands', level='warn', throttle=1.0)
                     self.manual_control_active = False
                     self.is_active = False
                     self.pending_v_x, self.pending_v_y, self.pending_v_z, self.pending_v_yaw = 0.0, 0.0, 0.0, 0.0
                     self.pending_j4, self.pending_j5, self.pending_j6 = 0.0, 0.0, 0.0
+                    
+                    # Send immediate STOP command if we were moving
+                    if self.blending_active and not self.stop_sent:
+                        self.log('Sending STOP due to disarm', level='info')
+                        stop_msg = String()
+                        stop_msg.data = "BM0"
+                        self.raw_cmd_pub.publish(stop_msg)
+                        stop_msg.data = "ST"
+                        self.raw_cmd_pub.publish(stop_msg)
+                        self.blending_active = False
+                        self.stop_sent = True
+                    
                     return
 
                 # Always active if receiving data, but velocities might be zero
