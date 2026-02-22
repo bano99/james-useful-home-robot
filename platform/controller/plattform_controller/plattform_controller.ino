@@ -68,6 +68,9 @@ typedef struct RemoteControlData {
   
   // Gripper (placeholder for future)
   int gripper_pot;  // Pin 16 (not yet implemented)
+  
+  // Safety arming state
+  bool armed;  // true = armed (motion allowed), false = disarmed (no motion)
 } RemoteControlData;
 
 RemoteControlData controlData;
@@ -94,11 +97,26 @@ enum ControlMode {
 };
 ControlMode currentMode = MODE_STOPPED;
 
+// Safety state machine
+enum SafetyState {
+  STATE_DISCONNECTED,
+  STATE_CONNECTED_DISARMED,
+  STATE_CALIBRATING,
+  STATE_ARMED
+};
+SafetyState safetyState = STATE_DISCONNECTED;
+
 // Connection status
 unsigned long lastManualCommandTime = 0;
 unsigned long lastAutonomousCommandTime = 0;
 unsigned long lastArmCommandTime = 0;
 const unsigned long CONNECTION_TIMEOUT_MS = 1000;
+
+// Safety state tracking
+unsigned long lastStateChangeTime = 0;
+unsigned long calibrationStartTime = 0;
+const unsigned long CALIBRATION_DISPLAY_DURATION_MS = 1500;  // Show calibration message
+bool remoteArmed = false;
 
 // USB Serial communication to Jetson
 unsigned long lastJetsonSendTime = 0;
@@ -129,6 +147,96 @@ void IRAM_ATTR onWatchdogTimeout(void* arg) {
 
 
 // #############################################################
+// Safety Functions
+// #############################################################
+
+void emergencyStop() {
+  // Set all motor velocities to zero
+  motorFL.velocity = 0;
+  motorFR.velocity = 0;
+  motorBL.velocity = 0;
+  motorBR.velocity = 0;
+  
+  // Set all motors to closed-loop control (state 8) with zero velocity
+  motorFL.state = 8;
+  motorFR.state = 8;
+  motorBL.state = 8;
+  motorBR.state = 8;
+  
+  // Send stop commands immediately
+  sendMotorCommands(motorFL, motorFR, motorBL, motorBR);
+  
+  Serial.println("EMERGENCY STOP - All motors stopped");
+}
+
+void updateSafetyState() {
+  unsigned long currentTime = millis();
+  SafetyState previousState = safetyState;
+  
+  // Check connection status
+  bool connected = (currentTime - lastManualCommandTime) < CONNECTION_TIMEOUT_MS;
+  
+  // State machine logic
+  switch (safetyState) {
+    case STATE_DISCONNECTED:
+      if (connected) {
+        safetyState = STATE_CONNECTED_DISARMED;
+        calibrationStartTime = currentTime;
+        lastStateChangeTime = currentTime;
+        Serial.println("State: CONNECTED_DISARMED");
+      }
+      break;
+      
+    case STATE_CONNECTED_DISARMED:
+      if (!connected) {
+        safetyState = STATE_DISCONNECTED;
+        emergencyStop();
+        lastStateChangeTime = currentTime;
+        Serial.println("State: DISCONNECTED (emergency stop)");
+      } else if (currentTime - calibrationStartTime < CALIBRATION_DISPLAY_DURATION_MS) {
+        // Show calibration message for a bit (remote is calibrating)
+        safetyState = STATE_CALIBRATING;
+        lastStateChangeTime = currentTime;
+        Serial.println("State: CALIBRATING");
+      }
+      break;
+      
+    case STATE_CALIBRATING:
+      if (!connected) {
+        safetyState = STATE_DISCONNECTED;
+        emergencyStop();
+        lastStateChangeTime = currentTime;
+        Serial.println("State: DISCONNECTED (emergency stop)");
+      } else if (currentTime - calibrationStartTime >= CALIBRATION_DISPLAY_DURATION_MS) {
+        // Calibration display period over, back to disarmed
+        safetyState = STATE_CONNECTED_DISARMED;
+        lastStateChangeTime = currentTime;
+        Serial.println("State: CONNECTED_DISARMED (calibration complete)");
+      }
+      break;
+      
+    case STATE_ARMED:
+      if (!connected) {
+        safetyState = STATE_DISCONNECTED;
+        emergencyStop();
+        lastStateChangeTime = currentTime;
+        Serial.println("State: DISCONNECTED (from armed - emergency stop)");
+      } else if (!remoteArmed) {
+        safetyState = STATE_CONNECTED_DISARMED;
+        emergencyStop();
+        lastStateChangeTime = currentTime;
+        Serial.println("State: CONNECTED_DISARMED (disarmed by user)");
+      }
+      break;
+  }
+  
+  // Log state changes
+  if (previousState != safetyState) {
+    Serial.printf("Safety state changed: %d -> %d\n", previousState, safetyState);
+  }
+}
+
+// #############################################################
 // Jetson Communication Functions
 // #############################################################
 
@@ -141,9 +249,9 @@ void sendArmDataToJetson() {
   }
   lastJetsonSendTime = currentTime;
   
-  // Binary packet: 21 bytes total
-  // [0xAA][type][left_x][left_y][left_z][right_x][right_y][right_rot][mode][gripper][timestamp][checksum]
-  uint8_t packet[21];
+  // Binary packet: 22 bytes total (added armed field)
+  // [0xAA][type][left_x][left_y][left_z][right_x][right_y][right_rot][mode][gripper][armed][timestamp][checksum]
+  uint8_t packet[22];
   
   packet[0] = 0xAA;  // Start marker
   packet[1] = 1;     // Message type: manual_control
@@ -158,19 +266,20 @@ void sendArmDataToJetson() {
   
   packet[14] = controlData.switch_platform_mode ? 0 : 1;  // 0=platform, 1=vertical
   packet[15] = (uint8_t)controlData.gripper_pot;
+  packet[16] = controlData.armed ? 1 : 0;  // Armed state
   
   // Pack 32-bit timestamp (little endian)
-  *((uint32_t*)&packet[16]) = currentTime;
+  *((uint32_t*)&packet[17]) = currentTime;
   
   // Calculate checksum (sum of all bytes except checksum)
   uint8_t checksum = 0;
-  for (int i = 0; i < 20; i++) {
+  for (int i = 0; i < 21; i++) {
     checksum += packet[i];
   }
-  packet[20] = checksum;
+  packet[21] = checksum;
   
   // Send binary packet
-  Serial.write(packet, 21);
+  Serial.write(packet, 22);
 }
 
 void processJetsonResponse() {
@@ -327,19 +436,46 @@ void updateDisplay() {
   bool autoConnected = (currentTime - lastAutonomousCommandTime) < CONNECTION_TIMEOUT_MS;
   bool armConnected = (currentTime - lastArmCommandTime) < CONNECTION_TIMEOUT_MS;
   
-  // LEFT: Connection Status (Large Circle)
+  // LEFT: Connection Status with Safety State
   bool connected = manualConnected || autoConnected;
   const char* statusLabel;
-  if (manualConnected && armConnected) {
-    statusLabel = "MAN+ARM";
-  } else if (manualConnected) {
-    statusLabel = "MANUAL";
-  } else if (autoConnected) {
-    statusLabel = "AUTO";
-  } else {
+  uint16_t statusColor;
+  
+  if (!connected) {
     statusLabel = "OFFLINE";
+    statusColor = COLOR_ERROR;
+  } else {
+    switch (safetyState) {
+      case STATE_DISCONNECTED:
+        statusLabel = "OFFLINE";
+        statusColor = COLOR_ERROR;
+        break;
+      case STATE_CONNECTED_DISARMED:
+        statusLabel = "DISARMED";
+        statusColor = ORANGE;
+        break;
+      case STATE_CALIBRATING:
+        statusLabel = "CALIBRATE";
+        statusColor = COLOR_WARNING;
+        break;
+      case STATE_ARMED:
+        statusLabel = "ARMED";
+        statusColor = COLOR_GOOD;
+        break;
+    }
   }
-  drawConnectionStatus(120, 120, 80, connected, statusLabel);
+  
+  // Draw connection status with color-coded circle
+  gfx2->fillCircle(120, 120, 80, COLOR_BG);
+  gfx2->fillCircle(120, 120, 75, statusColor);
+  gfx2->drawCircle(120, 120, 80, COLOR_TEXT);
+  
+  // Draw label below
+  gfx2->setTextSize(2);
+  gfx2->setTextColor(COLOR_TEXT);
+  int textWidth = strlen(statusLabel) * 12;
+  gfx2->setCursor(120 - textWidth/2, 120 + 85);
+  gfx2->print(statusLabel);
   
   // RIGHT: Movement Direction Indicator (Large Circle with Arrow)
   drawMovementIndicator(400, 120, 80);
@@ -440,6 +576,18 @@ void setup() {
 
 
 void loop() {
+  // Update safety state machine
+  updateSafetyState();
+  
+  // Check for connection timeout and stop motors if needed
+  unsigned long currentTime = millis();
+  if (safetyState == STATE_ARMED && 
+      (currentTime - lastManualCommandTime) >= CONNECTION_TIMEOUT_MS) {
+    emergencyStop();
+    safetyState = STATE_DISCONNECTED;
+    Serial.println("Connection timeout - emergency stop");
+  }
+  
   // Process Jetson communication
   processJetsonResponse();
   
@@ -607,32 +755,53 @@ void onDataReceive(const esp_now_recv_info *info, const uint8_t *incomingData, i
     lastManualCommandTime = millis();
     lastArmCommandTime = millis();
     
+    // Update remote armed state
+    remoteArmed = controlData.armed;
+    
+    // Update safety state machine
+    updateSafetyState();
+    
+    // Check if remote armed and transition to ARMED state if needed
+    if (remoteArmed && safetyState == STATE_CONNECTED_DISARMED) {
+      safetyState = STATE_ARMED;
+      lastStateChangeTime = millis();
+      Serial.println("State: ARMED (armed by user)");
+    }
+    
     // Always send arm data to Jetson (let Jetson decide what to do with it)
     sendArmDataToJetson();
     
-    // Platform control logic based on switch state
-    if (controlData.switch_platform_mode) {
-      // Platform mode: Use right joystick for mecanum control
-      joystickData.x = controlData.right_x;
-      joystickData.y = controlData.right_y;
-      joystickData.rot = controlData.right_rot;
+    // SAFETY CHECK: Only process motion commands if ARMED
+    if (safetyState == STATE_ARMED && remoteArmed) {
+      // Platform control logic based on switch state
+      if (controlData.switch_platform_mode) {
+        // Platform mode: Use right joystick for mecanum control
+        joystickData.x = controlData.right_x;
+        joystickData.y = controlData.right_y;
+        joystickData.rot = controlData.right_rot;
+      } else {
+        // Vertical arm mode: Use right joystick for vertical arm control
+        // For now, still control platform but could be modified later
+        joystickData.x = controlData.right_x;
+        joystickData.y = controlData.right_y;
+        joystickData.rot = controlData.right_rot;
+      }
+      
+      // Manual control takes priority - set mode
+      currentMode = MODE_MANUAL;
+      
+      // Calculate movement values and control mecanum wheels
+      joystickValues = calculateMovement(joystickData.x, joystickData.y, joystickData.rot);
+      controlMecanumWheels(joystickValues, motorFL, motorFR, motorBL, motorBR);
+      
     } else {
-      // Vertical arm mode: Use right joystick for vertical arm control
-      // For now, still control platform but could be modified later
-      joystickData.x = controlData.right_x;
-      joystickData.y = controlData.right_y;
-      joystickData.rot = controlData.right_rot;
+      // NOT ARMED: Stop all motors immediately
+      emergencyStop();
+      currentMode = MODE_STOPPED;
     }
     
-    // Manual control takes priority - set mode
-    currentMode = MODE_MANUAL;
-
     // Acknowledge receipt
     esp_now_send(info->des_addr, (uint8_t *)"ACK", sizeof("ACK"));
-
-    // Calculate movement values and control mecanum wheels
-    joystickValues = calculateMovement(joystickData.x, joystickData.y, joystickData.rot);
-    controlMecanumWheels(joystickValues, motorFL, motorFR, motorBL, motorBR);
     
   } else {
     // Unexpected packet size - log error

@@ -211,6 +211,16 @@ class ArmCartesianController(Node):
                 if not self.joint_state_received or self.current_joint_state is None:
                     self.log('Manual cmd received but NO joint_state received yet', level='warn', throttle=2.0)
                     return
+                
+                # SAFETY: Check armed state - only process commands if armed
+                armed = data.get('armed', False)
+                if not armed:
+                    # System is disarmed - stop all motion
+                    self.manual_control_active = False
+                    self.is_active = False
+                    self.pending_v_x, self.pending_v_y, self.pending_v_z, self.pending_v_yaw = 0.0, 0.0, 0.0, 0.0
+                    self.pending_j4, self.pending_j5, self.pending_j6 = 0.0, 0.0, 0.0
+                    return
 
                 # Always active if receiving data, but velocities might be zero
                 self.manual_control_active = True

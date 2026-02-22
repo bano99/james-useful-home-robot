@@ -66,6 +66,27 @@ const int potThreshold = 10;
 bool gripperConnected = false;
 unsigned long lastGripperMessageTime = 0;
 
+// Center button pin for arming/disarming
+const int centerButtonPin = 39;
+
+// Arming state
+bool systemArmed = false;
+bool lastButtonState = false;
+unsigned long lastButtonPressTime = 0;
+const unsigned long BUTTON_DEBOUNCE_MS = 200;  // Debounce time
+
+// Joystick calibration offsets
+int rightJoystickYOffset = 0;
+int rightJoystickXOffset = 0;
+int rightJoystickRotOffset = 0;
+int leftJoystickYOffset = 0;
+int leftJoystickXOffset = 0;
+int leftJoystickZOffset = 0;
+
+bool calibrationComplete = false;
+unsigned long calibrationStartTime = 0;
+const unsigned long CALIBRATION_DURATION_MS = 1000;  // 1 second calibration
+
 typedef struct RemoteControlData {
   // Right joystick (platform control)
   int right_y;      // Pin 13 - forward/back
@@ -82,6 +103,9 @@ typedef struct RemoteControlData {
   
   // Gripper (retained in struct but we use separate ESP-NOW for Phase 1)
   int gripper_pot;  // Pin 16
+  
+  // Safety arming state
+  bool armed;  // true = armed (motion allowed), false = disarmed (no motion)
 } RemoteControlData;
 
 RemoteControlData controlData;
@@ -112,6 +136,78 @@ Arduino_GFX *gfx2;  // Canvas for double buffering
 #define COLOR_BAR_X    GREEN
 #define COLOR_BAR_Y    BLUE
 #define COLOR_BAR_ROT  ORANGE
+
+void calibrateJoysticks() {
+  Serial.println("Calibrating joysticks - keep hands off!");
+  
+  // Take multiple samples and average
+  const int numSamples = 50;
+  long sumRightY = 0, sumRightX = 0, sumRightRot = 0;
+  long sumLeftY = 0, sumLeftX = 0, sumLeftZ = 0;
+  
+  for (int i = 0; i < numSamples; i++) {
+    sumRightY += analogRead(rightJoystickUpDownPin);
+    sumRightX += analogRead(rightJoystickLeftRightPin);
+    sumRightRot += analogRead(rightJoystickRotationPin);
+    sumLeftY += analogRead(leftJoystickUpDownPin);
+    sumLeftX += analogRead(leftJoystickLeftRightPin);
+    sumLeftZ += analogRead(leftJoystickRotationPin);
+    delay(20);  // 20ms between samples = 1 second total
+  }
+  
+  // Calculate center positions
+  int centerRightY = sumRightY / numSamples;
+  int centerRightX = sumRightX / numSamples;
+  int centerRightRot = sumRightRot / numSamples;
+  int centerLeftY = sumLeftY / numSamples;
+  int centerLeftX = sumLeftX / numSamples;
+  int centerLeftZ = sumLeftZ / numSamples;
+  
+  // Calculate offsets from expected center (2047)
+  rightJoystickYOffset = 2047 - centerRightY;
+  rightJoystickXOffset = 2047 - centerRightX;
+  rightJoystickRotOffset = 2047 - centerRightRot;
+  leftJoystickYOffset = 2047 - centerLeftY;
+  leftJoystickXOffset = 2047 - centerLeftX;
+  leftJoystickZOffset = 2047 - centerLeftZ;
+  
+  calibrationComplete = true;
+  
+  Serial.println("Calibration complete!");
+  Serial.printf("Right offsets: Y=%d X=%d Rot=%d\n", 
+                rightJoystickYOffset, rightJoystickXOffset, rightJoystickRotOffset);
+  Serial.printf("Left offsets: Y=%d X=%d Z=%d\n", 
+                leftJoystickYOffset, leftJoystickXOffset, leftJoystickZOffset);
+}
+
+int readCalibratedJoystick(int pin, int offset) {
+  int rawValue = analogRead(pin);
+  int calibratedValue = rawValue + offset;
+  
+  // Clamp to valid ADC range
+  if (calibratedValue < 0) calibratedValue = 0;
+  if (calibratedValue > 4095) calibratedValue = 4095;
+  
+  return calibratedValue;
+}
+
+void handleArmingButton() {
+  bool currentButtonState = (digitalRead(centerButtonPin) == LOW);  // Active low
+  unsigned long currentTime = millis();
+  
+  // Debounce: only process if enough time has passed since last press
+  if (currentButtonState && !lastButtonState && 
+      (currentTime - lastButtonPressTime > BUTTON_DEBOUNCE_MS)) {
+    
+    // Toggle armed state
+    systemArmed = !systemArmed;
+    lastButtonPressTime = currentTime;
+    
+    Serial.printf("System %s\n", systemArmed ? "ARMED" : "DISARMED");
+  }
+  
+  lastButtonState = currentButtonState;
+}
 
 void initDisplay() {
   Serial.println("Initializing display...");
@@ -256,9 +352,27 @@ void updateDisplay() {
   }
   lastDisplayUpdate = currentTime;
   
-  // Update connection status banner (prominent at top)
+  // Update connection status banner with arming state
   bool connected = lastSendSuccess && (currentTime - lastSuccessTime < 1000);
-  uint16_t bannerColor = connected ? GREEN : RED;
+  
+  // Banner color based on armed state
+  uint16_t bannerColor;
+  const char* statusText;
+  
+  if (!connected) {
+    bannerColor = RED;
+    statusText = "DISCONNECTED";
+  } else if (!calibrationComplete) {
+    bannerColor = YELLOW;
+    statusText = "CALIBRATING...";
+  } else if (systemArmed) {
+    bannerColor = GREEN;
+    statusText = "ARMED";
+  } else {
+    bannerColor = ORANGE;
+    statusText = "DISARMED";
+  }
+  
   gfx2->fillRect(0, 0, 240, 30, bannerColor);
   
   // Gripper connection indicator (small circle in top right)
@@ -268,8 +382,8 @@ void updateDisplay() {
 
   gfx2->setTextColor(BLACK);
   gfx2->setTextSize(2);
-  gfx2->setCursor(20, 8);
-  gfx2->print("JAMES REMOTE");
+  gfx2->setCursor(10, 8);
+  gfx2->print(statusText);
   
   // Draw joystick position (X/Y combined) - showing RIGHT joystick (platform control)
   drawJoystickPosition(120, 150, controlData.right_x, controlData.right_y);
@@ -365,18 +479,32 @@ void onDataRecv(const esp_now_recv_info_t *esp_now_info, const uint8_t *incoming
 }
 
 void sendControlData() {
-  // Read right joystick (platform control)
-  controlData.right_y = mapJoystickToSpeed(analogRead(rightJoystickUpDownPin));
-  controlData.right_x = mapJoystickToSpeed(analogRead(rightJoystickLeftRightPin));
-  controlData.right_rot = mapJoystickToSpeed(analogRead(rightJoystickRotationPin));
+  // Handle arming button
+  handleArmingButton();
   
-  // Read left joystick (arm control)
-  controlData.left_y = mapJoystickToSpeed(analogRead(leftJoystickUpDownPin));
-  controlData.left_x = mapJoystickToSpeed(analogRead(leftJoystickLeftRightPin));
-  controlData.left_z = mapJoystickToSpeed(analogRead(leftJoystickRotationPin));
+  // Read right joystick with calibration (platform control)
+  int rightYRaw = readCalibratedJoystick(rightJoystickUpDownPin, rightJoystickYOffset);
+  int rightXRaw = readCalibratedJoystick(rightJoystickLeftRightPin, rightJoystickXOffset);
+  int rightRotRaw = readCalibratedJoystick(rightJoystickRotationPin, rightJoystickRotOffset);
+  
+  controlData.right_y = mapJoystickToSpeed(rightYRaw);
+  controlData.right_x = mapJoystickToSpeed(rightXRaw);
+  controlData.right_rot = mapJoystickToSpeed(rightRotRaw);
+  
+  // Read left joystick with calibration (arm control)
+  int leftYRaw = readCalibratedJoystick(leftJoystickUpDownPin, leftJoystickYOffset);
+  int leftXRaw = readCalibratedJoystick(leftJoystickLeftRightPin, leftJoystickXOffset);
+  int leftZRaw = readCalibratedJoystick(leftJoystickRotationPin, leftJoystickZOffset);
+  
+  controlData.left_y = mapJoystickToSpeed(leftYRaw);
+  controlData.left_x = mapJoystickToSpeed(leftXRaw);
+  controlData.left_z = mapJoystickToSpeed(leftZRaw);
   
   // Read switch state
   controlData.switch_platform_mode = digitalRead(leftSwitchPin) == HIGH;
+  
+  // Set armed state
+  controlData.armed = systemArmed;
   
   // Gripper pot control with filtering and midpoint calibration
   int currentPot = analogRead(gripperPotPin);
@@ -479,11 +607,46 @@ void setup() {
     Serial.println("Failed to add gripper peer");
   }
 
+  // Setup center button pin for arming/disarming
+  pinMode(centerButtonPin, INPUT_PULLUP);
+  
+  // Initialize button state to current reading to prevent false trigger on first read
+  delay(50);  // Let pin stabilize
+  lastButtonState = (digitalRead(centerButtonPin) == LOW);
+  lastButtonPressTime = millis();  // Initialize to current time to prevent immediate trigger
+  
   Serial.println("Setup complete!");
+  
+  // Display calibration message
+  gfx2->fillRect(0, 0, 240, 30, YELLOW);
+  gfx2->setTextColor(BLACK);
+  gfx2->setTextSize(2);
+  gfx2->setCursor(10, 8);
+  gfx2->println("CALIBRATING...");
+  gfx2->setCursor(10, 450);
+  gfx2->setTextColor(YELLOW);
+  gfx2->println("Hands off joysticks!");
+  gfx2->flush();
+  
+  // Perform calibration
+  delay(500);  // Give user time to see message
+  calibrateJoysticks();
+  
+  // Show ready message
+  gfx2->fillRect(0, 0, 240, 536, BLACK);
+  drawUI();
+  gfx2->fillRect(0, 0, 240, 30, ORANGE);
+  gfx2->setTextColor(BLACK);
+  gfx2->setCursor(10, 8);
+  gfx2->println("DISARMED");
   gfx2->setCursor(10, 450);
   gfx2->setTextColor(GREEN);
-  gfx2->println("Ready!");
+  gfx2->println("Ready! Press center button");
+  gfx2->setCursor(10, 470);
+  gfx2->println("(Pin 39) to ARM");
   gfx2->flush();
+  
+  delay(1000);  // Show message briefly
 }
 
 void loop() {

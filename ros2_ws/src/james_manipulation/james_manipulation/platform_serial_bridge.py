@@ -70,7 +70,7 @@ class PlatformSerialBridge(Node):
         self.serial_lock = threading.Lock()
         
         # Binary protocol
-        self.PACKET_SIZE = 21
+        self.PACKET_SIZE = 22  # Updated from 21 to include armed field
         self.PACKET_START = 0xAA
         
         # Publishers and subscribers
@@ -175,16 +175,18 @@ class PlatformSerialBridge(Node):
     def handle_packet(self, packet):
         try:
             # Simple unpack logic
-            # [0xAA][type][left_x][left_y][left_z][right_x][right_y][right_rot][mode][gripper][timestamp][checksum]
+            # [0xAA][type][left_x][left_y][left_z][right_x][right_y][right_rot][mode][gripper][armed][timestamp][checksum]
             p_type = packet[1]
             if p_type == 1: # Manual Control
                 lx, ly, lz, rx, ry, rr = struct.unpack('<hhhhhh', packet[2:14])
                 mode = packet[14]
+                armed = packet[16]  # Armed state (0=disarmed, 1=armed)
                 cmd = {
                     'type': 'manual_control',
                     'lx': lx/1000.0, 'ly': ly/1000.0, 'lz': lz/1000.0,
                     'rx': rx/1000.0, 'ry': ry/1000.0, 'rr': rr/1000.0,
-                    'mode': mode
+                    'mode': mode,
+                    'armed': bool(armed)
                 }
                 msg = String()
                 msg.data = json.dumps(cmd)
