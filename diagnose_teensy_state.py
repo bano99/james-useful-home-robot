@@ -176,14 +176,15 @@ class TeensyDiagnostic:
         
         print(f"  {joint_name}: {current_value:.2f}° → {target_value:.2f}°")
         
-        # Build MJ command with all current positions except the target joint
-        cmd = (f"MJA{current_joints.get('J1', 0) if joint_num != 1 else target_value:.2f}"
+        # Build RJ command (direct joint angles, no IK)
+        # Format: RJA<J1>B<J2>C<J3>D<J4>E<J5>F<J6>J70.00J80.00J90.00Sp<speed>Ac<acc>Dc<dec>Rm<ramp>W0Lm111111
+        cmd = (f"RJA{current_joints.get('J1', 0) if joint_num != 1 else target_value:.2f}"
                f"B{current_joints.get('J2', 0) if joint_num != 2 else target_value:.2f}"
                f"C{current_joints.get('J3', 0) if joint_num != 3 else target_value:.2f}"
                f"D{current_joints.get('J4', 0) if joint_num != 4 else target_value:.2f}"
                f"E{current_joints.get('J5', 0) if joint_num != 5 else target_value:.2f}"
                f"F{current_joints.get('J6', 0) if joint_num != 6 else target_value:.2f}"
-               f"Ss20Ac10Dc10Rm20")
+               f"J70.00J80.00J90.00Sp20Ac10Dc10Rm20W0Lm111111")
         
         print(f"  Sending: {cmd}")
         response = self.send_command(cmd)
