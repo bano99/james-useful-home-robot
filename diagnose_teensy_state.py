@@ -33,9 +33,22 @@ class TeensyDiagnostic:
         """Connect to Teensy"""
         print(f"Connecting to {self.port}...")
         self.ser = serial.Serial(self.port, self.baudrate, timeout=self.timeout)
-        time.sleep(0.5)  # Wait for connection to stabilize
+        time.sleep(1.0)  # Wait longer for connection to stabilize
         self.ser.reset_input_buffer()
         print("Connected.")
+        
+        # Test connectivity
+        print("Testing connectivity...")
+        test_response = self.send_command('RP')
+        if test_response:
+            print(f"  Connectivity OK - received: {test_response[0][:50]}...")
+        else:
+            print("  WARNING: No response to RP command. Teensy may not be responding.")
+            print("  This could mean:")
+            print("    - Wrong serial port")
+            print("    - Teensy is hung/crashed")
+            print("    - Serial bridge is intercepting commands")
+            print("  Continuing anyway...")
         
     def disconnect(self):
         """Disconnect from Teensy"""
@@ -50,11 +63,12 @@ class TeensyDiagnostic:
         
         self.ser.reset_input_buffer()
         cmd_str = cmd if cmd.endswith('\n') else cmd + '\n'
+        print(f"  DEBUG: Sending: {repr(cmd_str)}")
         self.ser.write(cmd_str.encode())
         self.ser.flush()
         
         # Wait for response
-        time.sleep(0.1)
+        time.sleep(0.2)  # Increased from 0.1
         response = []
         start_time = time.time()
         
@@ -62,12 +76,16 @@ class TeensyDiagnostic:
             if self.ser.in_waiting > 0:
                 line = self.ser.readline().decode('utf-8', errors='ignore').strip()
                 if line:
+                    print(f"  DEBUG: Received: {repr(line)}")
                     response.append(line)
                     # For most commands, one line is enough
-                    if not cmd.startswith('DS'):
+                    if not cmd.startswith('DS') and not cmd.startswith('RP'):
                         break
             else:
                 time.sleep(0.05)
+        
+        if not response:
+            print(f"  DEBUG: No response received after {self.timeout}s")
         
         return response
     
@@ -144,7 +162,14 @@ class TeensyDiagnostic:
         print(f"  Current joints: {current_joints}")
         
         # Calculate target position (J6 + 10 degrees)
-        target_j6 = current_joints.get('J6', 0) + 10.0
+        current_j6 = current_joints.get('J6', 0)
+        target_j6 = current_j6 + 10.0
+        
+        # Check if target exceeds limits (J6 typically ±180°)
+        if abs(target_j6) > 170:
+            print(f"  WARNING: Target J6={target_j6:.1f}° would exceed limits")
+            print(f"  Using J6 - 10° instead (moving backward)")
+            target_j6 = current_j6 - 10.0
         
         # Build command with current positions + J6 offset
         # Format: MJA<J1>B<J2>C<J3>D<J4>E<J5>F<J6>Ss<speed>Ac<acc>Dc<dec>Rm<ramp>
@@ -204,7 +229,14 @@ class TeensyDiagnostic:
         print(f"  Current joints: {current_joints}")
         
         # Calculate target position (J6 + 10 degrees)
-        target_j6 = current_joints.get('J6', 0) + 10.0
+        current_j6 = current_joints.get('J6', 0)
+        target_j6 = current_j6 + 10.0
+        
+        # Check if target exceeds limits (J6 typically ±180°)
+        if abs(target_j6) > 170:
+            print(f"  WARNING: Target J6={target_j6:.1f}° would exceed limits")
+            print(f"  Using J6 - 10° instead (moving backward)")
+            target_j6 = current_j6 - 10.0
         
         # Build XJ command with current positions + J6 offset
         # Format: XJA<J1>B<J2>C<J3>D<J4>E<J5>F<J6>Ss<speed>Ac<acc>Dc<dec>Rm<ramp>
