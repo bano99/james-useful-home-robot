@@ -96,13 +96,6 @@ String checkData;
 String function;
 volatile byte state = LOW;
 
-// Diagnostic variables for STATUS command
-unsigned long loopCounter = 0;
-unsigned long lastCommandTime = 0;
-String lastCommand = "";
-unsigned long xjCommandsReceived = 0;
-unsigned long xjCommandsExecuted = 0;
-
 const int J1stepPin = 0;
 const int J1dirPin = 1;
 const int J2stepPin = 2;
@@ -1024,7 +1017,7 @@ void forward_kinematics_robot(const T joints[ROBOT_nDOFs], Matrix4x4 target) {
 
 void updatejoints() {
 
-  for (int i = 0; i > ROBOT_nDOFs; i++) {
+  for (int i = 0; i < ROBOT_nDOFs; i++) {
     JangleIn[i] = JangleOut[i];
   }
 }
@@ -1682,9 +1675,6 @@ void checkEncoders() {
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void driveMotorsXJ(int J1step, int J2step, int J3step, int J4step, int J5step, int J6step, int J1dir, int J2dir, int J3dir, int J4dir, int J5dir, int J6dir, String SpeedType, float SpeedVal, float ACCspd, float DCCspd, float ACCramp) {
-  // Diagnostic: Track XJ command execution
-  xjCommandsExecuted++;
-  
   int steps[] = { J1step, J2step, J3step, J4step, J5step, J6step, 0, 0, 0 };
   int dirs[] = { J1dir, J2dir, J3dir, J4dir, J5dir, J6dir, 0, 0, 0 };
   int motDirs[] = { J1MotDir, J2MotDir, J3MotDir, J4MotDir, J5MotDir, J6MotDir, J7MotDir, J8MotDir, J9MotDir };
@@ -2550,11 +2540,12 @@ void moveJ(String inData, bool response, bool precalc, bool simspeed) {
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 // Helper function to estimate free RAM (for diagnostics)
+// Teensy 4.x - returns approximate stack usage
 int freeMemory() {
-  char top;
-  extern char *__brkval;
-  extern char __bss_end;
-  return __brkval ? &top - __brkval : &top - &__bss_end;
+  char stackVar;
+  // Return distance from a stack variable to approximate base
+  // This gives relative memory usage, not absolute free RAM
+  return (int)&stackVar & 0xFFFF; // Return lower 16 bits for relative comparison
 }
 
 
@@ -2848,9 +2839,6 @@ void loop() {
   ////////////////////////////////////
   ///////////start loop///////////////
 
-  // Diagnostic: Increment loop counter
-  loopCounter++;
-
   if (splineEndReceived == false) {
     processSerial();
   }
@@ -2859,15 +2847,6 @@ void loop() {
     //process data
     estopActive = false; // [JAMES:MOD] Ensure Estop is reset when processing new valid commands
     inData = cmdBuffer1;
-    
-    // Diagnostic: Track last command
-    lastCommand = inData.substring(0, min(20, (int)inData.length()));
-    lastCommandTime = millis();
-    
-    // Track XJ commands
-    if (inData.startsWith("XJ")) {
-      xjCommandsReceived++;
-    }
     inData.trim();
     String function = inData.substring(0, 2);
     inData = inData.substring(2);
@@ -2898,18 +2877,6 @@ void loop() {
     //-----------------------------------------------------------------------
     if (function == "DS") {
       Serial.println("--- TEENSY DIAGNOSTIC STATUS ---");
-      Serial.print("LoopCounter: ");
-      Serial.println(loopCounter);
-      Serial.print("LastCommand: ");
-      Serial.println(lastCommand);
-      Serial.print("LastCommandTime: ");
-      Serial.println(lastCommandTime);
-      Serial.print("TimeSinceLastCmd: ");
-      Serial.println(millis() - lastCommandTime);
-      Serial.print("XJCommandsReceived: ");
-      Serial.println(xjCommandsReceived);
-      Serial.print("XJCommandsExecuted: ");
-      Serial.println(xjCommandsExecuted);
       Serial.print("CmdBuffer1: ");
       Serial.println(cmdBuffer1.length() > 0 ? cmdBuffer1.substring(0, min(20, (int)cmdBuffer1.length())) : "empty");
       Serial.print("CmdBuffer2: ");
@@ -2936,6 +2903,8 @@ void loop() {
       Serial.println(J5StepM);
       Serial.print("J6StepM: ");
       Serial.println(J6StepM);
+      Serial.print("Uptime: ");
+      Serial.println(millis());
       Serial.print("FreeRAM: ");
       Serial.println(freeMemory());
       Serial.println("--- END STATUS ---");
@@ -5299,6 +5268,11 @@ void loop() {
         driveMotorsXJ(abs(J1stepDif), abs(J2stepDif), abs(J3stepDif), abs(J4stepDif), abs(J5stepDif), abs(J6stepDif), 
                      J1dir, J2dir, J3dir, J4dir, J5dir, J6dir, 
                      SpeedType, SpeedVal, ACCspd, DCCspd, ACCramp);
+      } else {
+        // [DIAGNOSTIC] Report axis limit violations for XJ commands
+        Serial.print("XJ_LIMIT:");
+        Serial.print(J1axisFault); Serial.print(J2axisFault); Serial.print(J3axisFault);
+        Serial.print(J4axisFault); Serial.print(J5axisFault); Serial.println(J6axisFault);
       }
       inData = "";
     }
