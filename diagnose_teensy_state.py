@@ -114,6 +114,32 @@ class TeensyDiagnostic:
         response = self.send_command('RP')
         return response
     
+    def parse_position(self, pos_response):
+        """Parse position response to extract joint angles"""
+        if not pos_response or len(pos_response) == 0:
+            return None
+        
+        # Position format: A<J1>B<J2>C<J3>D<J4>E<J5>F<J6>...
+        pos_str = pos_response[0]
+        joints = {}
+        
+        try:
+            # Extract joint values
+            for joint_name, marker in [('J1', 'A'), ('J2', 'B'), ('J3', 'C'), 
+                                       ('J4', 'D'), ('J5', 'E'), ('J6', 'F')]:
+                if marker in pos_str:
+                    start = pos_str.index(marker) + 1
+                    # Find next letter or end
+                    end = start
+                    while end < len(pos_str) and (pos_str[end].isdigit() or pos_str[end] in '.-'):
+                        end += 1
+                    joints[joint_name] = float(pos_str[start:end])
+        except (ValueError, IndexError) as e:
+            print(f"  Warning: Could not parse position: {e}")
+            return None
+        
+        return joints
+    
     def move_joint_relative(self, joint_num, delta_degrees):
         """
         Move a specific joint by a relative amount
@@ -186,18 +212,7 @@ class TeensyDiagnostic:
                 print(f"  WARNING: Expected {delta_degrees:+.2f}°, got {actual_delta:+.2f}°")
                 return False
         
-        return True
-        """Parse position response to extract joint angles"""
-        if not pos_response or len(pos_response) == 0:
-            return None
-        
-        # Position format: A<J1>B<J2>C<J3>D<J4>E<J5>F<J6>...
-        pos_str = pos_response[0]
-        joints = {}
-        
-        try:
-            # Extract joint values
-            for joint_name, marker in [('J1', 'A'), ('J2', 'B'), ('J3', 'C'), 
+        return True 
                                        ('J4', 'D'), ('J5', 'E'), ('J6', 'F')]:
                 if marker in pos_str:
                     start = pos_str.index(marker) + 1
