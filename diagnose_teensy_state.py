@@ -96,6 +96,32 @@ class TeensyDiagnostic:
         response = self.send_command('RP')
         return response
     
+    def parse_position(self, pos_response):
+        """Parse position response to extract joint angles"""
+        if not pos_response or len(pos_response) == 0:
+            return None
+        
+        # Position format: A<J1>B<J2>C<J3>D<J4>E<J5>F<J6>...
+        pos_str = pos_response[0]
+        joints = {}
+        
+        try:
+            # Extract joint values
+            for joint_name, marker in [('J1', 'A'), ('J2', 'B'), ('J3', 'C'), 
+                                       ('J4', 'D'), ('J5', 'E'), ('J6', 'F')]:
+                if marker in pos_str:
+                    start = pos_str.index(marker) + 1
+                    # Find next letter or end
+                    end = start
+                    while end < len(pos_str) and (pos_str[end].isdigit() or pos_str[end] in '.-'):
+                        end += 1
+                    joints[joint_name] = float(pos_str[start:end])
+        except (ValueError, IndexError) as e:
+            print(f"  Warning: Could not parse position: {e}")
+            return None
+        
+        return joints
+    
     def test_simple_movement(self):
         """Test simple J6 movement (+10 degrees)"""
         print("\nTesting SIMPLE movement (J6 +10 deg)...")
@@ -104,11 +130,32 @@ class TeensyDiagnostic:
         pos_before = self.get_position()
         print(f"  Position before: {pos_before}")
         
-        # Send simple move command for J6 +10 degrees
+        # Parse current joint angles
+        current_joints = self.parse_position(pos_before)
+        if not current_joints:
+            print("  ERROR: Could not parse current position!")
+            return {
+                'command': 'FAILED',
+                'response': ['Position parse error'],
+                'position_before': pos_before,
+                'position_after': []
+            }
+        
+        print(f"  Current joints: {current_joints}")
+        
+        # Calculate target position (J6 + 10 degrees)
+        target_j6 = current_joints.get('J6', 0) + 10.0
+        
+        # Build command with current positions + J6 offset
         # Format: MJA<J1>B<J2>C<J3>D<J4>E<J5>F<J6>Ss<speed>Ac<acc>Dc<dec>Rm<ramp>
-        # We only move J6, so we need current positions for others
-        # Simplified: just send relative J6 movement
-        cmd = "MJA0B0C0D0E0F10Ss20Ac10Dc10Rm20"
+        cmd = (f"MJA{current_joints.get('J1', 0):.2f}"
+               f"B{current_joints.get('J2', 0):.2f}"
+               f"C{current_joints.get('J3', 0):.2f}"
+               f"D{current_joints.get('J4', 0):.2f}"
+               f"E{current_joints.get('J5', 0):.2f}"
+               f"F{target_j6:.2f}"
+               f"Ss20Ac10Dc10Rm20")
+        
         print(f"  Sending: {cmd}")
         
         response = self.send_command(cmd)
@@ -125,7 +172,8 @@ class TeensyDiagnostic:
             'command': cmd,
             'response': response,
             'position_before': pos_before,
-            'position_after': pos_after
+            'position_after': pos_after,
+            'target_j6': target_j6
         }
     
     def test_blending_movement(self):
@@ -141,9 +189,33 @@ class TeensyDiagnostic:
         pos_before = self.get_position()
         print(f"  Position before: {pos_before}")
         
-        # Send XJ command for J6 +10 degrees
+        # Parse current joint angles
+        current_joints = self.parse_position(pos_before)
+        if not current_joints:
+            print("  ERROR: Could not parse current position!")
+            self.send_command('BM0')  # Disable blending
+            return {
+                'command': 'FAILED',
+                'response': ['Position parse error'],
+                'position_before': pos_before,
+                'position_after': []
+            }
+        
+        print(f"  Current joints: {current_joints}")
+        
+        # Calculate target position (J6 + 10 degrees)
+        target_j6 = current_joints.get('J6', 0) + 10.0
+        
+        # Build XJ command with current positions + J6 offset
         # Format: XJA<J1>B<J2>C<J3>D<J4>E<J5>F<J6>Ss<speed>Ac<acc>Dc<dec>Rm<ramp>
-        cmd = "XJA0B0C0D0E0F10Ss20Ac10Dc10Rm20"
+        cmd = (f"XJA{current_joints.get('J1', 0):.2f}"
+               f"B{current_joints.get('J2', 0):.2f}"
+               f"C{current_joints.get('J3', 0):.2f}"
+               f"D{current_joints.get('J4', 0):.2f}"
+               f"E{current_joints.get('J5', 0):.2f}"
+               f"F{target_j6:.2f}"
+               f"Ss20Ac10Dc10Rm20")
+        
         print(f"  Sending: {cmd}")
         
         response = self.send_command(cmd)
@@ -164,7 +236,8 @@ class TeensyDiagnostic:
             'command': cmd,
             'response': response,
             'position_before': pos_before,
-            'position_after': pos_after
+            'position_after': pos_after,
+            'target_j6': target_j6
         }
     
     def run_full_diagnostic(self):
