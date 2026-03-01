@@ -212,20 +212,7 @@ class TeensyDiagnostic:
                 print(f"  WARNING: Expected {delta_degrees:+.2f}°, got {actual_delta:+.2f}°")
                 return False
         
-        return True 
-                                       ('J4', 'D'), ('J5', 'E'), ('J6', 'F')]:
-                if marker in pos_str:
-                    start = pos_str.index(marker) + 1
-                    # Find next letter or end
-                    end = start
-                    while end < len(pos_str) and (pos_str[end].isdigit() or pos_str[end] in '.-'):
-                        end += 1
-                    joints[joint_name] = float(pos_str[start:end])
-        except (ValueError, IndexError) as e:
-            print(f"  Warning: Could not parse position: {e}")
-            return None
-        
-        return joints
+        return True
     
     def test_simple_movement(self):
         """Test simple J6 movement (+10 degrees)"""
