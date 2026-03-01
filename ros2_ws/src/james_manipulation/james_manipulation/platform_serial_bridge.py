@@ -70,12 +70,13 @@ class PlatformSerialBridge(Node):
         self.serial_lock = threading.Lock()
         
         # Binary protocol
-        self.PACKET_SIZE = 22  # Updated from 21 to include armed field
+        self.PACKET_SIZE = 23  # Updated to include trigger_reboot field
         self.PACKET_START = 0xAA
         
         # Publishers and subscribers
         self.arm_command_pub = self.create_publisher(String, '/arm/manual_cartesian_cmd', 10)
         self.status_pub = self.create_publisher(String, '/platform_bridge/status', 10)
+        self.teensy_raw_cmd_pub = self.create_publisher(String, '/arm/teensy_raw_cmd', 10)  # For semi-reboot
         self.status_timer = self.create_timer(1.0, self.publish_status)
         
         # Start serial communication thread
@@ -175,12 +176,21 @@ class PlatformSerialBridge(Node):
     def handle_packet(self, packet):
         try:
             # Simple unpack logic
-            # [0xAA][type][left_x][left_y][left_z][right_x][right_y][right_rot][mode][gripper][armed][timestamp][checksum]
+            # [0xAA][type][left_x][left_y][left_z][right_x][right_y][right_rot][mode][gripper][armed][trigger_reboot][timestamp][checksum]
             p_type = packet[1]
             if p_type == 1: # Manual Control
                 lx, ly, lz, rx, ry, rr = struct.unpack('<hhhhhh', packet[2:14])
                 mode = packet[14]
                 armed = packet[16]  # Armed state (0=disarmed, 1=armed)
+                trigger_reboot = packet[17]  # Semi-reboot trigger (0=no, 1=yes)
+                
+                # Handle semi-reboot trigger
+                if trigger_reboot == 1:
+                    self.get_logger().warn('⚠️ SEMI-REBOOT TRIGGERED FROM REMOTE ⚠️')
+                    reboot_msg = String()
+                    reboot_msg.data = 'SR'
+                    self.teensy_raw_cmd_pub.publish(reboot_msg)
+                
                 cmd = {
                     'type': 'manual_control',
                     'lx': lx/1000.0, 'ly': ly/1000.0, 'lz': lz/1000.0,

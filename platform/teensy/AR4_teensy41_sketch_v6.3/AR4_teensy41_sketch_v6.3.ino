@@ -71,6 +71,7 @@
 #include <SD.h>
 #include <stdexcept>
 #include <ModbusMaster.h>
+#include <EEPROM.h>
 #pragma GCC diagnostic ignored "-Warray-bounds"
 #pragma GCC diagnostic ignored "-Wunused-variable"
 #pragma GCC diagnostic ignored "-Wsequence-point"
@@ -556,6 +557,93 @@ bool isValidResult(float value) {
   // Check for NaN or Inf, which are typical results of invalid operations
   return !std::isnan(value) && !std::isinf(value);
 }
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// SEMI-REBOOT FUNCTIONALITY
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// EEPROM memory layout for semi-reboot
+#define EEPROM_MAGIC_ADDR 0
+#define EEPROM_MAGIC_VALUE 0xAB12CD34  // Magic number to verify valid data
+#define EEPROM_J1_ADDR 4
+#define EEPROM_J2_ADDR 8
+#define EEPROM_J3_ADDR 12
+#define EEPROM_J4_ADDR 16
+#define EEPROM_J5_ADDR 20
+#define EEPROM_J6_ADDR 24
+#define EEPROM_J7_ADDR 28
+#define EEPROM_J8_ADDR 32
+#define EEPROM_J9_ADDR 36
+#define EEPROM_CALIBRATED_ADDR 40  // Store calibration flag
+
+// Save current joint positions to EEPROM and trigger system reset
+void savePositionsAndReset() {
+  // Write magic number to indicate valid data
+  uint32_t magic = EEPROM_MAGIC_VALUE;
+  EEPROM.put(EEPROM_MAGIC_ADDR, magic);
+  
+  // Save all joint step positions
+  EEPROM.put(EEPROM_J1_ADDR, J1StepM);
+  EEPROM.put(EEPROM_J2_ADDR, J2StepM);
+  EEPROM.put(EEPROM_J3_ADDR, J3StepM);
+  EEPROM.put(EEPROM_J4_ADDR, J4StepM);
+  EEPROM.put(EEPROM_J5_ADDR, J5StepM);
+  EEPROM.put(EEPROM_J6_ADDR, J6StepM);
+  EEPROM.put(EEPROM_J7_ADDR, J7StepM);
+  EEPROM.put(EEPROM_J8_ADDR, J8StepM);
+  EEPROM.put(EEPROM_J9_ADDR, J9StepM);
+  
+  // Save calibration flag (assume calibrated if we're saving positions)
+  byte calibrated = 1;
+  EEPROM.put(EEPROM_CALIBRATED_ADDR, calibrated);
+  
+  // Send acknowledgment before reset
+  Serial.println("POSITIONS_SAVED_RESETTING");
+  Serial.flush();  // Ensure message is sent before reset
+  
+  delay(100);  // Brief delay to ensure serial transmission completes
+  
+  // Trigger system reset
+  SCB_AIRCR = 0x05FA0004;
+}
+
+// Restore joint positions from EEPROM on boot (call in setup)
+bool restorePositionsFromEEPROM() {
+  // Check for magic number to verify valid saved data
+  uint32_t magic;
+  EEPROM.get(EEPROM_MAGIC_ADDR, magic);
+  
+  if (magic != EEPROM_MAGIC_VALUE) {
+    // No valid saved data found
+    return false;
+  }
+  
+  // Restore all joint step positions
+  EEPROM.get(EEPROM_J1_ADDR, J1StepM);
+  EEPROM.get(EEPROM_J2_ADDR, J2StepM);
+  EEPROM.get(EEPROM_J3_ADDR, J3StepM);
+  EEPROM.get(EEPROM_J4_ADDR, J4StepM);
+  EEPROM.get(EEPROM_J5_ADDR, J5StepM);
+  EEPROM.get(EEPROM_J6_ADDR, J6StepM);
+  EEPROM.get(EEPROM_J7_ADDR, J7StepM);
+  EEPROM.get(EEPROM_J8_ADDR, J8StepM);
+  EEPROM.get(EEPROM_J9_ADDR, J9StepM);
+  
+  // Restore calibration flag
+  byte calibrated;
+  EEPROM.get(EEPROM_CALIBRATED_ADDR, calibrated);
+  
+  // Clear the magic number so we don't restore again on next normal boot
+  magic = 0;
+  EEPROM.put(EEPROM_MAGIC_ADDR, magic);
+  
+  // Send confirmation message
+  Serial.println("POSITIONS_RESTORED_FROM_EEPROM");
+  
+  return (calibrated == 1);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
 //This function sets the variable inside Robot_Data to the DHparams
@@ -2666,6 +2754,9 @@ void setup() {
   // Initialize Modbus communication
   node.begin(1, Serial8);
 
+  // [SEMI-REBOOT] Check for and restore saved positions from EEPROM
+  bool wasRestored = restorePositionsFromEEPROM();
+
 
 
   pinMode(J1stepPin, OUTPUT);
@@ -2763,6 +2854,14 @@ void loop() {
       } else {
         Serial.println(result);
       }
+    }
+
+
+    //-----SEMI-REBOOT - SAVE POSITIONS AND RESET--------------------------------------------
+    //-----------------------------------------------------------------------
+    if (function == "SR") {
+      savePositionsAndReset();
+      // Note: This function does not return - system resets
     }
 
 

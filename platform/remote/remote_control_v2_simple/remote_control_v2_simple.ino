@@ -30,6 +30,9 @@ const int leftJoystickRotationPin = 12;     // Arm up/down or rotation (Cartesia
 // Switch pin - from remote_control_v1
 const int leftSwitchPin = 45;               // Mode switch
 
+// Left button pin for semi-reboot
+const int leftButtonPin = 42;               // Semi-reboot trigger button
+
 // ADC configuration
 const int adcDeadZoneMin = 1900;
 const int adcDeadZoneMax = 2250;
@@ -75,6 +78,10 @@ bool lastButtonState = false;
 unsigned long lastButtonPressTime = 0;
 const unsigned long BUTTON_DEBOUNCE_MS = 200;  // Debounce time
 
+// Semi-reboot button state
+bool lastLeftButtonState = false;
+unsigned long lastLeftButtonPressTime = 0;
+
 // Joystick calibration offsets
 int rightJoystickYOffset = 0;
 int rightJoystickXOffset = 0;
@@ -106,6 +113,9 @@ typedef struct RemoteControlData {
   
   // Safety arming state
   bool armed;  // true = armed (motion allowed), false = disarmed (no motion)
+  
+  // Semi-reboot trigger
+  bool trigger_reboot;  // true = trigger Teensy semi-reboot
 } RemoteControlData;
 
 RemoteControlData controlData;
@@ -207,6 +217,37 @@ void handleArmingButton() {
   }
   
   lastButtonState = currentButtonState;
+}
+
+void handleSemiRebootButton() {
+  bool currentButtonState = (digitalRead(leftButtonPin) == LOW);  // Active low
+  unsigned long currentTime = millis();
+  
+  // Debounce: only process if enough time has passed since last press
+  if (currentButtonState && !lastLeftButtonState && 
+      (currentTime - lastLeftButtonPressTime > BUTTON_DEBOUNCE_MS)) {
+    
+    // Trigger semi-reboot
+    controlData.trigger_reboot = true;
+    lastLeftButtonPressTime = currentTime;
+    
+    Serial.println("SEMI-REBOOT TRIGGERED!");
+    
+    // Show visual feedback on display
+    gfx2->fillRect(0, 0, 240, 60, RED);
+    gfx2->setTextColor(WHITE);
+    gfx2->setTextSize(2);
+    gfx2->setCursor(20, 15);
+    gfx2->println("REBOOTING");
+    gfx2->setCursor(20, 35);
+    gfx2->println("TEENSY...");
+    gfx2->flush();
+  } else {
+    // Reset trigger flag when button is released
+    controlData.trigger_reboot = false;
+  }
+  
+  lastLeftButtonState = currentButtonState;
 }
 
 void initDisplay() {
@@ -471,6 +512,9 @@ void sendControlData() {
   // Handle arming button
   handleArmingButton();
   
+  // Handle semi-reboot button
+  handleSemiRebootButton();
+  
   // Read right joystick with calibration (platform control)
   int rightYRaw = readCalibratedJoystick(rightJoystickUpDownPin, rightJoystickYOffset);
   int rightXRaw = readCalibratedJoystick(rightJoystickLeftRightPin, rightJoystickXOffset);
@@ -510,7 +554,8 @@ void sendControlData() {
     servoPos = map(currentPot, 2075, 4095, 2048, 4095);
   }
   
-  if (abs(currentPot - lastGripperPotValue) > potThreshold) {
+  // ONLY send gripper commands when ARMED
+  if (systemArmed && abs(currentPot - lastGripperPotValue) > potThreshold) {
     lastGripperPotValue = currentPot;
     
     gripperCmd.command = CMD_SET_POS;
@@ -519,8 +564,12 @@ void sendControlData() {
     gripperCmd.speed = 1000;
     gripperCmd.torque = 1;
 
-    esp_now_send(gripperBroadcastAddress, (uint8_t *)&gripperCmd, sizeof(gripperCmd));
-    Serial.printf("Gripper POT: %d -> Servo POS: %d\n", currentPot, servoPos);
+    esp_err_t result = esp_now_send(gripperBroadcastAddress, (uint8_t *)&gripperCmd, sizeof(gripperCmd));
+    if (result == ESP_OK) {
+      Serial.printf("Gripper POT: %d -> Servo POS: %d\n", currentPot, servoPos);
+    } else {
+      Serial.printf("Gripper send FAILED: %d\n", result);
+    }
   }
   
   // Send platform/arm data via ESP-NOW to robot receiver
@@ -599,10 +648,15 @@ void setup() {
   // Setup center button pin for arming/disarming
   pinMode(centerButtonPin, INPUT_PULLUP);
   
+  // Setup left button pin for semi-reboot
+  pinMode(leftButtonPin, INPUT_PULLUP);
+  
   // Initialize button state to current reading to prevent false trigger on first read
   delay(50);  // Let pin stabilize
   lastButtonState = (digitalRead(centerButtonPin) == LOW);
+  lastLeftButtonState = (digitalRead(leftButtonPin) == LOW);
   lastButtonPressTime = millis();  // Initialize to current time to prevent immediate trigger
+  lastLeftButtonPressTime = millis();
   
   Serial.println("Setup complete!");
   

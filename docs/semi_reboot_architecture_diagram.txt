@@ -1,0 +1,318 @@
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                    TEENSY SEMI-REBOOT ARCHITECTURE                            ║
+╚═══════════════════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          HARDWARE LAYER                                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+    ┌──────────────────┐
+    │  Remote Control  │
+    │  (T-Display S3)  │
+    │                  │
+    │  ┌────────────┐  │
+    │  │ Left Button│  │  ← User presses GPIO 42
+    │  │  (GPIO 42) │  │
+    │  └────────────┘  │
+    │                  │
+    │  ┌────────────┐  │
+    │  │   Display  │  │  ← Shows "REBOOTING TEENSY..."
+    │  └────────────┘  │
+    └────────┬─────────┘
+             │ ESP-NOW (2.4GHz)
+             │ RemoteControlData struct
+             │ trigger_reboot = true
+             ↓
+    ┌────────────────────┐
+    │ Platform Controller│
+    │     (ESP32)        │
+    │                    │
+    │  Receives ESP-NOW  │
+    │  Packs binary      │
+    │  packet (23 bytes) │
+    └────────┬───────────┘
+             │ USB Serial (115200 baud)
+             │ Binary Protocol
+             │ Byte 17 = trigger_reboot
+             ↓
+    ┌────────────────────┐
+    │   Jetson Nano      │
+    │   (ROS2 Foxy)      │
+    │                    │
+    │  ┌──────────────┐  │
+    │  │Platform      │  │
+    │  │Serial Bridge │  │
+    │  └──────┬───────┘  │
+    │         │          │
+    │         │ ROS2 Topic: /arm/teensy_raw_cmd
+    │         │ Message: "SR"
+    │         ↓          │
+    │  ┌──────────────┐  │
+    │  │Teensy Serial │  │
+    │  │Bridge        │  │
+    │  └──────┬───────┘  │
+    └─────────┼──────────┘
+              │ USB Serial (115200 baud)
+              │ Text Protocol
+              │ Command: "SR\n"
+              ↓
+    ┌────────────────────┐
+    │   Teensy 4.1       │
+    │   (AR4 Controller) │
+    │                    │
+    │  ┌──────────────┐  │
+    │  │ Command      │  │
+    │  │ Parser       │  │
+    │  └──────┬───────┘  │
+    │         │          │
+    │         ↓          │
+    │  ┌──────────────┐  │
+    │  │savePositions │  │
+    │  │AndReset()    │  │
+    │  └──────┬───────┘  │
+    │         │          │
+    │         ↓          │
+    │  ┌──────────────┐  │
+    │  │   EEPROM     │  │  ← Saves 9 joints + calibration
+    │  │  (41 bytes)  │  │
+    │  └──────────────┘  │
+    │         │          │
+    │         ↓          │
+    │  SCB_AIRCR = 0x05FA0004  ← System Reset
+    │         │          │
+    │    (REBOOT)        │
+    │         │          │
+    │         ↓          │
+    │  ┌──────────────┐  │
+    │  │  setup()     │  │
+    │  └──────┬───────┘  │
+    │         │          │
+    │         ↓          │
+    │  ┌──────────────┐  │
+    │  │restorePos    │  │
+    │  │FromEEPROM()  │  │
+    │  └──────┬───────┘  │
+    │         │          │
+    │         ↓          │
+    │  Normal Operation  │
+    └────────────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          DATA STRUCTURES                                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+Remote Control → Platform Controller (ESP-NOW):
+┌────────────────────────────────────────────────────────────┐
+│ struct RemoteControlData {                                 │
+│   int right_y, right_x, right_rot;                         │
+│   int left_y, left_x, left_z;                              │
+│   bool switch_platform_mode;                               │
+│   int gripper_pot;                                         │
+│   bool armed;                                              │
+│   bool trigger_reboot;  ← NEW FIELD                        │
+│ }                                                          │
+└────────────────────────────────────────────────────────────┘
+
+Platform Controller → Jetson (USB Serial Binary):
+┌────────────────────────────────────────────────────────────┐
+│ Byte  Content                                              │
+│ ───────────────────────────────────────────────────────── │
+│  0    0xAA (Start marker)                                  │
+│  1    0x01 (Message type)                                  │
+│  2-3  left_x (int16_t)                                     │
+│  4-5  left_y (int16_t)                                     │
+│  6-7  left_z (int16_t)                                     │
+│  8-9  right_x (int16_t)                                    │
+│ 10-11 right_y (int16_t)                                    │
+│ 12-13 right_rot (int16_t)                                  │
+│ 14    mode (uint8_t)                                       │
+│ 15    gripper_pot (uint8_t)                                │
+│ 16    armed (uint8_t)                                      │
+│ 17    trigger_reboot (uint8_t) ← NEW BYTE                  │
+│ 18-21 timestamp (uint32_t)                                 │
+│ 22    checksum (uint8_t)                                   │
+└────────────────────────────────────────────────────────────┘
+
+Platform Bridge → Teensy Bridge (ROS2 Topic):
+┌────────────────────────────────────────────────────────────┐
+│ Topic: /arm/teensy_raw_cmd                                 │
+│ Type:  std_msgs/String                                     │
+│ Data:  "SR"                                                │
+└────────────────────────────────────────────────────────────┘
+
+Teensy Bridge → Teensy (USB Serial Text):
+┌────────────────────────────────────────────────────────────┐
+│ Command: "SR\n"                                            │
+└────────────────────────────────────────────────────────────┘
+
+Teensy EEPROM Layout:
+┌────────────────────────────────────────────────────────────┐
+│ Address  Size  Content                                     │
+│ ──────────────────────────────────────────────────────────│
+│ 0x00     4     Magic Number (0xAB12CD34)                   │
+│ 0x04     4     J1StepM (int32_t)                           │
+│ 0x08     4     J2StepM (int32_t)                           │
+│ 0x0C     4     J3StepM (int32_t)                           │
+│ 0x10     4     J4StepM (int32_t)                           │
+│ 0x14     4     J5StepM (int32_t)                           │
+│ 0x18     4     J6StepM (int32_t)                           │
+│ 0x1C     4     J7StepM (int32_t)                           │
+│ 0x20     4     J8StepM (int32_t)                           │
+│ 0x24     4     J9StepM (int32_t)                           │
+│ 0x28     1     Calibration Flag (uint8_t)                  │
+│ ──────────────────────────────────────────────────────────│
+│ Total: 41 bytes                                            │
+└────────────────────────────────────────────────────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          TIMING DIAGRAM                                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+Time (ms)  Event
+─────────────────────────────────────────────────────────────────────────────
+    0      User presses button (GPIO 42)
+    5      handleSemiRebootButton() detects press
+   10      trigger_reboot = true
+   15      ESP-NOW packet sent
+   20      Platform Controller receives packet
+   25      Binary packet sent via USB Serial
+   30      Platform Bridge receives packet
+   35      Extracts trigger_reboot from byte 17
+   40      Publishes "SR" to /arm/teensy_raw_cmd
+   45      Teensy Bridge receives ROS2 message
+   50      Forwards "SR\n" via USB Serial
+   55      Teensy receives command
+   60      savePositionsAndReset() called
+   65      EEPROM write starts
+   75      EEPROM write complete (9 joints + flag)
+   80      Sends "POSITIONS_SAVED_RESETTING"
+   85      SCB_AIRCR = 0x05FA0004
+   90      System reset triggered
+  ─────────────────────────────────────────────────────────────────────────
+  (1500ms bootloader + initialization)
+  ─────────────────────────────────────────────────────────────────────────
+ 1590      Teensy boots, setup() runs
+ 1595      restorePositionsFromEEPROM() called
+ 1600      Checks magic number (0xAB12CD34)
+ 1605      EEPROM read starts
+ 1610      Restores 9 joint positions
+ 1615      Restores calibration flag
+ 1620      Clears magic number
+ 1625      Sends "POSITIONS_RESTORED_FROM_EEPROM"
+ 1630      Normal operation resumes
+─────────────────────────────────────────────────────────────────────────────
+Total Time: ~1.6 seconds
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          ERROR HANDLING                                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────┐
+│ Button Press        │
+└──────────┬──────────┘
+           │
+           ↓
+    ┌──────────────┐
+    │ Debounce OK? │──No──→ Ignore
+    └──────┬───────┘
+           │ Yes
+           ↓
+┌──────────────────────┐
+│ ESP-NOW Connected?   │──No──→ Display: "DISCONNECTED"
+└──────────┬───────────┘
+           │ Yes
+           ↓
+┌──────────────────────┐
+│ Platform Controller  │
+│ Receives Data?       │──No──→ Retry ESP-NOW
+└──────────┬───────────┘
+           │ Yes
+           ↓
+┌──────────────────────┐
+│ USB Serial OK?       │──No──→ Log: "Serial Failed"
+└──────────┬───────────┘
+           │ Yes
+           ↓
+┌──────────────────────┐
+│ Platform Bridge      │
+│ Running?             │──No──→ ROS2 Error
+└──────────┬───────────┘
+           │ Yes
+           ↓
+┌──────────────────────┐
+│ Teensy Bridge        │
+│ Running?             │──No──→ ROS2 Error
+└──────────┬───────────┘
+           │ Yes
+           ↓
+┌──────────────────────┐
+│ Teensy Receives SR?  │──No──→ Check USB Cable
+└──────────┬───────────┘
+           │ Yes
+           ↓
+┌──────────────────────┐
+│ EEPROM Write OK?     │──No──→ EEPROM Error
+└──────────┬───────────┘
+           │ Yes
+           ↓
+┌──────────────────────┐
+│ System Reset         │
+└──────────┬───────────┘
+           │
+           ↓
+┌──────────────────────┐
+│ Magic Number Valid?  │──No──→ Normal Boot (No Restore)
+└──────────┬───────────┘
+           │ Yes
+           ↓
+┌──────────────────────┐
+│ EEPROM Read OK?      │──No──→ EEPROM Corruption
+└──────────┬───────────┘
+           │ Yes
+           ↓
+┌──────────────────────┐
+│ Positions Restored   │
+│ Normal Operation     │
+└──────────────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          MONITORING POINTS                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+1. Remote Control Serial:
+   Monitor: "SEMI-REBOOT TRIGGERED!"
+   
+2. Platform Controller Serial:
+   Monitor: Binary packet with byte 17 = 0x01
+   
+3. ROS2 Topic /arm/teensy_raw_cmd:
+   Command: ros2 topic echo /arm/teensy_raw_cmd
+   Expected: data: 'SR'
+   
+4. ROS2 Topic /arm/teensy_raw_rx:
+   Command: ros2 topic echo /arm/teensy_raw_rx
+   Expected: 
+     - data: 'POSITIONS_SAVED_RESETTING'
+     - (2 second pause)
+     - data: 'POSITIONS_RESTORED_FROM_EEPROM'
+   
+5. ROS2 Topic /joint_states:
+   Command: ros2 topic echo /joint_states
+   Verify: Positions match pre-reboot values
+   
+6. Platform Bridge Logs:
+   Monitor: "⚠️ SEMI-REBOOT TRIGGERED FROM REMOTE ⚠️"
+   
+7. Teensy Serial (Direct):
+   Monitor: 
+     - "POSITIONS_SAVED_RESETTING"
+     - "POSITIONS_RESTORED_FROM_EEPROM"
+
+
+╔═══════════════════════════════════════════════════════════════════════════════╗
+║                              END OF DIAGRAM                                   ║
+╚═══════════════════════════════════════════════════════════════════════════════╝

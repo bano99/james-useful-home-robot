@@ -71,6 +71,9 @@ typedef struct RemoteControlData {
   
   // Safety arming state
   bool armed;  // true = armed (motion allowed), false = disarmed (no motion)
+  
+  // Semi-reboot trigger
+  bool trigger_reboot;  // true = trigger Teensy semi-reboot
 } RemoteControlData;
 
 RemoteControlData controlData;
@@ -88,6 +91,10 @@ JoystickData joystickData;
 MotorCommand motorFL, motorFR, motorBL, motorBR;
 JoystickValues joystickValues;
 int motorFL_state, motorFR_state, motorBL_state, motorBR_state;
+
+// Motor state re-initialization tracking
+unsigned long lastMotorStateInit = 0;
+const unsigned long MOTOR_STATE_REINIT_INTERVAL_MS = 5000;  // Re-send state every 5 seconds
 
 // Control mode
 enum ControlMode {
@@ -249,9 +256,9 @@ void sendArmDataToJetson() {
   }
   lastJetsonSendTime = currentTime;
   
-  // Binary packet: 22 bytes total (added armed field)
-  // [0xAA][type][left_x][left_y][left_z][right_x][right_y][right_rot][mode][gripper][armed][timestamp][checksum]
-  uint8_t packet[22];
+  // Binary packet: 23 bytes total (added trigger_reboot field)
+  // [0xAA][type][left_x][left_y][left_z][right_x][right_y][right_rot][mode][gripper][armed][trigger_reboot][timestamp][checksum]
+  uint8_t packet[23];
   
   packet[0] = 0xAA;  // Start marker
   packet[1] = 1;     // Message type: manual_control
@@ -267,19 +274,20 @@ void sendArmDataToJetson() {
   packet[14] = controlData.switch_platform_mode ? 0 : 1;  // 0=platform, 1=vertical
   packet[15] = (uint8_t)controlData.gripper_pot;
   packet[16] = controlData.armed ? 1 : 0;  // Armed state
+  packet[17] = controlData.trigger_reboot ? 1 : 0;  // Semi-reboot trigger
   
   // Pack 32-bit timestamp (little endian)
-  *((uint32_t*)&packet[17]) = currentTime;
+  *((uint32_t*)&packet[18]) = currentTime;
   
   // Calculate checksum (sum of all bytes except checksum)
   uint8_t checksum = 0;
-  for (int i = 0; i < 21; i++) {
+  for (int i = 0; i < 22; i++) {
     checksum += packet[i];
   }
-  packet[21] = checksum;
+  packet[22] = checksum;
   
   // Send binary packet
-  Serial.write(packet, 22);
+  Serial.write(packet, 23);
 }
 
 void processJetsonResponse() {
@@ -736,17 +744,12 @@ void controlMecanumWheels(JoystickValues joystick, MotorCommand& motorFL, MotorC
   motorBL.velocity = velocityBL;
   motorBR.velocity = velocityBR;
 */
-  // Set motor states based on velocity
-  motorFL.state = motorFL.velocity != 0 ? 8 : 1; // State 8 for moving, 1 for stopped
-  motorFR.state = motorFR.velocity != 0 ? 8 : 1;
-  motorBL.state = motorBL.velocity != 0 ? 8 : 1;
-  motorBR.state = motorBR.velocity != 0 ? 8 : 1;
-
-  // Hold position if velocity is 0
-  if (motorFL.velocity == 0) motorFL.state = 8;
-  if (motorFR.velocity == 0) motorFR.state = 8;
-  if (motorBL.velocity == 0) motorBL.state = 8;
-  if (motorBR.velocity == 0) motorBR.state = 8;
+  // Set motor states - always use state 8 (closed-loop velocity control)
+  // State 8 handles both moving and holding position (velocity = 0)
+  motorFL.state = 8;
+  motorFR.state = 8;
+  motorBL.state = 8;
+  motorBR.state = 8;
 
 //Serial.println("FL:" + String(motorFL.velocity) + " FR:" + String(motorFR.velocity) + " BL:" + String(motorBL.velocity) + "BR:" + String(motorBR.velocity));
   sendMotorCommands(motorFL, motorFR, motorBL, motorBR);
@@ -782,14 +785,23 @@ void onDataReceive(const esp_now_recv_info *info, const uint8_t *incomingData, i
       Serial.println("State: ARMED (armed by user)");
     }
     
-    // Always send arm data to Jetson (let Jetson decide what to do with it)
-    sendArmDataToJetson();
-    
     // SAFETY CHECK: Only process motion commands if ARMED
     if (safetyState == STATE_ARMED && remoteArmed) {
       // Platform control logic based on switch state
       if (controlData.switch_platform_mode) {
         // Platform mode: Use right joystick for mecanum control
+        // ZERO OUT right joystick data before sending to Jetson (platform controls it)
+        RemoteControlData armData = controlData;
+        armData.right_x = 0;
+        armData.right_y = 0;
+        armData.right_rot = 0;
+        
+        // Send filtered data to Jetson (no right joystick in platform mode)
+        RemoteControlData originalData = controlData;
+        controlData = armData;
+        sendArmDataToJetson();
+        controlData = originalData;
+        
         joystickData.x = controlData.right_x;
         joystickData.y = controlData.right_y;
         joystickData.rot = controlData.right_rot;
@@ -802,6 +814,9 @@ void onDataReceive(const esp_now_recv_info *info, const uint8_t *incomingData, i
         controlMecanumWheels(joystickValues, motorFL, motorFR, motorBL, motorBR);
       } else {
         // Vertical arm mode: Right joystick controls arm, stop platform
+        // Send full data to Jetson (arm mode - all joysticks active)
+        sendArmDataToJetson();
+        
         // Stop platform motors
         joystickData.x = 0;
         joystickData.y = 0;
@@ -815,6 +830,8 @@ void onDataReceive(const esp_now_recv_info *info, const uint8_t *incomingData, i
       
     } else {
       // NOT ARMED: Stop all motors immediately
+      // Still send data to Jetson for monitoring (but with zero velocities)
+      sendArmDataToJetson();
       emergencyStop();
       currentMode = MODE_STOPPED;
     }
@@ -831,27 +848,47 @@ void onDataReceive(const esp_now_recv_info *info, const uint8_t *incomingData, i
 
 
 void sendMotorCommands(MotorCommand motorFL, MotorCommand motorFR, MotorCommand motorBL, MotorCommand motorBR) {
-
-if(motorFL_state !=motorFL.state){
-  motorFL_state =motorFL.state;
-  String state_commandFL = "w axis0.requested_state " + String(motorFL.state); // Front left motor (0)
-  iicSerial2.println(state_commandFL); // Send to left motors
-}
-if(motorFR_state !=motorFR.state){
-  motorFR_state =motorFR.state;
-  String state_commandFR = "w axis1.requested_state " + String(motorFR.state); // Front right motor (1)
-  iicSerial1.println(state_commandFR); // Send to left motors
-}
-if(motorBL_state !=motorBL.state){
-  motorBL_state =motorBL.state;
-  String state_commandBL = "w axis1.requested_state " + String(motorBL.state); // Front left motor (0)
-  iicSerial2.println(state_commandBL); // Send to left motors
-}
-if(motorBR_state !=motorBR.state){
-  motorBR_state =motorBR.state;
-  String state_commandBR = "w axis0.requested_state " + String(motorBR.state); // Front left motor (0)
-  iicSerial1.println(state_commandBR); // Send to left motors
-}
+  // Periodically force state re-initialization to handle late ODrive power-on
+  unsigned long currentTime = millis();
+  bool forceStateUpdate = (currentTime - lastMotorStateInit) > MOTOR_STATE_REINIT_INTERVAL_MS;
+  
+  if (forceStateUpdate) {
+    lastMotorStateInit = currentTime;
+    // Reset state tracking to force re-send
+    motorFL_state = -1;
+    motorFR_state = -1;
+    motorBL_state = -1;
+    motorBR_state = -1;
+    Serial.println("Forcing motor state re-initialization...");
+  }
+  
+  // Force state update if motors were previously uninitialized or if state changed
+  // This handles the case where ODrive is powered on after the controller
+  
+  if(motorFL_state != motorFL.state){
+    motorFL_state = motorFL.state;
+    String state_commandFL = "w axis0.requested_state " + String(motorFL.state); // Front left motor (0)
+    iicSerial2.println(state_commandFL); // Send to left motors
+    Serial.println("FL State: " + state_commandFL);
+  }
+  if(motorFR_state != motorFR.state){
+    motorFR_state = motorFR.state;
+    String state_commandFR = "w axis1.requested_state " + String(motorFR.state); // Front right motor (1)
+    iicSerial1.println(state_commandFR); // Send to right motors
+    Serial.println("FR State: " + state_commandFR);
+  }
+  if(motorBL_state != motorBL.state){
+    motorBL_state = motorBL.state;
+    String state_commandBL = "w axis1.requested_state " + String(motorBL.state); // Back left motor (1)
+    iicSerial2.println(state_commandBL); // Send to left motors
+    Serial.println("BL State: " + state_commandBL);
+  }
+  if(motorBR_state != motorBR.state){
+    motorBR_state = motorBR.state;
+    String state_commandBR = "w axis0.requested_state " + String(motorBR.state); // Back right motor (0)
+    iicSerial1.println(state_commandBR); // Send to right motors
+    Serial.println("BR State: " + state_commandBR);
+  }
 
   // Create command strings for motor states
   
