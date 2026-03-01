@@ -114,7 +114,79 @@ class TeensyDiagnostic:
         response = self.send_command('RP')
         return response
     
-    def parse_position(self, pos_response):
+    def move_joint_relative(self, joint_num, delta_degrees):
+        """
+        Move a specific joint by a relative amount
+        
+        Args:
+            joint_num: Joint number (1-6)
+            delta_degrees: Amount to move in degrees (positive or negative)
+        """
+        print(f"\nMoving J{joint_num} by {delta_degrees:+.1f} degrees...")
+        
+        # Get current position
+        pos_response = self.get_position()
+        if not pos_response:
+            print("  ERROR: Could not get current position!")
+            return False
+        
+        # Parse current joints
+        current_joints = self.parse_position(pos_response)
+        if not current_joints:
+            print("  ERROR: Could not parse position!")
+            return False
+        
+        print(f"  Current position: {current_joints}")
+        
+        # Calculate new target for specified joint
+        joint_names = ['J1', 'J2', 'J3', 'J4', 'J5', 'J6']
+        if joint_num < 1 or joint_num > 6:
+            print(f"  ERROR: Invalid joint number {joint_num} (must be 1-6)")
+            return False
+        
+        joint_name = joint_names[joint_num - 1]
+        current_value = current_joints.get(joint_name, 0)
+        target_value = current_value + delta_degrees
+        
+        print(f"  {joint_name}: {current_value:.2f}° → {target_value:.2f}°")
+        
+        # Build MJ command with all current positions except the target joint
+        cmd = (f"MJA{current_joints.get('J1', 0) if joint_num != 1 else target_value:.2f}"
+               f"B{current_joints.get('J2', 0) if joint_num != 2 else target_value:.2f}"
+               f"C{current_joints.get('J3', 0) if joint_num != 3 else target_value:.2f}"
+               f"D{current_joints.get('J4', 0) if joint_num != 4 else target_value:.2f}"
+               f"E{current_joints.get('J5', 0) if joint_num != 5 else target_value:.2f}"
+               f"F{current_joints.get('J6', 0) if joint_num != 6 else target_value:.2f}"
+               f"Ss20Ac10Dc10Rm20")
+        
+        print(f"  Sending: {cmd}")
+        response = self.send_command(cmd)
+        print(f"  Response: {response}")
+        
+        if response and response[0] == 'ER':
+            print("  ERROR: Kinematic error - movement rejected!")
+            return False
+        
+        # Wait for movement
+        print("  Waiting for movement to complete...")
+        time.sleep(2.0)
+        
+        # Verify new position
+        new_pos = self.get_position()
+        new_joints = self.parse_position(new_pos)
+        if new_joints:
+            new_value = new_joints.get(joint_name, 0)
+            actual_delta = new_value - current_value
+            print(f"  Final {joint_name}: {new_value:.2f}° (moved {actual_delta:+.2f}°)")
+            
+            if abs(actual_delta - delta_degrees) < 0.5:
+                print("  SUCCESS: Movement completed as expected")
+                return True
+            else:
+                print(f"  WARNING: Expected {delta_degrees:+.2f}°, got {actual_delta:+.2f}°")
+                return False
+        
+        return True
         """Parse position response to extract joint angles"""
         if not pos_response or len(pos_response) == 0:
             return None
@@ -418,12 +490,19 @@ Examples:
   
   # Compare two states
   python diagnose_teensy_state.py --compare teensy_state_20250301_143022.json teensy_state_20250301_144530.json
+  
+  # Move a joint manually (for testing)
+  python diagnose_teensy_state.py /dev/ttyACM0 --move-joint 6 --delta 10
         """
     )
     
     parser.add_argument('port', nargs='?', help='Serial port (e.g., /dev/ttyACM0, COM3)')
     parser.add_argument('--compare', nargs=2, metavar=('FILE1', 'FILE2'),
                        help='Compare two diagnostic state files')
+    parser.add_argument('--move-joint', type=int, metavar='JOINT_NUM',
+                       help='Move a specific joint (1-6) by relative amount')
+    parser.add_argument('--delta', type=float, default=10.0,
+                       help='Amount to move joint in degrees (default: 10.0)')
     parser.add_argument('--baudrate', type=int, default=115200,
                        help='Serial baudrate (default: 115200)')
     parser.add_argument('--timeout', type=float, default=2.0,
@@ -438,6 +517,24 @@ Examples:
     if not args.port:
         parser.error("Serial port required (unless using --compare)")
     
+    # Manual joint movement mode
+    if args.move_joint:
+        print("\n" + "="*60)
+        print("MANUAL JOINT MOVEMENT TEST")
+        print("="*60)
+        
+        diag = TeensyDiagnostic(args.port, args.baudrate, args.timeout)
+        try:
+            diag.connect()
+            success = diag.move_joint_relative(args.move_joint, args.delta)
+            if success:
+                print("\n✓ Movement test PASSED")
+            else:
+                print("\n✗ Movement test FAILED")
+        finally:
+            diag.disconnect()
+        return
+    
     # Run diagnostic
     diag = TeensyDiagnostic(args.port, args.baudrate, args.timeout)
     results = diag.run_full_diagnostic()
@@ -446,6 +543,7 @@ Examples:
     print("\nNext steps:")
     print("  1. If Teensy stops responding, run this script again")
     print(f"  2. Compare states: python {sys.argv[0]} --compare {filepath} <new_state_file>")
+    print(f"  3. Test manual movement: python {sys.argv[0]} {args.port} --move-joint 6 --delta 10")
 
 
 if __name__ == '__main__':
