@@ -42,12 +42,17 @@ class XJBugTester(Node):
         self.packet_count_sub = self.create_subscription(
             Int32, '/teensy/packet_count', self.packet_count_callback, 10)
         
+        # Subscribe to collision status to capture GS response
+        self.collision_sub = self.create_subscription(
+            String, '/teensy/collision_status', self.status_callback, 10)
+        
         # State tracking
         self.current_positions = [None] * 6  # radians
         self.joint_names = ['arm_joint_1', 'arm_joint_2', 'arm_joint_3', 
                            'arm_joint_4', 'arm_joint_5', 'arm_joint_6']
         self.received_state = False
         self.packet_count = 0
+        self.last_status = None
         
         # Initial position: All joints 0°, J3=90°
         self.init_position_deg = [0.0, 0.0, 90.0, 0.0, 0.0, 0.0]
@@ -83,6 +88,12 @@ class XJBugTester(Node):
         """Track hardware packet count"""
         self.packet_count = msg.data
     
+    def status_callback(self, msg):
+        """Capture status messages from Teensy"""
+        self.last_status = msg.data
+        if 'State:' in msg.data or 'XJ_LIMIT' in msg.data or 'BLENDING' in msg.data:
+            self.get_logger().info(f'← {msg.data}')
+    
     def send_raw(self, cmd):
         """Send raw command to Teensy through bridge"""
         msg = String()
@@ -108,25 +119,45 @@ class XJBugTester(Node):
         return True
     
     def check_calibration_status(self):
-        """Check if Teensy is calibrated by sending GS command"""
+        """Check if Teensy is calibrated by sending GS command and parsing response"""
         self.get_logger().info('Checking calibration status...')
+        self.last_status = None
         self.send_raw('GS')
-        time.sleep(0.5)
         
-        # The response will come through joint_states topic
-        # For now, we'll assume we need to check manually
-        # In real implementation, bridge should publish calibration status
+        # Wait for response
+        start_time = time.time()
+        while time.time() - start_time < 1.0:
+            rclpy.spin_once(self, timeout_sec=0.1)
+            if self.last_status and 'State:' in self.last_status:
+                break
         
-        # For this test, we'll use a simple approach:
-        # If we receive valid joint states, assume calibrated
+        if self.last_status and 'State:' in self.last_status:
+            # Parse: State:1,0,0,0,0,0,0,0,0,0
+            # State[0] = configured, State[1] = calibrated
+            try:
+                state_str = self.last_status.split('State:')[1]
+                states = [int(x) for x in state_str.split(',')]
+                
+                if len(states) > 1:
+                    if states[1] == 1:
+                        self.is_calibrated = True
+                        self.get_logger().info('✓ Teensy is CALIBRATED (State[1]=1)')
+                        return True
+                    else:
+                        self.is_calibrated = False
+                        self.get_logger().warn('⚠ Teensy is NOT CALIBRATED (State[1]=0)')
+                        return False
+            except Exception as e:
+                self.get_logger().error(f'Failed to parse GS response: {e}')
+        
+        # Fallback: check if we have valid joint states
         if self.received_state and all(p is not None for p in self.current_positions):
+            self.get_logger().warn('Could not get GS response, but joint_states are valid')
             self.is_calibrated = True
-            self.get_logger().info('✓ Teensy appears to be calibrated')
             return True
-        else:
-            self.is_calibrated = False
-            self.get_logger().warn('⚠ Teensy is NOT calibrated')
-            return False
+        
+        self.is_calibrated = False
+        return False
     
     def initialize_calibration(self):
         """Set calibration flag and initialize joint positions (NO MOVEMENT)"""
