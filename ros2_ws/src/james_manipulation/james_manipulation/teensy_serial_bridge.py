@@ -180,21 +180,26 @@ class TeensySerialBridge(Node):
                 baudrate=self.baud_rate,
                 timeout=self.timeout
             )
-            self.connected = True
-            self.get_logger().info(f'CONNECTED to Teensy on {self.serial_port}')
             
-            # Check Firmware State using GS command
-            time.sleep(2.0) # Wait for reboot/init
+            # Wait for device to stabilize
+            time.sleep(2.0)
+            
+            # Verify we're connected to Teensy (not gripper)
+            self.serial_conn.reset_input_buffer()
             self.serial_conn.write(b'GS\n')
-            time.sleep(0.1) 
+            time.sleep(0.1)
             
-            # Read state response
+            # Read and verify response
+            is_teensy = False
             is_configured = False
             start_time = time.time()
             while time.time() - start_time < 0.5:
                 if self.serial_conn.in_waiting:
                     resp = self.serial_conn.readline().decode('utf-8', errors='ignore').strip()
+                    
+                    # Check for Teensy State response
                     if resp.startswith("State:"):
+                        is_teensy = True
                         try:
                             states = [int(v) for v in resp.replace("State:", "").split(',')]
                             if len(states) > 0 and states[0] == 1:
@@ -208,8 +213,25 @@ class TeensySerialBridge(Node):
                                     self.is_calibrated = False
                                     self.get_logger().warn("⚠️ ROBOT NOT CALIBRATED (State[1]=0) - Waiting for calibration ⚠️")
                         except ValueError: pass
-                    break
+                        break
+                    
+                    # Check for wrong device
+                    if "ERROR: Unknown command" in resp or "VL53L1X:" in resp or "BNO055:" in resp:
+                        self.get_logger().error(f"❌ WRONG DEVICE on {self.serial_port}! This is NOT a Teensy (likely gripper)")
+                        self.serial_conn.close()
+                        self.connected = False
+                        return False
+                        
                 time.sleep(0.05)
+            
+            if not is_teensy:
+                self.get_logger().error(f"❌ No valid Teensy response on {self.serial_port}. Check connection!")
+                self.serial_conn.close()
+                self.connected = False
+                return False
+            
+            self.connected = True
+            self.get_logger().info(f'✓ CONNECTED to Teensy on {self.serial_port}')
             
             # Smart Configuration Logic
             if is_configured:
@@ -234,7 +256,7 @@ class TeensySerialBridge(Node):
             return False
 
     def discover_port(self):
-        """Scan available serial ports"""
+        """Scan available serial ports and verify device identity"""
         if _os.name == 'nt':
             candidate_ports = [f'COM{i}' for i in range(1, 21)]
         else:
@@ -245,30 +267,51 @@ class TeensySerialBridge(Node):
             try:
                 for br in [115200]:  # [STABILITY] Force high-speed baud to prevent buffer congestion
                     test_conn = serial.Serial(port, br, timeout=0.1)
+                    time.sleep(0.1)  # Let device stabilize
                     
-                    # Send Echo Test Message (TM)
-                    # The firmware echoes back the message after TM
-                    check_msg = "__TEENSY_CHECK__"
-                    test_conn.write(f"TM{check_msg}\n".encode())
+                    # Clear any existing data
+                    test_conn.reset_input_buffer()
+                    
+                    # Send GS command to identify device
+                    # Teensy responds with "State:0,0,0,..."
+                    # Gripper responds with "ERROR: Unknown command"
+                    test_conn.write(b"GS\n")
                     test_conn.flush()
                     
                     start_time = time.time()
                     buffer = ""
+                    is_teensy = False
                     
                     while time.time() - start_time < 0.5:
                         if test_conn.in_waiting > 0:
                             try:
                                 chunk = test_conn.read(test_conn.in_waiting).decode('utf-8', errors='ignore')
                                 buffer += chunk
-                                if check_msg in buffer:
-                                    self.get_logger().info(f"Teensy found on {port} at {br} baud")
+                                
+                                # Check for Teensy response
+                                if "State:" in buffer:
+                                    is_teensy = True
+                                    self.get_logger().info(f"✓ Teensy identified on {port} at {br} baud")
                                     self.baud_rate = br
                                     test_conn.close()
                                     return port
+                                
+                                # Check for non-Teensy device
+                                if "ERROR: Unknown command" in buffer or "VL53L1X:" in buffer:
+                                    self.get_logger().warn(f"✗ Non-Teensy device (gripper?) on {port}, skipping")
+                                    break
+                                    
                             except Exception: pass
                         time.sleep(0.01)
+                    
                     test_conn.close()
-            except Exception: continue
+                    
+                    if not is_teensy:
+                        self.get_logger().info(f"No valid Teensy response on {port}")
+                        
+            except Exception as e:
+                self.get_logger().debug(f"Failed to probe {port}: {e}")
+                continue
         return None
 
     def serial_communication_loop(self):
