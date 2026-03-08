@@ -175,6 +175,7 @@ class TeensySerialBridge(Node):
             if self.serial_conn and self.serial_conn.is_open:
                 self.serial_conn.close()
             
+            self.get_logger().info(f"Attempting connection to {self.serial_port}...")
             self.serial_conn = serial.Serial(
                 port=self.serial_port,
                 baudrate=self.baud_rate,
@@ -182,50 +183,65 @@ class TeensySerialBridge(Node):
             )
             
             # Wait for device to stabilize
-            time.sleep(2.0)
+            time.sleep(0.5)
             
             # Verify we're connected to Teensy (not gripper)
             self.serial_conn.reset_input_buffer()
+            self.get_logger().info(f"Sending GS command for device verification...")
+            self.log_file.write(f'[{datetime.now().strftime("%H:%M:%S.%f")[:-3]}] TX: GS (device verification)\n')
             self.serial_conn.write(b'GS\n')
-            time.sleep(0.1)
+            self.serial_conn.flush()
+            time.sleep(0.2)
             
             # Read and verify response
             is_teensy = False
             is_configured = False
+            all_responses = []
             start_time = time.time()
-            while time.time() - start_time < 0.5:
+            
+            while time.time() - start_time < 1.0:
                 if self.serial_conn.in_waiting:
                     resp = self.serial_conn.readline().decode('utf-8', errors='ignore').strip()
-                    
-                    # Check for Teensy State response
-                    if resp.startswith("State:"):
-                        is_teensy = True
-                        try:
-                            states = [int(v) for v in resp.replace("State:", "").split(',')]
-                            if len(states) > 0 and states[0] == 1:
-                                is_configured = True
-                                self.get_logger().info("Teensy ALREADY CONFIGURED (State[0]=1). Skipping UP command.")
-                            if len(states) > 1:
-                                if states[1] == 1:
-                                    self.is_calibrated = True
-                                    self.get_logger().info("Robot is CALIBRATED (State[1]=1)")
-                                else:
-                                    self.is_calibrated = False
-                                    self.get_logger().warn("⚠️ ROBOT NOT CALIBRATED (State[1]=0) - Waiting for calibration ⚠️")
-                        except ValueError: pass
-                        break
-                    
-                    # Check for wrong device
-                    if "ERROR: Unknown command" in resp or "VL53L1X:" in resp or "BNO055:" in resp:
-                        self.get_logger().error(f"❌ WRONG DEVICE on {self.serial_port}! This is NOT a Teensy (likely gripper)")
-                        self.serial_conn.close()
-                        self.connected = False
-                        return False
+                    if resp:
+                        all_responses.append(resp)
+                        self.log_file.write(f'[{datetime.now().strftime("%H:%M:%S.%f")[:-3]}] RX: {resp} (verification)\n')
+                        self.get_logger().info(f"Device response: {resp}")
+                        
+                        # Check for Teensy State response
+                        if resp.startswith("State:"):
+                            is_teensy = True
+                            self.get_logger().info(f"✓ Teensy identified on {self.serial_port}")
+                            try:
+                                states = [int(v) for v in resp.replace("State:", "").split(',')]
+                                if len(states) > 0 and states[0] == 1:
+                                    is_configured = True
+                                    self.get_logger().info("Teensy ALREADY CONFIGURED (State[0]=1). Skipping UP command.")
+                                if len(states) > 1:
+                                    if states[1] == 1:
+                                        self.is_calibrated = True
+                                        self.get_logger().info("Robot is CALIBRATED (State[1]=1)")
+                                    else:
+                                        self.is_calibrated = False
+                                        self.get_logger().warn("⚠️ ROBOT NOT CALIBRATED (State[1]=0) - Waiting for calibration ⚠️")
+                            except ValueError: pass
+                            break
+                        
+                        # Check for wrong device (gripper responses)
+                        if "ERROR: Unknown command" in resp or "VL53L1X:" in resp or "BNO055:" in resp or "Gripper" in resp:
+                            self.get_logger().error(f"❌ WRONG DEVICE on {self.serial_port}!")
+                            self.get_logger().error(f"❌ Response: {resp}")
+                            self.get_logger().error(f"❌ This is NOT a Teensy (likely gripper ESP32)")
+                            self.log_file.write(f'[{datetime.now().strftime("%H:%M:%S.%f")[:-3]}] ERROR: Wrong device detected\n')
+                            self.serial_conn.close()
+                            self.connected = False
+                            return False
                         
                 time.sleep(0.05)
             
             if not is_teensy:
-                self.get_logger().error(f"❌ No valid Teensy response on {self.serial_port}. Check connection!")
+                self.get_logger().error(f"❌ No valid Teensy response on {self.serial_port}")
+                self.get_logger().error(f"❌ Received: {all_responses}")
+                self.log_file.write(f'[{datetime.now().strftime("%H:%M:%S.%f")[:-3]}] ERROR: No Teensy response\n')
                 self.serial_conn.close()
                 self.connected = False
                 return False
@@ -238,14 +254,10 @@ class TeensySerialBridge(Node):
                 self.send_up_on_startup = False
             else:
                 self.get_logger().info("Teensy NOT configured. Will send UP command.")
-                # Ensure flag is True so main loop sends confirmation
-                # Note: parameter object is read-only, we rely on the instance var check in loop
-                # If param was false, we force it true here for this session?
-                # User preference 'send_up_on_startup' logic:
-                # If unconfigured, we MUST send UP or robot is useless.
                 self.send_up_on_startup = True
 
             # Send RP command to sync state (Read Position)
+            self.log_file.write(f'[{datetime.now().strftime("%H:%M:%S.%f")[:-3]}] TX: RP\n')
             self.serial_conn.write(b'RP\n')
             self.get_logger().info('Sent RP (Read Position) to sync state')
             
@@ -253,6 +265,7 @@ class TeensySerialBridge(Node):
         except Exception as e:
             self.connected = False
             self.get_logger().warn(f'CONNECTION FAILED on {self.serial_port}: {e}')
+            self.log_file.write(f'[{datetime.now().strftime("%H:%M:%S.%f")[:-3]}] ERROR: Connection failed - {e}\n')
             return False
 
     def discover_port(self):
@@ -316,14 +329,32 @@ class TeensySerialBridge(Node):
 
     def serial_communication_loop(self):
         """Main serial loop"""
+        failed_ports = set()  # Track ports that failed device verification
+        
         while rclpy.ok():
             try:
                 if not self.connected:
-                    if self.connect_serial():
+                    # Skip if this port already failed verification
+                    if self.serial_port in failed_ports:
+                        self.get_logger().warn(f"Skipping {self.serial_port} - previously failed device verification")
+                        time.sleep(5.0)
+                        
+                        # If auto-detect is enabled, clear failed ports and retry discovery
+                        if self.enable_auto_detect:
+                            self.get_logger().info("Retrying auto-detection...")
+                            failed_ports.clear()
+                        continue
+                    
+                    connection_result = self.connect_serial()
+                    if connection_result:
                         time.sleep(2.0)
                         if self.send_up_on_startup:
                             self.send_configuration()
                     else:
+                        # Mark this port as failed if it was a device verification failure
+                        if not self.connected:
+                            failed_ports.add(self.serial_port)
+                            self.get_logger().error(f"Added {self.serial_port} to failed ports list")
                         time.sleep(1.0)
                         continue
                 
@@ -338,6 +369,17 @@ class TeensySerialBridge(Node):
                 if line:
                     self.log_file.write(f'[{datetime.now().strftime("%H:%M:%S.%f")[:-3]}] RX: {line}\n')
                     self.raw_rx_pub.publish(String(data=line))
+                    
+                    # Double-check we're not getting gripper responses during operation
+                    if "ERROR: Unknown command" in line or "VL53L1X:" in line or "BNO055:" in line:
+                        self.get_logger().error(f"❌ DETECTED GRIPPER RESPONSE DURING OPERATION: {line}")
+                        self.get_logger().error(f"❌ Disconnecting from wrong device on {self.serial_port}")
+                        failed_ports.add(self.serial_port)
+                        self.connected = False
+                        if self.serial_conn:
+                            self.serial_conn.close()
+                        continue
+                    
                     self.process_teensy_message(line)
                 
                 time.sleep(0.005)
