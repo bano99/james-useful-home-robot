@@ -72,12 +72,24 @@ The script performs automated diagnostics:
 
 ## Usage Workflow
 
+### Important: Direct Connection Required
+
+The diagnostic script must connect DIRECTLY to the Teensy serial port, NOT through the ROS2 serial bridge.
+
+**Before running diagnostics:**
+1. Stop the serial bridge: `ros2 lifecycle set /teensy_serial_bridge shutdown`
+2. Find the Teensy port: `ls /dev/ttyACM*` (usually /dev/ttyACM0 or /dev/ttyACM1)
+3. Run the diagnostic script directly on that port
+
+**After diagnostics:**
+1. Restart the bridge: `ros2 run james_manipulation teensy_serial_bridge`
+
 ### Step 1: Baseline Capture (When Working)
 
 After calibration, when the system is working correctly:
 
 ```bash
-python diagnose_teensy_state.py /dev/ttyACM0
+python diagnose_teensy_state.py /dev/ttyACM1
 ```
 
 This creates a baseline file: `teensy_state_YYYYMMDD_HHMMSS.json`
