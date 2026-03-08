@@ -54,8 +54,8 @@ class XJBugTester(Node):
         self.packet_count = 0
         self.last_status = None
         
-        # Initial position: All joints 0°, J3=90°
-        self.init_position_deg = [0.0, 0.0, 90.0, 0.0, 0.0, 0.0]
+        # Initial position: All joints 0° (including J3)
+        self.init_position_deg = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
         self.init_position_rad = [math.radians(x) for x in self.init_position_deg]
         
         # Test parameters
@@ -134,11 +134,10 @@ class XJBugTester(Node):
         # Check if current position is reasonable (not at random uncalibrated values)
         current_deg = [math.degrees(p) for p in self.current_positions]
         
-        # If all joints are near zero (except J3 which should be near 90), likely calibrated
-        # But the log shows J1=60°, J2=22°, etc. which is NOT the init position
-        # So we'll ask the user
+        # If all joints are near zero, likely calibrated
+        # The init position is now all zeros
         self.get_logger().info(f'Current position: J1={current_deg[0]:.1f}° J2={current_deg[1]:.1f}° J3={current_deg[2]:.1f}°')
-        self.get_logger().info(f'Expected init:    J1=0.0° J2=0.0° J3=90.0°')
+        self.get_logger().info(f'Expected init:    J1=0.0° J2=0.0° J3=0.0°')
         
         # Check if close to init position
         deviations = [abs(current_deg[i] - self.init_position_deg[i]) for i in range(3)]
@@ -157,7 +156,7 @@ class XJBugTester(Node):
         self.get_logger().info('='*60)
         self.get_logger().info('INITIALIZING CALIBRATION')
         self.get_logger().info('='*60)
-        self.get_logger().info('Target: J1=0° J2=0° J3=90° J4=0° J5=0° J6=0°')
+        self.get_logger().info('Target: J1=0° J2=0° J3=0° J4=0° J5=0° J6=0°')
         self.get_logger().info('IMPORTANT: Arm must be manually positioned at these angles!')
         self.get_logger().info('')
         
