@@ -165,7 +165,8 @@ class XJBugTester(Node):
         movement_type = random.choice(['left', 'right', 'forward', 'backward'])
         
         # Start from current position (in degrees)
-        current_deg = [math.degrees(p) for p in self.current_positions]
+        current_deg = [math.degrees(p) if p is not None else self.init_position_deg[i] 
+                      for i, p in enumerate(self.current_positions)]
         target_deg = current_deg.copy()
         
         # Generate primary movement with randomness
@@ -189,11 +190,14 @@ class XJBugTester(Node):
             target_deg[1] -= primary_delta
             target_deg[2] += primary_delta * 0.5
         
-        # Check limits (deviation from init position)
+        # Check limits (deviation from INIT position, not absolute)
         for i in range(6):
             deviation = abs(target_deg[i] - self.init_position_deg[i])
             if deviation > self.max_deviation:
-                self.get_logger().warn(f'Movement would exceed limits (J{i+1}: {deviation:.1f}° > {self.max_deviation}°)')
+                self.get_logger().warn(
+                    f'Movement would exceed limits (J{i+1}: target={target_deg[i]:.1f}°, '
+                    f'init={self.init_position_deg[i]:.1f}°, deviation={deviation:.1f}° > {self.max_deviation}°)'
+                )
                 # Return to init position instead
                 return self.init_position_deg.copy(), 'return_home'
         
@@ -225,7 +229,10 @@ class XJBugTester(Node):
         
         # Generate random movement
         target_deg, movement_type = self.generate_random_movement()
-        current_deg = [math.degrees(p) for p in self.current_positions]
+        
+        # Get current position (use init if not available yet)
+        current_deg = [math.degrees(p) if p is not None else self.init_position_deg[i] 
+                      for i, p in enumerate(self.current_positions)]
         
         self.get_logger().info(f'Movement type: {movement_type}')
         self.get_logger().info(f'Current: J1={current_deg[0]:.1f}° J2={current_deg[1]:.1f}° J3={current_deg[2]:.1f}°')
@@ -265,7 +272,7 @@ class XJBugTester(Node):
             rclpy.spin_once(self, timeout_sec=0.1)
         
         # Log actual position
-        actual_deg = [math.degrees(p) for p in self.current_positions]
+        actual_deg = [math.degrees(p) if p is not None else 0.0 for p in self.current_positions]
         self.get_logger().info(f'Actual:  J1={actual_deg[0]:.1f}° J2={actual_deg[1]:.1f}° J3={actual_deg[2]:.1f}°')
         
         # Calculate elapsed time
