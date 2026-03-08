@@ -274,73 +274,96 @@ class TeensySerialBridge(Node):
             candidate_ports = [f'COM{i}' for i in range(1, 21)]
         else:
             candidate_ports = glob.glob('/dev/ttyACM*') + glob.glob('/dev/ttyUSB*')
-            
+        
+        # First pass: identify and blacklist gripper ports
+        gripper_ports = set()
+        self.get_logger().info("=== PHASE 1: Identifying gripper ports to exclude ===")
+        
         for port in candidate_ports:
+            try:
+                test_conn = serial.Serial(port, 115200, timeout=0.1)
+                time.sleep(0.1)
+                
+                # Clear buffers
+                test_conn.reset_input_buffer()
+                test_conn.reset_output_buffer()
+                
+                # Drain any startup messages
+                time.sleep(0.2)
+                startup_data = ""
+                if test_conn.in_waiting > 0:
+                    startup_data = test_conn.read(test_conn.in_waiting).decode('utf-8', errors='ignore')
+                
+                # Send SS command (gripper sensor status)
+                test_conn.write(b"SS\n")
+                test_conn.flush()
+                
+                time.sleep(0.3)
+                buffer = ""
+                
+                if test_conn.in_waiting > 0:
+                    buffer = test_conn.read(test_conn.in_waiting).decode('utf-8', errors='ignore')
+                
+                # Check for gripper signatures
+                combined = startup_data + buffer
+                if any(sig in combined for sig in ["Gripper Controller Ready", "VL53L1X:", "BNO055:", "ESP-NOW:", "Sensor Commands:"]):
+                    gripper_ports.add(port)
+                    self.get_logger().warn(f"✗ GRIPPER detected on {port} - BLACKLISTING")
+                    self.get_logger().info(f"   Gripper signature: {combined[:150]}")
+                
+                test_conn.close()
+                
+            except Exception as e:
+                self.get_logger().debug(f"Could not probe {port}: {e}")
+                continue
+        
+        if gripper_ports:
+            self.get_logger().info(f"Blacklisted gripper ports: {gripper_ports}")
+        
+        # Second pass: find Teensy on non-gripper ports
+        self.get_logger().info("=== PHASE 2: Searching for Teensy ===")
+        
+        for port in candidate_ports:
+            if port in gripper_ports:
+                self.get_logger().info(f"Skipping {port} (gripper)")
+                continue
+                
             self.get_logger().info(f"Probing {port}...")
             try:
-                for br in [115200]:  # [STABILITY] Force high-speed baud to prevent buffer congestion
-                    test_conn = serial.Serial(port, br, timeout=0.1)
-                    time.sleep(0.2)  # Let device stabilize
-                    
-                    # Aggressively clear any existing data
-                    test_conn.reset_input_buffer()
-                    test_conn.reset_output_buffer()
-                    
-                    # Drain any pending data
-                    time.sleep(0.1)
-                    if test_conn.in_waiting > 0:
-                        junk = test_conn.read(test_conn.in_waiting)
-                        self.get_logger().debug(f"Cleared {len(junk)} bytes from {port}")
-                    
-                    # Send GS command to identify device
-                    # Teensy responds with "State:0,0,0,..."
-                    # Gripper responds with "ERROR: Unknown command"
-                    test_conn.write(b"GS\n")
-                    test_conn.flush()
-                    
-                    start_time = time.time()
-                    buffer = ""
-                    is_teensy = False
-                    all_chunks = []
-                    
-                    while time.time() - start_time < 0.8:
-                        if test_conn.in_waiting > 0:
-                            try:
-                                chunk = test_conn.read(test_conn.in_waiting).decode('utf-8', errors='ignore')
-                                buffer += chunk
-                                all_chunks.append(chunk)
-                                
-                                # Check for non-Teensy device FIRST (priority check)
-                                if "ERROR:" in buffer or "VL53L1X:" in buffer or "BNO055:" in buffer or "Gripper" in buffer:
-                                    self.get_logger().warn(f"✗ Non-Teensy device on {port}: {buffer[:100]}")
-                                    is_teensy = False
-                                    break
-                                
-                                # Check for Teensy response
-                                if "State:" in buffer:
-                                    # Verify it's actually a state response (contains commas and numbers)
-                                    if "," in buffer and any(c.isdigit() for c in buffer):
-                                        is_teensy = True
-                                        self.get_logger().info(f"✓ Teensy identified on {port} at {br} baud")
-                                        self.get_logger().debug(f"Response: {buffer}")
-                                        self.baud_rate = br
-                                        test_conn.close()
-                                        return port
-                                    
-                            except Exception as e:
-                                self.get_logger().debug(f"Decode error on {port}: {e}")
-                        time.sleep(0.01)
-                    
+                test_conn = serial.Serial(port, 115200, timeout=0.1)
+                time.sleep(0.2)
+                
+                # Clear buffers
+                test_conn.reset_input_buffer()
+                test_conn.reset_output_buffer()
+                time.sleep(0.1)
+                
+                # Send GS command (Teensy Get State)
+                test_conn.write(b"GS\n")
+                test_conn.flush()
+                
+                time.sleep(0.3)
+                buffer = ""
+                
+                if test_conn.in_waiting > 0:
+                    buffer = test_conn.read(test_conn.in_waiting).decode('utf-8', errors='ignore')
+                
+                # Check for Teensy State response
+                if "State:" in buffer and "," in buffer:
+                    self.get_logger().info(f"✓ TEENSY identified on {port}")
+                    self.get_logger().info(f"   Response: {buffer[:100]}")
                     test_conn.close()
-                    
-                    if not is_teensy and all_chunks:
-                        self.get_logger().info(f"No valid Teensy response on {port}, got: {buffer[:100]}")
-                    elif not all_chunks:
-                        self.get_logger().debug(f"No response from {port}")
+                    return port
+                else:
+                    self.get_logger().info(f"No Teensy response on {port}, got: {buffer[:100]}")
+                
+                test_conn.close()
                         
             except Exception as e:
                 self.get_logger().debug(f"Failed to probe {port}: {e}")
                 continue
+        
+        self.get_logger().error("No Teensy found on any port!")
         return None
 
     def serial_communication_loop(self):
