@@ -280,10 +280,17 @@ class TeensySerialBridge(Node):
             try:
                 for br in [115200]:  # [STABILITY] Force high-speed baud to prevent buffer congestion
                     test_conn = serial.Serial(port, br, timeout=0.1)
-                    time.sleep(0.1)  # Let device stabilize
+                    time.sleep(0.2)  # Let device stabilize
                     
-                    # Clear any existing data
+                    # Aggressively clear any existing data
                     test_conn.reset_input_buffer()
+                    test_conn.reset_output_buffer()
+                    
+                    # Drain any pending data
+                    time.sleep(0.1)
+                    if test_conn.in_waiting > 0:
+                        junk = test_conn.read(test_conn.in_waiting)
+                        self.get_logger().debug(f"Cleared {len(junk)} bytes from {port}")
                     
                     # Send GS command to identify device
                     # Teensy responds with "State:0,0,0,..."
@@ -294,33 +301,42 @@ class TeensySerialBridge(Node):
                     start_time = time.time()
                     buffer = ""
                     is_teensy = False
+                    all_chunks = []
                     
-                    while time.time() - start_time < 0.5:
+                    while time.time() - start_time < 0.8:
                         if test_conn.in_waiting > 0:
                             try:
                                 chunk = test_conn.read(test_conn.in_waiting).decode('utf-8', errors='ignore')
                                 buffer += chunk
+                                all_chunks.append(chunk)
+                                
+                                # Check for non-Teensy device FIRST (priority check)
+                                if "ERROR:" in buffer or "VL53L1X:" in buffer or "BNO055:" in buffer or "Gripper" in buffer:
+                                    self.get_logger().warn(f"✗ Non-Teensy device on {port}: {buffer[:100]}")
+                                    is_teensy = False
+                                    break
                                 
                                 # Check for Teensy response
                                 if "State:" in buffer:
-                                    is_teensy = True
-                                    self.get_logger().info(f"✓ Teensy identified on {port} at {br} baud")
-                                    self.baud_rate = br
-                                    test_conn.close()
-                                    return port
-                                
-                                # Check for non-Teensy device
-                                if "ERROR: Unknown command" in buffer or "VL53L1X:" in buffer:
-                                    self.get_logger().warn(f"✗ Non-Teensy device (gripper?) on {port}, skipping")
-                                    break
+                                    # Verify it's actually a state response (contains commas and numbers)
+                                    if "," in buffer and any(c.isdigit() for c in buffer):
+                                        is_teensy = True
+                                        self.get_logger().info(f"✓ Teensy identified on {port} at {br} baud")
+                                        self.get_logger().debug(f"Response: {buffer}")
+                                        self.baud_rate = br
+                                        test_conn.close()
+                                        return port
                                     
-                            except Exception: pass
+                            except Exception as e:
+                                self.get_logger().debug(f"Decode error on {port}: {e}")
                         time.sleep(0.01)
                     
                     test_conn.close()
                     
-                    if not is_teensy:
-                        self.get_logger().info(f"No valid Teensy response on {port}")
+                    if not is_teensy and all_chunks:
+                        self.get_logger().info(f"No valid Teensy response on {port}, got: {buffer[:100]}")
+                    elif not all_chunks:
+                        self.get_logger().debug(f"No response from {port}")
                         
             except Exception as e:
                 self.get_logger().debug(f"Failed to probe {port}: {e}")
