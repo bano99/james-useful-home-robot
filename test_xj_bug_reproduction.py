@@ -119,45 +119,38 @@ class XJBugTester(Node):
         return True
     
     def check_calibration_status(self):
-        """Check if Teensy is calibrated by sending GS command and parsing response"""
+        """Check if Teensy is calibrated - simplified version"""
         self.get_logger().info('Checking calibration status...')
-        self.last_status = None
-        self.send_raw('GS')
         
-        # Wait for response
-        start_time = time.time()
-        while time.time() - start_time < 1.0:
-            rclpy.spin_once(self, timeout_sec=0.1)
-            if self.last_status and 'State:' in self.last_status:
-                break
+        # Since the bridge doesn't publish GS responses, we'll use a simpler approach:
+        # If we have valid joint states, check if they look reasonable
+        # If positions are wildly off from expected, assume not calibrated
         
-        if self.last_status and 'State:' in self.last_status:
-            # Parse: State:1,0,0,0,0,0,0,0,0,0
-            # State[0] = configured, State[1] = calibrated
-            try:
-                state_str = self.last_status.split('State:')[1]
-                states = [int(x) for x in state_str.split(',')]
-                
-                if len(states) > 1:
-                    if states[1] == 1:
-                        self.is_calibrated = True
-                        self.get_logger().info('✓ Teensy is CALIBRATED (State[1]=1)')
-                        return True
-                    else:
-                        self.is_calibrated = False
-                        self.get_logger().warn('⚠ Teensy is NOT CALIBRATED (State[1]=0)')
-                        return False
-            except Exception as e:
-                self.get_logger().error(f'Failed to parse GS response: {e}')
+        if not self.received_state or any(p is None for p in self.current_positions):
+            self.get_logger().warn('⚠ No valid joint states received yet')
+            self.is_calibrated = False
+            return False
         
-        # Fallback: check if we have valid joint states
-        if self.received_state and all(p is not None for p in self.current_positions):
-            self.get_logger().warn('Could not get GS response, but joint_states are valid')
+        # Check if current position is reasonable (not at random uncalibrated values)
+        current_deg = [math.degrees(p) for p in self.current_positions]
+        
+        # If all joints are near zero (except J3 which should be near 90), likely calibrated
+        # But the log shows J1=60°, J2=22°, etc. which is NOT the init position
+        # So we'll ask the user
+        self.get_logger().info(f'Current position: J1={current_deg[0]:.1f}° J2={current_deg[1]:.1f}° J3={current_deg[2]:.1f}°')
+        self.get_logger().info(f'Expected init:    J1=0.0° J2=0.0° J3=90.0°')
+        
+        # Check if close to init position
+        deviations = [abs(current_deg[i] - self.init_position_deg[i]) for i in range(3)]
+        if all(d < 5.0 for d in deviations):
+            self.get_logger().info('✓ Position matches expected init position - assuming calibrated')
             self.is_calibrated = True
             return True
-        
-        self.is_calibrated = False
-        return False
+        else:
+            self.get_logger().warn('⚠ Position does NOT match init position')
+            self.get_logger().warn(f'Deviations: J1={deviations[0]:.1f}° J2={deviations[1]:.1f}° J3={deviations[2]:.1f}°')
+            self.is_calibrated = False
+            return False
     
     def initialize_calibration(self):
         """Set calibration flag and initialize joint positions (NO MOVEMENT)"""
