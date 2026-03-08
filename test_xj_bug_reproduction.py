@@ -6,52 +6,59 @@ This script simulates joystick behavior to reproduce the "stuck" bug where
 XJ commands stop working after some time.
 
 The script:
-1. Initializes Teensy to a fixed position (all joints 0°, J3=90°)
-2. Sends random XJ movements (forward/backward/left/right)
-3. Each movement follows the pattern: BM1 -> XJ commands -> BM0
-4. Continues until the bug is reproduced or manually stopped
+1. Checks if Teensy is calibrated
+2. If NOT calibrated: Sets calibration flag and initializes position (NO MOVEMENT)
+3. If calibrated: Runs joystick simulation with random XJ movements
 
 Usage:
-    python3 test_xj_bug_reproduction.py /dev/ttyACM1
+    python3 test_xj_bug_reproduction.py
     
-    Or through the bridge (if running):
-    python3 test_xj_bug_reproduction.py --use-bridge
+    Or with options:
+    python3 test_xj_bug_reproduction.py --max-movements 50 --duration 2.5
 """
 
-import serial
+import rclpy
+from rclpy.node import Node
+from sensor_msgs.msg import JointState
+from std_msgs.msg import String, Int32
 import time
 import random
 import argparse
 import sys
+import math
 from datetime import datetime
 
 
-class TeensyXJTester:
-    def __init__(self, port, baudrate=115200, use_bridge=False):
-        self.port = port
-        self.baudrate = baudrate
-        self.use_bridge = use_bridge
-        self.ser = None
+class XJBugTester(Node):
+    def __init__(self, max_movements=None, movement_duration=2.0):
+        super().__init__('xj_bug_tester')
+        
+        # Publishers
+        self.raw_cmd_pub = self.create_publisher(String, '/arm/teensy_raw_cmd', 10)
+        
+        # Subscribers
+        self.joint_state_sub = self.create_subscription(
+            JointState, '/joint_states', self.joint_state_callback, 10)
+        self.packet_count_sub = self.create_subscription(
+            Int32, '/teensy/packet_count', self.packet_count_callback, 10)
+        
+        # State tracking
+        self.current_positions = [None] * 6  # radians
+        self.joint_names = ['arm_joint_1', 'arm_joint_2', 'arm_joint_3', 
+                           'arm_joint_4', 'arm_joint_5', 'arm_joint_6']
+        self.received_state = False
+        self.packet_count = 0
         
         # Initial position: All joints 0°, J3=90°
-        self.init_position = {
-            'J1': 0.0,
-            'J2': 0.0,
-            'J3': 90.0,
-            'J4': 0.0,
-            'J5': 0.0,
-            'J6': 0.0
-        }
+        self.init_position_deg = [0.0, 0.0, 90.0, 0.0, 0.0, 0.0]
+        self.init_position_rad = [math.radians(x) for x in self.init_position_deg]
         
-        # Current position tracking
-        self.current_position = self.init_position.copy()
+        # Test parameters
+        self.max_movements = max_movements
+        self.movement_duration = movement_duration
+        self.max_deviation = 15.0  # degrees
         
-        # Motion parameters
-        self.max_deviation = 15.0  # Max deviation from init position
-        self.primary_move_range = (8.0, 12.0)  # Primary joint moves ±10° ±2°
-        self.movement_duration = 2.0  # seconds
-        
-        # Motion profile (matching bridge defaults)
+        # Motion profile
         self.speed = 3.0
         self.accel = 10.0
         self.decel = 10.0
@@ -60,316 +67,310 @@ class TeensyXJTester:
         # Statistics
         self.move_count = 0
         self.start_time = None
-        self.last_response = None
+        self.is_calibrated = False
         
-    def connect(self):
-        """Connect to Teensy via serial"""
-        if self.use_bridge:
-            print("Using ROS2 bridge mode - not implemented yet")
-            sys.exit(1)
-        
-        try:
-            self.ser = serial.Serial(self.port, self.baudrate, timeout=1.0)
-            time.sleep(2.0)  # Wait for Teensy to initialize
-            print(f"✓ Connected to Teensy on {self.port}")
-            
-            # Clear any pending data
-            self.ser.reset_input_buffer()
-            self.ser.reset_output_buffer()
-            
-            return True
-        except Exception as e:
-            print(f"✗ Failed to connect: {e}")
-            return False
+        self.get_logger().info('XJ Bug Tester Node Started')
     
-    def send_command(self, cmd, wait_response=True, timeout=2.0):
-        """Send command to Teensy and optionally wait for response"""
-        if not self.ser:
-            print("✗ Not connected!")
-            return None
-        
-        try:
-            # Send command
-            cmd_bytes = (cmd + '\n').encode('utf-8')
-            self.ser.write(cmd_bytes)
-            print(f"→ {cmd}")
-            
-            if not wait_response:
-                return None
-            
-            # Wait for response
-            start = time.time()
-            response = ""
-            while (time.time() - start) < timeout:
-                if self.ser.in_waiting > 0:
-                    line = self.ser.readline().decode('utf-8', errors='ignore').strip()
-                    if line:
-                        response = line
-                        print(f"← {line}")
-                        self.last_response = line
-                        return line
-                time.sleep(0.01)
-            
-            print(f"⚠ No response (timeout after {timeout}s)")
-            return None
-            
-        except Exception as e:
-            print(f"✗ Error sending command: {e}")
-            return None
+    def joint_state_callback(self, msg):
+        """Update current joint positions from joint_states topic"""
+        for i, name in enumerate(self.joint_names):
+            if name in msg.name:
+                idx = msg.name.index(name)
+                self.current_positions[i] = msg.position[idx]
+        self.received_state = True
     
-    def initialize_position(self):
-        """Initialize Teensy to fixed position using UP command"""
-        print("\n" + "="*60)
-        print("INITIALIZING TEENSY TO FIXED POSITION")
-        print("="*60)
-        print("Target: J1=0° J2=0° J3=90° J4=0° J5=0° J6=0°")
-        print("Please ensure arm is approximately in this position!")
-        print()
+    def packet_count_callback(self, msg):
+        """Track hardware packet count"""
+        self.packet_count = msg.data
+    
+    def send_raw(self, cmd):
+        """Send raw command to Teensy through bridge"""
+        msg = String()
+        msg.data = cmd
+        self.raw_cmd_pub.publish(msg)
+        self.get_logger().info(f'→ {cmd}')
+    
+    def wait_for_feedback(self, timeout=5.0):
+        """Wait for at least one hardware packet from Teensy"""
+        start_count = self.packet_count
+        start_time = time.time()
+        self.get_logger().info('Waiting for Teensy feedback...')
         
-        # Send UP command to update position
-        # UP command format: UPA<J1>B<J2>C<J3>D<J4>E<J5>F<J6>
-        cmd = f"UPA{self.init_position['J1']:.2f}"
-        cmd += f"B{self.init_position['J2']:.2f}"
-        cmd += f"C{self.init_position['J3']:.2f}"
-        cmd += f"D{self.init_position['J4']:.2f}"
-        cmd += f"E{self.init_position['J5']:.2f}"
-        cmd += f"F{self.init_position['J6']:.2f}"
+        while self.packet_count <= start_count:
+            if time.time() - start_time > timeout:
+                self.get_logger().error('Timeout waiting for Teensy feedback!')
+                return False
+            rclpy.spin_once(self, timeout_sec=0.1)
+            if not rclpy.ok():
+                return False
         
-        response = self.send_command(cmd, wait_response=True, timeout=3.0)
+        self.get_logger().info('✓ Received Teensy feedback')
+        return True
+    
+    def check_calibration_status(self):
+        """Check if Teensy is calibrated by sending GS command"""
+        self.get_logger().info('Checking calibration status...')
+        self.send_raw('GS')
+        time.sleep(0.5)
         
-        if response:
-            print("✓ Position initialized")
+        # The response will come through joint_states topic
+        # For now, we'll assume we need to check manually
+        # In real implementation, bridge should publish calibration status
+        
+        # For this test, we'll use a simple approach:
+        # If we receive valid joint states, assume calibrated
+        if self.received_state and all(p is not None for p in self.current_positions):
+            self.is_calibrated = True
+            self.get_logger().info('✓ Teensy appears to be calibrated')
             return True
         else:
-            print("✗ Failed to initialize position")
+            self.is_calibrated = False
+            self.get_logger().warn('⚠ Teensy is NOT calibrated')
             return False
     
-    def request_position(self):
-        """Request current position from Teensy (RP command)"""
-        response = self.send_command("RP", wait_response=True, timeout=2.0)
-        if response and response.startswith('A'):
-            # Parse position: A<j1>B<j2>C<j3>...
-            try:
-                parts = response.split('G')[0]  # Get joint part before cartesian
-                self.current_position['J1'] = float(parts.split('A')[1].split('B')[0])
-                self.current_position['J2'] = float(parts.split('B')[1].split('C')[0])
-                self.current_position['J3'] = float(parts.split('C')[1].split('D')[0])
-                self.current_position['J4'] = float(parts.split('D')[1].split('E')[0])
-                self.current_position['J5'] = float(parts.split('E')[1].split('F')[0])
-                self.current_position['J6'] = float(parts.split('F')[1])
-                return True
-            except Exception as e:
-                print(f"⚠ Failed to parse position: {e}")
-                return False
-        return False
-    
-    def check_limits(self, target_position):
-        """Check if target position exceeds max deviation from init"""
-        for joint in ['J1', 'J2', 'J3', 'J4', 'J5', 'J6']:
-            deviation = abs(target_position[joint] - self.init_position[joint])
-            if deviation > self.max_deviation:
-                return False, joint, deviation
-        return True, None, 0
+    def initialize_calibration(self):
+        """Set calibration flag and initialize joint positions (NO MOVEMENT)"""
+        self.get_logger().info('='*60)
+        self.get_logger().info('INITIALIZING CALIBRATION')
+        self.get_logger().info('='*60)
+        self.get_logger().info('Target: J1=0° J2=0° J3=90° J4=0° J5=0° J6=0°')
+        self.get_logger().info('IMPORTANT: Arm must be manually positioned at these angles!')
+        self.get_logger().info('')
+        
+        # Wait for user confirmation
+        input("Press ENTER when arm is positioned correctly, or Ctrl+C to abort...")
+        
+        # Send GSA1B1 to mark as calibrated
+        self.get_logger().info('Marking Teensy as calibrated...')
+        self.send_raw('GSA1B1')
+        time.sleep(0.2)
+        
+        # Trigger position update by sending SS (Spline Stop)
+        self.send_raw('SS')
+        time.sleep(0.2)
+        
+        # Wait for feedback
+        if not self.wait_for_feedback(timeout=3.0):
+            self.get_logger().error('Failed to get feedback after calibration')
+            return False
+        
+        self.is_calibrated = True
+        self.get_logger().info('✓ Calibration initialized')
+        self.get_logger().info(f'Current position: {[math.degrees(p) for p in self.current_positions]}')
+        
+        return True
     
     def generate_random_movement(self):
-        """Generate random movement (forward/backward/left/right)"""
-        # Choose movement type
+        """Generate random movement target (forward/backward/left/right)"""
         movement_type = random.choice(['left', 'right', 'forward', 'backward'])
         
-        # Start from current position
-        target = self.current_position.copy()
+        # Start from current position (in degrees)
+        current_deg = [math.degrees(p) for p in self.current_positions]
+        target_deg = current_deg.copy()
         
         # Generate primary movement with randomness
-        primary_delta = random.uniform(*self.primary_move_range)
+        primary_delta = random.uniform(8.0, 12.0)
         if random.random() < 0.5:
             primary_delta = -primary_delta
         
         # Apply movement
         if movement_type == 'left':
-            # Left: J1-, J2+, J3-
-            target['J1'] -= primary_delta
-            target['J2'] += primary_delta * 0.3  # Secondary movement
-            target['J3'] -= primary_delta * 0.2
+            target_deg[0] -= primary_delta  # J1
+            target_deg[1] += primary_delta * 0.3  # J2
+            target_deg[2] -= primary_delta * 0.2  # J3
         elif movement_type == 'right':
-            # Right: J1+, J2-, J3+
-            target['J1'] += primary_delta
-            target['J2'] -= primary_delta * 0.3
-            target['J3'] += primary_delta * 0.2
+            target_deg[0] += primary_delta
+            target_deg[1] -= primary_delta * 0.3
+            target_deg[2] += primary_delta * 0.2
         elif movement_type == 'forward':
-            # Forward: J2+, J3-
-            target['J2'] += primary_delta
-            target['J3'] -= primary_delta * 0.5
+            target_deg[1] += primary_delta  # J2
+            target_deg[2] -= primary_delta * 0.5  # J3
         else:  # backward
-            # Backward: J2-, J3+
-            target['J2'] -= primary_delta
-            target['J3'] += primary_delta * 0.5
+            target_deg[1] -= primary_delta
+            target_deg[2] += primary_delta * 0.5
         
-        # Check limits
-        ok, joint, deviation = self.check_limits(target)
-        if not ok:
-            print(f"⚠ Movement would exceed limits ({joint}: {deviation:.1f}° > {self.max_deviation}°)")
-            # Return to init position instead
-            return self.init_position.copy(), 'return_home'
+        # Check limits (deviation from init position)
+        for i in range(6):
+            deviation = abs(target_deg[i] - self.init_position_deg[i])
+            if deviation > self.max_deviation:
+                self.get_logger().warn(f'Movement would exceed limits (J{i+1}: {deviation:.1f}° > {self.max_deviation}°)')
+                # Return to init position instead
+                return self.init_position_deg.copy(), 'return_home'
         
-        return target, movement_type
+        return target_deg, movement_type
     
-    def send_xj_command(self, target_position):
-        """Send XJ command to move to target position"""
+    def send_xj_command(self, target_deg):
+        """Send XJ command with target joint angles"""
         cmd = "XJ"
-        cmd += f"A{target_position['J1']:.2f}"
-        cmd += f"B{target_position['J2']:.2f}"
-        cmd += f"C{target_position['J3']:.2f}"
-        cmd += f"D{target_position['J4']:.2f}"
-        cmd += f"E{target_position['J5']:.2f}"
-        cmd += f"F{target_position['J6']:.2f}"
+        cmd += f"A{target_deg[0]:.2f}"
+        cmd += f"B{target_deg[1]:.2f}"
+        cmd += f"C{target_deg[2]:.2f}"
+        cmd += f"D{target_deg[3]:.2f}"
+        cmd += f"E{target_deg[4]:.2f}"
+        cmd += f"F{target_deg[5]:.2f}"
         cmd += f"Sp{self.speed:.2f}"
         cmd += f"Ac{self.accel:.2f}"
         cmd += f"Dc{self.decel:.2f}"
         cmd += f"Rm{self.ramp:.2f}"
         
-        # Send without waiting for response (XJ is fire-and-forget)
-        self.send_command(cmd, wait_response=False)
+        self.send_raw(cmd)
     
     def execute_movement_sequence(self):
-        """Execute one complete movement sequence: BM1 -> XJ -> BM0"""
+        """Execute one complete movement: BM1 -> XJ -> BM0"""
         self.move_count += 1
         
-        print("\n" + "-"*60)
-        print(f"MOVEMENT #{self.move_count} - {datetime.now().strftime('%H:%M:%S')}")
-        print("-"*60)
+        self.get_logger().info('-'*60)
+        self.get_logger().info(f'MOVEMENT #{self.move_count} - {datetime.now().strftime("%H:%M:%S")}')
+        self.get_logger().info('-'*60)
         
         # Generate random movement
-        target, movement_type = self.generate_random_movement()
+        target_deg, movement_type = self.generate_random_movement()
+        current_deg = [math.degrees(p) for p in self.current_positions]
         
-        print(f"Movement type: {movement_type}")
-        print(f"Current: J1={self.current_position['J1']:.1f}° J2={self.current_position['J2']:.1f}° J3={self.current_position['J3']:.1f}°")
-        print(f"Target:  J1={target['J1']:.1f}° J2={target['J2']:.1f}° J3={target['J3']:.1f}°")
+        self.get_logger().info(f'Movement type: {movement_type}')
+        self.get_logger().info(f'Current: J1={current_deg[0]:.1f}° J2={current_deg[1]:.1f}° J3={current_deg[2]:.1f}°')
+        self.get_logger().info(f'Target:  J1={target_deg[0]:.1f}° J2={target_deg[1]:.1f}° J3={target_deg[2]:.1f}°')
         
         # Step 1: Enable blending mode (BM1)
-        print("\n[1/3] Starting Move -> Initial Priming (BM1)")
-        self.send_command("BM1", wait_response=False)
+        self.get_logger().info('[1/3] Starting Move -> Initial Priming (BM1)')
+        self.send_raw('BM1')
         time.sleep(0.05)
         
-        # Step 2: Send XJ commands (simulate continuous joystick input)
-        print("[2/3] Joystick Active -> Pushing Target (XJ)")
+        # Step 2: Send XJ commands (simulate continuous joystick)
+        self.get_logger().info('[2/3] Joystick Active -> Pushing Target (XJ)')
         
-        # Send multiple XJ commands over the movement duration
         num_commands = int(self.movement_duration / 0.1)  # Every 100ms
         for i in range(num_commands):
             # Interpolate between current and target
             progress = (i + 1) / num_commands
-            interpolated = {}
-            for joint in ['J1', 'J2', 'J3', 'J4', 'J5', 'J6']:
-                interpolated[joint] = self.current_position[joint] + \
-                                     (target[joint] - self.current_position[joint]) * progress
+            interpolated = []
+            for j in range(6):
+                interpolated.append(current_deg[j] + (target_deg[j] - current_deg[j]) * progress)
             
             self.send_xj_command(interpolated)
             time.sleep(0.1)
+            
+            # Spin to process callbacks
+            rclpy.spin_once(self, timeout_sec=0.0)
         
         # Step 3: Stop and disable blending mode (BM0)
-        print("[3/3] Joystick Idle -> Sending STOP (BM0)")
-        self.send_command("BM0", wait_response=False)
+        self.get_logger().info('[3/3] Joystick Idle -> Sending STOP (BM0)')
+        self.send_raw('BM0')
         time.sleep(0.05)
-        self.send_command("ST", wait_response=False)
-        time.sleep(0.1)
+        self.send_raw('ST')
+        time.sleep(0.2)
         
-        # Update current position
-        self.current_position = target.copy()
+        # Spin to get updated position
+        for _ in range(5):
+            rclpy.spin_once(self, timeout_sec=0.1)
         
-        # Request actual position to verify
-        print("\nVerifying position...")
-        if self.request_position():
-            print(f"Actual:  J1={self.current_position['J1']:.1f}° J2={self.current_position['J2']:.1f}° J3={self.current_position['J3']:.1f}°")
+        # Log actual position
+        actual_deg = [math.degrees(p) for p in self.current_positions]
+        self.get_logger().info(f'Actual:  J1={actual_deg[0]:.1f}° J2={actual_deg[1]:.1f}° J3={actual_deg[2]:.1f}°')
         
         # Calculate elapsed time
         if self.start_time:
             elapsed = time.time() - self.start_time
-            print(f"\nElapsed time: {elapsed:.1f}s ({self.move_count} movements)")
+            self.get_logger().info(f'Elapsed: {elapsed:.1f}s ({self.move_count} movements)')
     
-    def run_test(self, max_movements=None):
-        """Run the test loop"""
-        print("\n" + "="*60)
-        print("XJ BUG REPRODUCTION TEST")
-        print("="*60)
-        print(f"Port: {self.port}")
-        print(f"Movement duration: {self.movement_duration}s")
-        print(f"Max deviation: ±{self.max_deviation}°")
-        print(f"Max movements: {max_movements if max_movements else 'unlimited'}")
-        print("="*60)
+    def run_test(self):
+        """Main test loop"""
+        self.get_logger().info('='*60)
+        self.get_logger().info('XJ BUG REPRODUCTION TEST')
+        self.get_logger().info('='*60)
+        self.get_logger().info(f'Movement duration: {self.movement_duration}s')
+        self.get_logger().info(f'Max deviation: ±{self.max_deviation}°')
+        self.get_logger().info(f'Max movements: {self.max_movements if self.max_movements else "unlimited"}')
+        self.get_logger().info('='*60)
         
-        if not self.connect():
+        # Trigger initial feedback
+        self.send_raw('SS')
+        
+        # Wait for initial feedback
+        if not self.wait_for_feedback(timeout=5.0):
+            self.get_logger().error('No feedback from Teensy. Is the bridge running?')
             return False
         
-        if not self.initialize_position():
-            return False
+        # Check calibration status
+        if not self.check_calibration_status():
+            # Not calibrated - initialize
+            if not self.initialize_calibration():
+                return False
+        else:
+            self.get_logger().info('✓ Teensy is already calibrated')
+            self.get_logger().info(f'Current position: {[math.degrees(p) for p in self.current_positions]}')
         
-        print("\n✓ Initialization complete!")
-        print("\nStarting movement test...")
-        print("Press Ctrl+C to stop\n")
+        self.get_logger().info('')
+        self.get_logger().info('✓ Initialization complete!')
+        self.get_logger().info('Starting movement test...')
+        self.get_logger().info('Press Ctrl+C to stop')
+        self.get_logger().info('')
         
         self.start_time = time.time()
         
         try:
-            while True:
-                if max_movements and self.move_count >= max_movements:
-                    print(f"\n✓ Completed {max_movements} movements without failure!")
+            while rclpy.ok():
+                if self.max_movements and self.move_count >= self.max_movements:
+                    self.get_logger().info(f'✓ Completed {self.max_movements} movements!')
                     break
                 
                 self.execute_movement_sequence()
-                
-                # Small delay between movements
                 time.sleep(0.5)
                 
         except KeyboardInterrupt:
-            print("\n\n⚠ Test interrupted by user")
+            self.get_logger().info('⚠ Test interrupted by user')
         except Exception as e:
-            print(f"\n\n✗ Test failed with error: {e}")
+            self.get_logger().error(f'✗ Test failed: {e}')
             import traceback
             traceback.print_exc()
         finally:
             # Stop the arm
-            print("\nStopping arm...")
-            self.send_command("BM0", wait_response=False)
+            self.get_logger().info('Stopping arm...')
+            self.send_raw('BM0')
             time.sleep(0.05)
-            self.send_command("ST", wait_response=False)
+            self.send_raw('ST')
             
             # Print statistics
             if self.start_time:
                 elapsed = time.time() - self.start_time
-                print("\n" + "="*60)
-                print("TEST STATISTICS")
-                print("="*60)
-                print(f"Total movements: {self.move_count}")
-                print(f"Total time: {elapsed:.1f}s ({elapsed/60:.1f} minutes)")
-                print(f"Average time per movement: {elapsed/self.move_count:.1f}s")
-                print(f"Last response: {self.last_response}")
-                print("="*60)
-            
-            if self.ser:
-                self.ser.close()
-                print("\n✓ Serial connection closed")
+                self.get_logger().info('='*60)
+                self.get_logger().info('TEST STATISTICS')
+                self.get_logger().info('='*60)
+                self.get_logger().info(f'Total movements: {self.move_count}')
+                self.get_logger().info(f'Total time: {elapsed:.1f}s ({elapsed/60:.1f} minutes)')
+                if self.move_count > 0:
+                    self.get_logger().info(f'Average: {elapsed/self.move_count:.1f}s per movement')
+                self.get_logger().info('='*60)
+        
+        return True
 
 
-def main():
+def main(args=None):
     parser = argparse.ArgumentParser(description='XJ Bug Reproduction Test')
-    parser.add_argument('port', nargs='?', default='/dev/ttyACM1',
-                       help='Serial port (default: /dev/ttyACM1)')
-    parser.add_argument('--use-bridge', action='store_true',
-                       help='Use ROS2 bridge instead of direct serial')
     parser.add_argument('--max-movements', type=int, default=None,
                        help='Maximum number of movements (default: unlimited)')
     parser.add_argument('--duration', type=float, default=2.0,
                        help='Movement duration in seconds (default: 2.0)')
     
-    args = parser.parse_args()
+    parsed_args = parser.parse_args()
     
-    tester = TeensyXJTester(args.port, use_bridge=args.use_bridge)
-    tester.movement_duration = args.duration
+    rclpy.init(args=args)
+    tester = XJBugTester(
+        max_movements=parsed_args.max_movements,
+        movement_duration=parsed_args.duration
+    )
     
-    success = tester.run_test(max_movements=args.max_movements)
+    try:
+        success = tester.run_test()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        tester.destroy_node()
+        rclpy.shutdown()
     
     sys.exit(0 if success else 1)
 
 
 if __name__ == '__main__':
     main()
+
