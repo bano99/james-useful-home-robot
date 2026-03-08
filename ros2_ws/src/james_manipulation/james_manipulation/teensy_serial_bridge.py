@@ -273,61 +273,13 @@ class TeensySerialBridge(Node):
         if _os.name == 'nt':
             candidate_ports = [f'COM{i}' for i in range(1, 21)]
         else:
-            candidate_ports = glob.glob('/dev/ttyACM*') + glob.glob('/dev/ttyUSB*')
+            # Teensy typically shows up as /dev/ttyACM*, ESP32/gripper as /dev/ttyUSB*
+            # Prioritize ACM ports first
+            candidate_ports = sorted(glob.glob('/dev/ttyACM*')) + sorted(glob.glob('/dev/ttyUSB*'))
         
-        # First pass: identify and blacklist gripper ports
-        gripper_ports = set()
-        self.get_logger().info("=== PHASE 1: Identifying gripper ports to exclude ===")
-        
-        for port in candidate_ports:
-            try:
-                test_conn = serial.Serial(port, 115200, timeout=0.1)
-                time.sleep(0.1)
-                
-                # Clear buffers
-                test_conn.reset_input_buffer()
-                test_conn.reset_output_buffer()
-                
-                # Drain any startup messages
-                time.sleep(0.2)
-                startup_data = ""
-                if test_conn.in_waiting > 0:
-                    startup_data = test_conn.read(test_conn.in_waiting).decode('utf-8', errors='ignore')
-                
-                # Send SS command (gripper sensor status)
-                test_conn.write(b"SS\n")
-                test_conn.flush()
-                
-                time.sleep(0.3)
-                buffer = ""
-                
-                if test_conn.in_waiting > 0:
-                    buffer = test_conn.read(test_conn.in_waiting).decode('utf-8', errors='ignore')
-                
-                # Check for gripper signatures
-                combined = startup_data + buffer
-                if any(sig in combined for sig in ["Gripper Controller Ready", "VL53L1X:", "BNO055:", "ESP-NOW:", "Sensor Commands:"]):
-                    gripper_ports.add(port)
-                    self.get_logger().warn(f"✗ GRIPPER detected on {port} - BLACKLISTING")
-                    self.get_logger().info(f"   Gripper signature: {combined[:150]}")
-                
-                test_conn.close()
-                
-            except Exception as e:
-                self.get_logger().debug(f"Could not probe {port}: {e}")
-                continue
-        
-        if gripper_ports:
-            self.get_logger().info(f"Blacklisted gripper ports: {gripper_ports}")
-        
-        # Second pass: find Teensy on non-gripper ports
-        self.get_logger().info("=== PHASE 2: Searching for Teensy ===")
+        self.get_logger().info(f"Scanning ports in order: {candidate_ports}")
         
         for port in candidate_ports:
-            if port in gripper_ports:
-                self.get_logger().info(f"Skipping {port} (gripper)")
-                continue
-                
             self.get_logger().info(f"Probing {port}...")
             try:
                 test_conn = serial.Serial(port, 115200, timeout=0.1)
@@ -338,13 +290,28 @@ class TeensySerialBridge(Node):
                 test_conn.reset_output_buffer()
                 time.sleep(0.1)
                 
-                # Send GS command (Teensy Get State)
+                # Check for gripper first (to skip it)
+                test_conn.write(b"SS\n")
+                test_conn.flush()
+                time.sleep(0.2)
+                
+                buffer = ""
+                if test_conn.in_waiting > 0:
+                    buffer = test_conn.read(test_conn.in_waiting).decode('utf-8', errors='ignore')
+                
+                # If it responds to SS with sensor data, it's the gripper
+                if "VL53L1X:" in buffer or "BNO055:" in buffer:
+                    self.get_logger().warn(f"✗ GRIPPER detected on {port} - skipping")
+                    test_conn.close()
+                    continue
+                
+                # Clear and try GS command for Teensy
+                test_conn.reset_input_buffer()
                 test_conn.write(b"GS\n")
                 test_conn.flush()
-                
                 time.sleep(0.3)
-                buffer = ""
                 
+                buffer = ""
                 if test_conn.in_waiting > 0:
                     buffer = test_conn.read(test_conn.in_waiting).decode('utf-8', errors='ignore')
                 
@@ -355,7 +322,7 @@ class TeensySerialBridge(Node):
                     test_conn.close()
                     return port
                 else:
-                    self.get_logger().info(f"No Teensy response on {port}, got: {buffer[:100]}")
+                    self.get_logger().info(f"No Teensy response on {port}")
                 
                 test_conn.close()
                         
