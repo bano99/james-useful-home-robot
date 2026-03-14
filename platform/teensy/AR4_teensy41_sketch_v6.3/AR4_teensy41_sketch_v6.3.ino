@@ -1834,7 +1834,12 @@ void driveMotorsXJ(int J1step, int J2step, int J3step, int J4step, int J5step, i
     float J1A = (J1s != -1) ? atof(ptr + J1s + 1) : curJ1;
     float J2A = (J2s != -1) ? atof(ptr + J2s + 1) : curJ2;
     float J3A = (J3s != -1) ? atof(ptr + J3s + 1) : curJ3;
+    // [BUGFIX] Temporarily null-terminate before 'E' (J5 marker) so atof doesn't
+    // interpret it as scientific notation exponent (e.g. "30.27E20" -> 3.027e21)
+    char savedE = 0;
+    if (J4s != -1 && J5s != -1) { savedE = ((char*)ptr)[J5s]; ((char*)ptr)[J5s] = '\0'; }
     float J4A = (J4s != -1) ? atof(ptr + J4s + 1) : curJ4;
+    if (J4s != -1 && J5s != -1) { ((char*)ptr)[J5s] = savedE; }
     float J5A = (J5s != -1) ? atof(ptr + J5s + 1) : curJ5;
     float J6A = (J6s != -1) ? atof(ptr + J6s + 1) : curJ6;
     
@@ -5209,11 +5214,11 @@ void loop() {
       int J4start = inData.indexOf("D");
       int J5start = inData.indexOf("E");
       int J6start = inData.indexOf("F");
-      int SPstart = inData.indexOf("S");
+      int SPstart = inData.indexOf("Sp");
       int AcStart = inData.indexOf("Ac");
       int DcStart = inData.indexOf("Dc");
       int RmStart = inData.indexOf("Rm");
-
+      
       // [STABILITY] PH3 Part 2: Ghost Zero Prevention - Require Rm marker
       if (RmStart == -1) { inData = ""; return; }
 
@@ -5230,7 +5235,12 @@ void loop() {
       float J1Angle = (J1start != -1) ? atof(ptr + J1start + 1) : curJ1;
       float J2Angle = (J2start != -1) ? atof(ptr + J2start + 1) : curJ2;
       float J3Angle = (J3start != -1) ? atof(ptr + J3start + 1) : curJ3;
+      // [BUGFIX] Temporarily null-terminate before 'E' (J5 marker) so atof doesn't
+      // interpret it as scientific notation exponent (e.g. "30.27E20" -> 3.027e21)
+      char savedE = 0;
+      if (J4start != -1 && J5start != -1) { savedE = ((char*)ptr)[J5start]; ((char*)ptr)[J5start] = '\0'; }
       float J4Angle = (J4start != -1) ? atof(ptr + J4start + 1) : curJ4;
+      if (J4start != -1 && J5start != -1) { ((char*)ptr)[J5start] = savedE; }
       float J5Angle = (J5start != -1) ? atof(ptr + J5start + 1) : curJ5;
       float J6Angle = (J6start != -1) ? atof(ptr + J6start + 1) : curJ6;
 
@@ -5258,7 +5268,25 @@ void loop() {
       if ((J1dir == 1 and (J1StepM + abs(J1stepDif) > J1StepLim)) or (J1dir == 0 and (J1StepM - abs(J1stepDif) < 0))) J1axisFault = 1;
       if ((J2dir == 1 and (J2StepM + abs(J2stepDif) > J2StepLim)) or (J2dir == 0 and (J2StepM - abs(J2stepDif) < 0))) J2axisFault = 1;
       if ((J3dir == 1 and (J3StepM + abs(J3stepDif) > J3StepLim)) or (J3dir == 0 and (J3StepM - abs(J3stepDif) < 0))) J3axisFault = 1;
-      if ((J4dir == 1 and (J4StepM + abs(J4stepDif) > J4StepLim)) or (J4dir == 0 and (J4StepM - abs(J4stepDif) < 0))) J4axisFault = 1;
+      if ((J4dir == 1 and (J4StepM + abs(J4stepDif) > J4StepLim)) or (J4dir == 0 and (J4StepM - abs(J4stepDif) < 0))) {
+        J4axisFault = 1;
+        // [DEBUG] Print J4 limit check details
+        Serial.print("J4_DEBUG: StepM="); Serial.print(J4StepM);
+        Serial.print(" Angle="); Serial.print(J4Angle, 4);
+        Serial.print(" TargetSteps="); Serial.print((int)((J4Angle + J4axisLimNeg) * J4StepDeg));
+        Serial.print(" StepDif="); Serial.print(J4stepDif);
+        Serial.print(" Dir="); Serial.print(J4dir);
+        Serial.print(" StepLim="); Serial.print(J4StepLim);
+        Serial.print(" AxisLimNeg="); Serial.println(J4axisLimNeg);
+        // [DEBUG] Print parsing details
+        Serial.print("J4_PARSE: J4start="); Serial.print(J4start);
+        Serial.print(" DcStart="); Serial.print(DcStart);
+        Serial.print(" substr='");
+        if (J4start != -1) {
+          Serial.print(inData.substring(J4start, min(J4start + 15, (int)inData.length())));
+        }
+        Serial.print("' cmdLen="); Serial.println(inData.length());
+      }
       if ((J5dir == 1 and (J5StepM + abs(J5stepDif) > J5StepLim)) or (J5dir == 0 and (J5StepM - abs(J5stepDif) < 0))) J5axisFault = 1;
       if ((J6dir == 1 and (J6StepM + abs(J6stepDif) > J6StepLim)) or (J6dir == 0 and (J6StepM - abs(J6stepDif) < 0))) J6axisFault = 1;
 

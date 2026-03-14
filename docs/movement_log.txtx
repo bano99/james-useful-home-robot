@@ -1,0 +1,119 @@
+Serial Log
+
+[13:54:37.665] TX: BM1
+[13:54:37.667] TX: XJA-25.7740B0.0810C-43.9100D55.1863E146.8030F218.3910Sp1780.83Ac10.00Dc10.00Rm10.00
+[13:54:37.668] TX: XJA-25.7740B0.0810C-43.9100D105.9876E-90.6371F-13.5830Sp1780.83Ac10.00Dc10.00Rm10.00
+[13:54:37.670] RX: BLENDING:ON
+[13:54:37.670] TX: XJA-25.7740B0.0810C-43.9100D156.7889E31.9229F114.4430Sp1780.83Ac10.00Dc10.00Rm10.00
+[13:54:37.675] RX: XJ_LIMIT:000011
+[13:54:37.681] RX: XJ_LIMIT:000010
+[13:54:37.690] RX: J4_DEBUG: StepM=15550 Angle=156.7889 TargetSteps=28689 StepDif=-13139 Dir=1 StepLim=26380 AxisLimNeg=176.00
+[13:54:37.698] RX: J4_PARSE: J4start=25 DcStart=67 substr='D156.7889E31.92' cmdLen=81
+[13:54:37.704] RX: XJ_LIMIT:000100
+[13:54:37.814] TX: BM0
+[13:54:37.816] RX: BLENDING:OFF
+[13:54:37.818] TX: ST
+[13:54:37.822] RX: STOPPED
+[13:56:11.816] TX: BM1
+[13:56:11.817] TX: XJA-25.7740B0.0810C-43.9100D68.5419E59.6518F90.3650Sp961.58Ac10.00Dc10.00Rm10.00
+[13:56:11.818] TX: XJA-25.7740B0.0810C-43.9100D132.6989E95.0606F90.3650Sp961.58Ac10.00Dc10.00Rm10.00
+[13:56:11.820] TX: XJA-25.7740B0.0810C-43.9100D-163.1442E130.4694F90.3650Sp961.58Ac10.00Dc10.00Rm10.00
+[13:56:11.821] RX: BLENDING:ON
+[13:56:11.913] TX: BM0
+[13:56:11.917] RX: BLENDING:OFF
+[13:56:11.918] TX: ST
+[13:56:11.923] RX: STOPPED
+[13:56:11.929] RX: A-25.774B0.081C-43.910D9.303E26.955F90.365G
+[14:02:09.165] TX: RJA-25.7740B0.0810C-43.9100D137.2688E104.0035F104.6660J70.0000J80.0000J90.0000Sp1435.39Ac10.00Dc10.00Rm10.00W0Lm111111111
+[14:02:09.167] TX: BM1
+[14:02:09.169] TX: XJA-25.7740B0.0810C-43.9100D-94.7653E181.0520F118.9671Sp1435.39Ac10.00Dc10.00Rm10.00
+[14:02:09.170] TX: XJA-25.7740B0.0810C-43.9100D33.2005E-101.8995F133.2681Sp1435.39Ac10.00Dc10.00Rm10.00
+[14:02:09.313] TX: BM0
+[14:02:09.317] TX: ST
+[14:02:11.841] RX: A-25.774B0.081C-43.910D137.269E103.996F104.689G189.901H-61.717I643.159J-18.597K-78.966L-97.801M0NOP0.00Q0.00R0.00
+[14:02:11.849] RX: BLENDING:ON
+[14:02:11.855] RX: BLENDING:OFF
+[14:02:11.861] RX: XJ_LIMIT:000010
+[14:02:11.866] RX: STOPPED
+
+
+
+Output from arm_cartesian_control.launch.py
+
+[arm_cartesian_controller-5] [INFO] [1773492729.748044027] [arm_cartesian_controller]: Target Pose: X:0.270, Y:0.223, Z:0.693
+[arm_cartesian_controller-5] [INFO] [1773492729.750336864] [arm_cartesian_controller]: IK Seed Joints: arm_joint_1:-25.8, arm_joint_2:0.1, arm_joint_3:-43.9, arm_joint_4:4.4, arm_joint_5:24.2, arm_joint_6:90.4
+[move_group-1] [WARN] [1773492729.751238404] [moveit_kinematic_constraints.kinematic_constraints]: Joint arm_joint_4 is constrained to be above the maximum bounds. Assuming maximum bounds instead.
+[move_group-1] [WARN] [1773492729.751294188] [moveit_kinematic_constraints.kinematic_constraints]: Joint arm_joint_6 is constrained to be above the maximum bounds. Assuming maximum bounds instead.
+[move_group-1] [WARN] [1773492729.751314032] [moveit_kinematic_constraints.kinematic_constraints]: Joint arm_joint_5 is constrained to be above the maximum bounds. Assuming maximum bounds instead.
+[arm_cartesian_controller-5] [WARN] [1773492729.755040303] [arm_cartesian_controller]: IK FAILED (Error -31) at Tgt(X:0.270, Y:0.223, Z:0.693)
+[arm_cartesian_controller-5] [WARN] [1773492729.759427064] [arm_cartesian_controller]: IK FAILED (Error -31) at Tgt(X:0.270, Y:0.223, Z:0.693)
+[arm_cartesian_controller-5] [WARN] [1773492729.763832576] [arm_cartesian_controller]: IK FAILED (Error -31) at Tgt(X:0.270, Y:0.223, Z:0.693)
+[arm_cartesian_controller-5] [WARN] [1773492729.768067093] [arm_cartesian_controller]: IK FAILED (Error -31) at Tgt(X:0.270, Y:0.223, Z:0.693)
+
+
+
+[arm_cartesian_controller-5] [INFO] [1773492822.460240239] [arm_cartesian_controller]: Starting Move -> Initial Priming (BM1)
+[arm_cartesian_controller-5] [INFO] [1773492822.462679581] [arm_cartesian_controller]: SYNC: TF Pose -> X=0.270, Y=0.235, Z=0.693
+[arm_cartesian_controller-5] [INFO] [1773492822.465365961] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.270, Y=0.232, Z=0.693 (Step: 0.003)
+[teensy_serial_bridge-3] [INFO] [1773492822.465478256] [teensy_serial_bridge]: Blending ENABLED (Joystick Mode: Latency prioritized, points may be skipped)
+[arm_cartesian_controller-5] [INFO] [1773492822.468486624] [arm_cartesian_controller]: Target Pose: X:0.270, Y:0.232, Z:0.693
+[arm_cartesian_controller-5] [INFO] [1773492822.471088419] [arm_cartesian_controller]: IK Seed Joints: arm_joint_1:-25.8, arm_joint_2:0.1, arm_joint_3:-43.9, arm_joint_4:4.4, arm_joint_5:24.2, arm_joint_6:90.4
+[arm_cartesian_controller-5] [INFO] [1773492822.473837092] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.270, Y=0.229, Z=0.693 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773492822.476519827] [arm_cartesian_controller]: Target Pose: X:0.270, Y:0.229, Z:0.693
+[move_group-1] [WARN] [1773492822.478062111] [moveit_kinematic_constraints.kinematic_constraints]: Joint arm_joint_4 is constrained to be above the maximum bounds. Assuming maximum bounds instead.
+[move_group-1] [WARN] [1773492822.478128623] [moveit_kinematic_constraints.kinematic_constraints]: Joint arm_joint_6 is constrained to be above the maximum bounds. Assuming maximum bounds instead.
+[arm_cartesian_controller-5] [INFO] [1773492822.479815651] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.270, Y=0.226, Z=0.693 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773492822.482537606] [arm_cartesian_controller]: Target Pose: X:0.270, Y:0.226, Z:0.693
+[move_group-1] [WARN] [1773492822.483972022] [moveit_kinematic_constraints.kinematic_constraints]: Joint arm_joint_4 is constrained to be above the maximum bounds. Assuming maximum bounds instead.
+[move_group-1] [WARN] [1773492822.484093172] [moveit_kinematic_constraints.kinematic_constraints]: Joint arm_joint_6 is constrained to be above the maximum bounds. Assuming maximum bounds instead.
+[move_group-1] [WARN] [1773492822.484117964] [moveit_kinematic_constraints.kinematic_constraints]: Joint arm_joint_5 is constrained to be above the maximum bounds. Assuming maximum bounds instead.
+[arm_cartesian_controller-5] [WARN] [1773492822.488383088] [arm_cartesian_controller]: IK BLOCKED: arm_joint_4 jumped 104.3° from baseline. Configuration flip detected.
+[arm_cartesian_controller-5] [INFO] [1773492822.491267859] [arm_cartesian_controller]: SYNC: TF Pose -> X=0.270, Y=0.235, Z=0.693
+[arm_cartesian_controller-5] [WARN] [1773492822.497619971] [arm_cartesian_controller]: IK FAILED (Error -31) at Tgt(X:0.270, Y:0.235, Z:0.693)
+[arm_cartesian_controller-5] [WARN] [1773492822.501926502] [arm_cartesian_controller]: IK FAILED (Error -31) at Tgt(X:0.270, Y:0.235, Z:0.693)
+[arm_cartesian_controller-5] [INFO] [1773492822.610233346] [arm_cartesian_controller]: Joystick Idle -> Sending STOP (BM0)
+[teensy_serial_bridge-3] [INFO] [1773492822.613112284] [teensy_serial_bridge]: Blending DISABLED (Programmed Mode: Every point will be executed)
+[teensy_serial_bridge-3] [INFO] [1773492822.617273342] [teensy_serial_bridge]: Priority STOP received: Clearing all queues and resetting flow control.
+[arm_cartesian_controller-5] [INFO] [1773492832.760785153] [arm_cartesian_controller]: SYNC: TF Pose -> X=0.270, Y=0.235, Z=0.693
+[arm_cartesian_controller-5] [INFO] [1773492843.060719587] [arm_cartesian_controller]: SYNC: TF Pose -> X=0.270, Y=0.235, Z=0.693
+[arm_cartesian_controller-5] [INFO] [1773492852.560156115] [arm_cartesian_controller]: Starting Move -> Initial Priming (BM1)
+[arm_cartesian_controller-5] [INFO] [1773492852.562908587] [arm_cartesian_controller]: SYNC: TF Pose -> X=0.270, Y=0.235, Z=0.693
+[arm_cartesian_controller-5] [INFO] [1773492852.565555692] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.269, Y=0.232, Z=0.693 (Step: 0.003)
+[teensy_serial_bridge-3] [INFO] [1773492852.566927970] [teensy_serial_bridge]: Blending ENABLED (Joystick Mode: Latency prioritized, points may be skipped)
+[arm_cartesian_controller-5] [INFO] [1773492852.568500983] [arm_cartesian_controller]: Target Pose: X:0.269, Y:0.232, Z:0.693
+[arm_cartesian_controller-5] [INFO] [1773492852.570840423] [arm_cartesian_controller]: IK Seed Joints: arm_joint_1:-25.8, arm_joint_2:0.1, arm_joint_3:-43.9, arm_joint_4:39.8, arm_joint_5:131.4, arm_joint_6:181.8
+[move_group-1] [WARN] [1773492852.571803419] [moveit_kinematic_constraints.kinematic_constraints]: Joint arm_joint_6 is constrained to be above the maximum bounds. Assuming maximum bounds instead.
+[move_group-1] [WARN] [1773492852.571861181] [moveit_kinematic_constraints.kinematic_constraints]: Joint arm_joint_5 is constrained to be above the maximum bounds. Assuming maximum bounds instead.
+[arm_cartesian_controller-5] [INFO] [1773492852.573637585] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.269, Y=0.229, Z=0.693 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773492852.576286461] [arm_cartesian_controller]: Target Pose: X:0.269, Y:0.229, Z:0.693
+[arm_cartesian_controller-5] [INFO] [1773492852.578542461] [arm_cartesian_controller]: IK Seed Joints: arm_joint_1:-25.8, arm_joint_2:0.1, arm_joint_3:-43.9, arm_joint_4:75.3, arm_joint_5:238.7, arm_joint_6:273.3
+[move_group-1] [WARN] [1773492852.579481029] [moveit_kinematic_constraints.kinematic_constraints]: Joint arm_joint_6 is constrained to be above the maximum bounds. Assuming maximum bounds instead.
+[move_group-1] [WARN] [1773492852.579531760] [moveit_kinematic_constraints.kinematic_constraints]: Joint arm_joint_5 is constrained to be above the maximum bounds. Assuming maximum bounds instead.
+[arm_cartesian_controller-5] [INFO] [1773492852.581226755] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.269, Y=0.226, Z=0.693 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773492852.584062251] [arm_cartesian_controller]: Target Pose: X:0.269, Y:0.226, Z:0.693
+[arm_cartesian_controller-5] [INFO] [1773492852.586466797] [arm_cartesian_controller]: IK Seed Joints: arm_joint_1:-25.8, arm_joint_2:0.1, arm_joint_3:-43.9, arm_joint_4:110.7, arm_joint_5:345.9, arm_joint_6:364.7
+[move_group-1] [WARN] [1773492852.587496774] [moveit_kinematic_constraints.kinematic_constraints]: Joint arm_joint_6 is constrained to be above the maximum bounds. Assuming maximum bounds instead.
+[move_group-1] [WARN] [1773492852.587550109] [moveit_kinematic_constraints.kinematic_constraints]: Joint arm_joint_5 is constrained to be above the maximum bounds. Assuming maximum bounds instead.
+[arm_cartesian_controller-5] [WARN] [1773492852.594388998] [arm_cartesian_controller]: IK FAILED (Error -31) at Tgt(X:0.269, Y:0.226, Z:0.693)
+[arm_cartesian_controller-5] [WARN] [1773492852.600211608] [arm_cartesian_controller]: IK FAILED (Error -31) at Tgt(X:0.269, Y:0.226, Z:0.693)
+[arm_cartesian_controller-5] [WARN] [1773492852.604284222] [arm_cartesian_controller]: IK FAILED (Error -31) at Tgt(X:0.269, Y:0.226, Z:0.693)
+[arm_cartesian_controller-5] [INFO] [1773492852.710343121] [arm_cartesian_controller]: Joystick Idle -> Sending STOP (BM0)
+[teensy_serial_bridge-3] [INFO] [1773492852.713867230] [teensy_serial_bridge]: Blending DISABLED (Programmed Mode: Every point will be executed)
+[teensy_serial_bridge-3] [INFO] [1773492852.718498505] [teensy_serial_bridge]: Priority STOP received: Clearing all queues and resetting flow control.
+[arm_cartesian_controller-5] [INFO] [1773492853.360819188] [arm_cartesian_controller]: SYNC: TF Pose -> X=0.270, Y=0.235, Z=0.693
+[arm_cartesian_controller-5] [INFO] [1773492863.710768972] [arm_cartesian_controller]: SYNC: TF Pose -> X=0.270, Y=0.235, Z=0.693
+[arm_cartesian_controller-5] [INFO] [1773492873.910851158] [arm_cartesian_controller]: SYNC: TF Pose -> X=0.270, Y=0.235, Z=0.693
+[arm_cartesian_controller-5] [INFO] [1773492877.660115653] [arm_cartesian_controller]: Starting Move -> Initial Priming (BM1)
+[arm_cartesian_controller-5] [INFO] [1773492877.662632335] [arm_cartesian_controller]: SYNC: TF Pose -> X=0.270, Y=0.235, Z=0.693
+[teensy_serial_bridge-3] [INFO] [1773492877.665349961] [teensy_serial_bridge]: Blending ENABLED (Joystick Mode: Latency prioritized, points may be skipped)
+[arm_cartesian_controller-5] [INFO] [1773492877.810281334] [arm_cartesian_controller]: Joystick Idle -> Sending STOP (BM0)
+[teensy_serial_bridge-3] [INFO] [1773492877.813131046] [teensy_serial_bridge]: Blending DISABLED (Programmed Mode: Every point will be executed)
+[teensy_serial_bridge-3] [INFO] [1773492877.817939301] [teensy_serial_bridge]: Priority STOP received: Clearing all queues and resetting flow control.
+
+
+
+[arm_cartesian_controller-5] [INFO] [1773493329.162896819] [arm_cartesian_controller]: SYNC: TF Pose -> X=0.269, Y=0.236, Z=0.691
+[teensy_serial_bridge-3] [INFO] [1773493329.167698062] [teensy_serial_bridge]: Blending ENABLED (Joystick Mode: Latency prioritized, points may be skipped)
+[arm_cartesian_controller-5] [INFO] [1773493329.310243973] [arm_cartesian_controller]: Joystick Idle -> Sending STOP (BM0)
+[teensy_serial_bridge-3] [INFO] [1773493329.313024550] [teensy_serial_bridge]: Blending DISABLED (Programmed Mode: Every point will be executed)
+[teensy_serial_bridge-3] [INFO] [1773493329.317235677] [teensy_serial_bridge]: Priority STOP received: Clearing all queues and resetting flow control.

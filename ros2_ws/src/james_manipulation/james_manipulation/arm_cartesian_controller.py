@@ -175,6 +175,18 @@ class ArmCartesianController(Node):
         self.is_active = False # Track if we are in an active move session
         self.stop_sent = True # Avoid repeating ST
         self.last_ik_solution = None # Seed for IK continuity
+        self._last_produce_time = 0.0 # [BUGFIX] Rate-limit produce_next_segment
+        
+        # [BUGFIX] Joint limits (radians) for clamping direct joint control
+        # Read from config (arm_cartesian_params.yaml) — single source of truth
+        self._joint_limits = {
+            'arm_joint_1': (self.get_parameter('joint_limits.j1_min').value, self.get_parameter('joint_limits.j1_max').value),
+            'arm_joint_2': (self.get_parameter('joint_limits.j2_min').value, self.get_parameter('joint_limits.j2_max').value),
+            'arm_joint_3': (self.get_parameter('joint_limits.j3_min').value, self.get_parameter('joint_limits.j3_max').value),
+            'arm_joint_4': (self.get_parameter('joint_limits.j4_min').value, self.get_parameter('joint_limits.j4_max').value),
+            'arm_joint_5': (self.get_parameter('joint_limits.j5_min').value, self.get_parameter('joint_limits.j5_max').value),
+            'arm_joint_6': (self.get_parameter('joint_limits.j6_min').value, self.get_parameter('joint_limits.j6_max').value),
+        }
         
         self.get_logger().info('Arm Cartesian Controller initialized (Atomic Beef V20 - ACK-Driven)')
         self.get_logger().info(f'EE Link: {self.ee_link}, Planning Frame: {self.planning_frame}')
@@ -313,7 +325,7 @@ class ArmCartesianController(Node):
         except:
              pass # Use last successful target if TF is slow
 
-        # [V20] CLOSED-LOOP TRIGGER: Pulse production on every feedback
+        # [V20] CLOSED-LOOP TRIGGER: Pulse production on feedback
         if self.is_active and self.blending_active and self.ik_success:
              self.produce_next_segment()
 
@@ -433,20 +445,28 @@ class ArmCartesianController(Node):
              return
 
         # [Direct Joint Control Integration]
-        # We apply joint increments BEFORE IK to ensure the solver sees the new constraints
+        # [BUGFIX] Use a WORKING COPY for IK seeding instead of mutating last_ik_solution directly.
+        # Previously, each call to produce_next_segment would += into last_ik_solution,
+        # causing unbounded accumulation when called at high frequency from joint_state_callback.
         has_joint_move = abs(self.pending_j4) > 1e-6 or abs(self.pending_j5) > 1e-6 or abs(self.pending_j6) > 1e-6
         if has_joint_move:
              # Use current state as baseline if no solution exists
              baseline = self.last_ik_solution if self.last_ik_solution else self.current_joint_state
              if baseline:
-                  # Create working copy
                   if not self.last_ik_solution:
                        self.last_ik_solution = copy.deepcopy(self.current_joint_state)
                   
-                  # Apply increments (rotation_scale is typical 0.05 rad per atomic step)
-                  j_inc = self.rotation_scale * 1.5 # Boosted for responsiveness
-                  names = self.last_ik_solution.name
-                  pos = list(self.last_ik_solution.position)
+                  # [BUGFIX] Apply increments to a COPY, not the original
+                  working_seed = copy.deepcopy(self.last_ik_solution)
+                  # Delta-time based: scale increment by elapsed time so angular velocity
+                  # is constant (~1.5 rad/sec at full stick) regardless of call frequency
+                  now = time.time()
+                  dt = now - self._last_produce_time
+                  dt = max(0.001, min(dt, 0.1))  # Clamp: 1ms floor, 100ms cap (prevents jumps after pauses)
+                  self._last_produce_time = now
+                  j_inc = self.rotation_scale * 1.5 * dt * 20.0
+                  names = working_seed.name
+                  pos = list(working_seed.position)
                   
                   if 'arm_joint_4' in names:
                        pos[names.index('arm_joint_4')] += self.pending_j4 * j_inc
@@ -455,7 +475,15 @@ class ArmCartesianController(Node):
                   if 'arm_joint_6' in names:
                        pos[names.index('arm_joint_6')] += self.pending_j6 * j_inc
                   
-                  self.last_ik_solution.position = tuple(pos)
+                  # [BUGFIX] Clamp all joints to physical limits
+                  for i, name in enumerate(names):
+                       if name in self._joint_limits:
+                            lo, hi = self._joint_limits[name]
+                            pos[i] = max(lo, min(hi, pos[i]))
+                  
+                  working_seed.position = tuple(pos)
+                  # Store the working copy as the new solution (single controlled write)
+                  self.last_ik_solution = working_seed
 
         # [JAMES:MOD] V20: ATOMIC STEP CALCULATION
         dx = self.pending_v_x
