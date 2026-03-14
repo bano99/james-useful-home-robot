@@ -177,6 +177,7 @@ class ArmCartesianController(Node):
         self.is_active = False # Track if we are in an active move session
         self.stop_sent = True # Avoid repeating ST
         self.last_ik_solution = None # Seed for IK continuity
+        self.pending_target_pose = None # Safe target generation before IK validation
         self._last_produce_time = 0.0 # [BUGFIX] Rate-limit produce_next_segment
         
         # [BUGFIX] Joint limits (radians) for clamping direct joint control
@@ -507,17 +508,19 @@ class ArmCartesianController(Node):
              step_len = velocity * dt
              step_len = max(self.min_step_size, step_len) # Clamp low end to keep solver alive
              
-             self.current_target_pose.position.x += (dx / mag) * step_len
-             self.current_target_pose.position.y += (dy / mag) * step_len
-             self.current_target_pose.position.z += (dz / mag) * step_len
+             self.pending_target_pose = copy.deepcopy(self.current_target_pose)
+             self.pending_target_pose.position.x += (dx / mag) * step_len
+             self.pending_target_pose.position.y += (dy / mag) * step_len
+             self.pending_target_pose.position.z += (dz / mag) * step_len
              
              # [Stability] If no rotation is requested, lock to session start orientation
              # Increased threshold to 1e-4 to ignore joystick idle noise
              if abs(self.pending_v_yaw) < 1e-4 and not has_joint_move:
-                  self.current_target_pose.orientation = copy.deepcopy(self.session_start_pose.orientation)
+                  self.pending_target_pose.orientation = copy.deepcopy(self.session_start_pose.orientation)
                   
-             self.log(f"JOY -> Pushing Target: X={self.current_target_pose.position.x:.3f}, Y={self.current_target_pose.position.y:.3f}, Z={self.current_target_pose.position.z:.3f} (Step: {step_len:.3f})", throttle=0.2)
+             self.log(f"JOY -> Pushing Target: X={self.pending_target_pose.position.x:.3f}, Y={self.pending_target_pose.position.y:.3f}, Z={self.pending_target_pose.position.z:.3f} (Step: {step_len:.3f})", throttle=0.2)
         elif abs(self.pending_v_yaw) > 1e-6:
+             self.pending_target_pose = copy.deepcopy(self.current_target_pose)
              self.apply_yaw_step(self.pending_v_yaw * 0.05)
         elif has_joint_move:
              # Only joint move active -> skip IK and publish immediately
@@ -536,18 +539,18 @@ class ArmCartesianController(Node):
              return # No movement requested
         
         # Carriage/Leash Logic
-        cur_dx = self.current_target_pose.position.x - self.last_sync_pose.position.x
-        cur_dy = self.current_target_pose.position.y - self.last_sync_pose.position.y
-        cur_dz = self.current_target_pose.position.z - self.last_sync_pose.position.z
+        cur_dx = self.pending_target_pose.position.x - self.last_sync_pose.position.x
+        cur_dy = self.pending_target_pose.position.y - self.last_sync_pose.position.y
+        cur_dz = self.pending_target_pose.position.z - self.last_sync_pose.position.z
         cur_dist = math.sqrt(cur_dx**2 + cur_dy**2 + cur_dz**2)
         
         if cur_dist > 0.03: # 3cm carrot leash
              scale = 0.03 / cur_dist
-             self.current_target_pose.position.x = self.last_sync_pose.position.x + cur_dx * scale
-             self.current_target_pose.position.y = self.last_sync_pose.position.y + cur_dy * scale
-             self.current_target_pose.position.z = self.last_sync_pose.position.z + cur_dz * scale
+             self.pending_target_pose.position.x = self.last_sync_pose.position.x + cur_dx * scale
+             self.pending_target_pose.position.y = self.last_sync_pose.position.y + cur_dy * scale
+             self.pending_target_pose.position.z = self.last_sync_pose.position.z + cur_dz * scale
 
-        self.current_target_pose = self.apply_workspace_limits(self.current_target_pose)
+        self.pending_target_pose = self.apply_workspace_limits(self.pending_target_pose)
         
         # [Multi-Group Selection]
         # Translation active -> use translator group (locks J4, J6)
@@ -566,19 +569,19 @@ class ArmCartesianController(Node):
         sin_y = math.sin(delta_yaw / 2.0)
         dqz = sin_y
         dqw = cos_y
-        qx = self.current_target_pose.orientation.x
-        qy = self.current_target_pose.orientation.y
-        qz = self.current_target_pose.orientation.z
-        qw = self.current_target_pose.orientation.w
-        self.current_target_pose.orientation.w = qw * dqw - qx * 0 - qy * 0 - qz * dqz
-        self.current_target_pose.orientation.x = qw * 0 + qx * dqw + qy * dqz - qz * 0
-        self.current_target_pose.orientation.y = qw * 0 - qx * dqz + qy * dqw + qz * 0
-        self.current_target_pose.orientation.z = qw * dqz + qx * 0 - qy * 0 + qz * dqw
-        norm = math.sqrt(self.current_target_pose.orientation.x**2 + self.current_target_pose.orientation.y**2 + self.current_target_pose.orientation.z**2 + self.current_target_pose.orientation.w**2)
-        self.current_target_pose.orientation.x /= norm
-        self.current_target_pose.orientation.y /= norm
-        self.current_target_pose.orientation.z /= norm
-        self.current_target_pose.orientation.w /= norm
+        qx = self.pending_target_pose.orientation.x
+        qy = self.pending_target_pose.orientation.y
+        qz = self.pending_target_pose.orientation.z
+        qw = self.pending_target_pose.orientation.w
+        self.pending_target_pose.orientation.w = qw * dqw - qx * 0 - qy * 0 - qz * dqz
+        self.pending_target_pose.orientation.x = qw * 0 + qx * dqw + qy * dqz - qz * 0
+        self.pending_target_pose.orientation.y = qw * 0 - qx * dqz + qy * dqw + qz * 0
+        self.pending_target_pose.orientation.z = qw * dqz + qx * 0 - qy * 0 + qz * dqw
+        norm = math.sqrt(self.pending_target_pose.orientation.x**2 + self.pending_target_pose.orientation.y**2 + self.pending_target_pose.orientation.z**2 + self.pending_target_pose.orientation.w**2)
+        self.pending_target_pose.orientation.x /= norm
+        self.pending_target_pose.orientation.y /= norm
+        self.pending_target_pose.orientation.z /= norm
+        self.pending_target_pose.orientation.w /= norm
 
     def apply_workspace_limits(self, pose):
         pose.position.x = max(self.workspace_limits['x_min'], min(self.workspace_limits['x_max'], pose.position.x))
@@ -614,14 +617,14 @@ class ArmCartesianController(Node):
             req.ik_request.robot_state.joint_state = self.current_joint_state
 
         # [JAMES:DIAG] Target Pose details
-        p = self.current_target_pose.position
+        p = self.pending_target_pose.position if self.pending_target_pose else self.current_target_pose.position
         self.log(f"Target Pose: X:{p.x:.3f}, Y:{p.y:.3f}, Z:{p.z:.3f}", throttle=0.5)
             
         req.ik_request.avoid_collisions = False # Collision checking in solver via kinematics.yaml
         pose_stamped = PoseStamped()
         pose_stamped.header.frame_id = self.planning_frame
         pose_stamped.header.stamp = self.get_clock().now().to_msg()
-        pose_stamped.pose = self.current_target_pose
+        pose_stamped.pose = self.pending_target_pose if self.pending_target_pose else self.current_target_pose
         req.ik_request.pose_stamped = pose_stamped
         req.ik_request.timeout = rclpy.duration.Duration(seconds=self.ik_timeout).to_msg()
 
@@ -642,8 +645,16 @@ class ArmCartesianController(Node):
                 jc = JointConstraint()
                 jc.joint_name = name
                 jc.position = baseline.position[idx]
-                jc.tolerance_above = 0.01 # Tight lock for direct control
-                jc.tolerance_below = 0.01
+                
+                # [BUGFIX] Give 10 degrees (0.17 rad) of wiggle room for translation 
+                # to prevent Cartesian constraint snapping, unless actively manually operating the joint
+                tol = 0.01 # Tight lock by default
+                if name == 'arm_joint_4' and abs(self.pending_j4) < 1e-6: tol = 0.17
+                if name == 'arm_joint_5' and abs(self.pending_j5) < 1e-6: tol = 0.17
+                if name == 'arm_joint_6' and abs(self.pending_j6) < 1e-6: tol = 0.17
+                
+                jc.tolerance_above = tol
+                jc.tolerance_below = tol
                 jc.weight = 1.0
                 constraints.joint_constraints.append(jc)
         req.ik_request.constraints = constraints
@@ -706,6 +717,10 @@ class ArmCartesianController(Node):
                 self.ik_success = True
                 self.last_ik_solution = response.solution.joint_state
                 
+                if self.pending_target_pose:
+                     self.current_target_pose = copy.deepcopy(self.pending_target_pose)
+                     self.pending_target_pose = None
+                
                 cmd_msg = JointState()
                 cmd_msg.header.stamp = self.get_clock().now().to_msg()
                 cmd_msg.name = response.solution.joint_state.name
@@ -720,7 +735,11 @@ class ArmCartesianController(Node):
                 else:
                     self.priming_burst_active = 0
             else:
-                tp = self.current_target_pose.position
+                if self.pending_target_pose:
+                     tp = self.pending_target_pose.position
+                     self.pending_target_pose = None # Drop impossible target!
+                else:
+                     tp = self.current_target_pose.position
                 self.get_logger().warn(f'IK FAILED (Error {response.error_code.val}) at Tgt(X:{tp.x:.3f}, Y:{tp.y:.3f}, Z:{tp.z:.3f})')
                 self.ik_success = False
                 self.priming_burst_active = 0 # abort burst on error
