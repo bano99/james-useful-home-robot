@@ -88,6 +88,8 @@ class ArmCartesianController(Node):
         self.stop_sent = False
         self.is_active = False
         self.blending_active = False
+        self.ik_pending = False # Sequential IK lock
+        self.priming_burst_active = 0 # IK chaining counter
         self.log_throttle_map = {}
         self.dynamic_sp = 25.0 # Default speed
         
@@ -326,7 +328,7 @@ class ArmCartesianController(Node):
              pass # Use last successful target if TF is slow
 
         # [V20] CLOSED-LOOP TRIGGER: Pulse production on feedback
-        if self.is_active and self.blending_active and self.ik_success:
+        if self.is_active and self.blending_active and self.ik_success and not self.ik_pending:
              self.produce_next_segment()
 
     def sync_pose_to_actual(self, loud=False, throttle=0.0):
@@ -436,16 +438,16 @@ class ArmCartesianController(Node):
              # Prevents stale dt from generating a massive instantaneous target jump
              self._last_produce_time = time.time()
              
-             # Initial burst of 3 moves to fill Teensy buffer (ACKs will take over from here)
-             for _ in range(3):
-                 self.produce_next_segment()
+             # Initial burst of 3 moves to fill Teensy buffer via rapid IK sequential chaining
+             self.priming_burst_active = 3
+             self.produce_next_segment()
         
         # NOTE: No 'else' here. produce_next_segment is now triggered by joint_state_callback.
         return
  
     def produce_next_segment(self):
         """Closed-loop Producer: Generates one 'Atomic Beef' segment (V20)"""
-        if not self.is_active:
+        if not self.is_active or self.ik_pending:
              return
 
         # [BUGFIX] Delta-time based target generation for BOTH joints and Cartesian
@@ -588,6 +590,8 @@ class ArmCartesianController(Node):
         if not self.ik_client.service_is_ready():
             self.get_logger().error('IK Service /compute_ik NOT READY', throttle_duration_sec=2.0)
             return
+            
+        self.ik_pending = True # Lock async loop
         
         if group_name is None:
             group_name = self.group_name
@@ -654,6 +658,7 @@ class ArmCartesianController(Node):
 
     def ik_callback(self, future):
         try:
+            self.ik_pending = False # Unlock async loop early
             response = future.result()
             if response.error_code.val == response.error_code.SUCCESS:
                 # KINEMATICS SAFETY: IK Continuity 2.2 (Chain Protection)
@@ -707,11 +712,21 @@ class ArmCartesianController(Node):
                 cmd_msg.position = response.solution.joint_state.position
                 cmd_msg.velocity = [self.dynamic_sp]
                 self.joint_cmd_pub.publish(cmd_msg)
+                
+                # Chain next priming burst sequentially
+                if self.priming_burst_active > 1:
+                    self.priming_burst_active -= 1
+                    self.produce_next_segment()
+                else:
+                    self.priming_burst_active = 0
             else:
                 tp = self.current_target_pose.position
                 self.get_logger().warn(f'IK FAILED (Error {response.error_code.val}) at Tgt(X:{tp.x:.3f}, Y:{tp.y:.3f}, Z:{tp.z:.3f})')
                 self.ik_success = False
+                self.priming_burst_active = 0 # abort burst on error
         except Exception as e:
+            self.ik_pending = False
+            self.priming_burst_active = 0
             self.log(f'Error in ik_callback: {e}', level='error')
 
     # Removed handle_ik_failure: No longer needed with BioIK minimal_displacement
