@@ -444,6 +444,12 @@ class ArmCartesianController(Node):
         if not self.is_active:
              return
 
+        # [BUGFIX] Delta-time based target generation for BOTH joints and Cartesian
+        now = time.time()
+        dt = now - self._last_produce_time
+        dt = max(0.001, min(dt, 0.1))  # Clamp: 1ms floor, 100ms cap (prevents jumps after pauses)
+        self._last_produce_time = now
+
         # [Direct Joint Control Integration]
         # [BUGFIX] Use a WORKING COPY for IK seeding instead of mutating last_ik_solution directly.
         # Previously, each call to produce_next_segment would += into last_ik_solution,
@@ -460,10 +466,6 @@ class ArmCartesianController(Node):
                   working_seed = copy.deepcopy(self.last_ik_solution)
                   # Delta-time based: scale increment by elapsed time so angular velocity
                   # is constant (~1.5 rad/sec at full stick) regardless of call frequency
-                  now = time.time()
-                  dt = now - self._last_produce_time
-                  dt = max(0.001, min(dt, 0.1))  # Clamp: 1ms floor, 100ms cap (prevents jumps after pauses)
-                  self._last_produce_time = now
                   j_inc = self.rotation_scale * 1.5 * dt * 20.0
                   names = working_seed.name
                   pos = list(working_seed.position)
@@ -491,10 +493,14 @@ class ArmCartesianController(Node):
         dz = self.pending_v_z
         mag = math.sqrt(dx**2 + dy**2 + dz**2)
         
-        # Step size clamped to minimum 1cm safety limit
-        step_len = max(self.min_step_size, self.atomic_step_size * self.movement_lead)
-
+        # [BUGFIX] Delta-time based step calculation
+        # Instead of fixed step_len per call, we scale by requested velocity and dt.
+        # This prevents the Cartesian target from running away if joint_states fires at 100Hz.
         if mag > 1e-6:
+             velocity = mag * self.velocity_scale
+             step_len = velocity * dt
+             step_len = max(self.min_step_size, step_len) # Clamp low end to keep solver alive
+             
              self.current_target_pose.position.x += (dx / mag) * step_len
              self.current_target_pose.position.y += (dy / mag) * step_len
              self.current_target_pose.position.z += (dz / mag) * step_len
