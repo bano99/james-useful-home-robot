@@ -432,6 +432,10 @@ class ArmCartesianController(Node):
              # [Stability] Capture session start pose for orientation locking (DEEP COPY)
              self.session_start_pose = copy.deepcopy(self.current_target_pose)
              
+             # [BUGFIX] Reset delta-time baseline before the first move of the session
+             # Prevents stale dt from generating a massive instantaneous target jump
+             self._last_produce_time = time.time()
+             
              # Initial burst of 3 moves to fill Teensy buffer (ACKs will take over from here)
              for _ in range(3):
                  self.produce_next_segment()
