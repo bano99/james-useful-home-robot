@@ -691,7 +691,13 @@ class ArmCartesianController(Node):
                 idx = baseline.name.index(name)
                 jc = JointConstraint()
                 jc.joint_name = name
-                jc.position = baseline.position[idx]
+                
+                # [JAMES:FIX] Normalize the constraint target to [-pi, pi]!
+                # If the robot is physically at J4=494 deg, enforcing a constraint at 494 deg
+                # will cause MoveIt to reject it because URDF max is 165 deg. MoveIt prefers 134 deg.
+                raw_pos = baseline.position[idx]
+                jc.position = (raw_pos + math.pi) % (2 * math.pi) - math.pi
+                
                 jc.tolerance_above = 0.035
                 jc.tolerance_below = 0.035
                 jc.weight = 1.0
