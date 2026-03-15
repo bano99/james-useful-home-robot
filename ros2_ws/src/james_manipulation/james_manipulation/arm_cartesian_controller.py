@@ -678,11 +678,12 @@ class ArmCartesianController(Node):
 
         constraints = Constraints()
         
-        # Only lock J4 and J6 to prevent 180° flips/windups during J5=0 singularities.
-        # We allow a wide ±1.0 rad (~57°) berth so the wrist is geometrically free to bend 
-        # exactly as 6-DOF IK requires to trace long Cartesian lines. 
-        # J5 is left completely free as the primary pitch actuator.
-        joints_to_lock = ['arm_joint_4', 'arm_joint_6']
+        # Only apply hard constraints when explicitly doing wrist-only rotations.
+        # For translations, we let BioIK naturally calculate the minimal displacement 
+        # using all 6 DOF natively via kinematics.yaml weights.
+        joints_to_lock = []
+        if group_name == self.wrist_group:
+             joints_to_lock = ['arm_joint_1', 'arm_joint_2', 'arm_joint_3']
              
         for name in joints_to_lock:
              baseline = self.last_ik_solution if self.last_ik_solution else self.current_joint_state
@@ -695,8 +696,8 @@ class ArmCartesianController(Node):
                 raw_pos = baseline.position[idx]
                 jc.position = (raw_pos + math.pi) % (2 * math.pi) - math.pi
                 
-                jc.tolerance_above = 0.3
-                jc.tolerance_below = 0.3
+                jc.tolerance_above = 0.05
+                jc.tolerance_below = 0.05
                 jc.weight = 1.0
                 constraints.joint_constraints.append(jc)
         req.ik_request.constraints = constraints

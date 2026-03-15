@@ -7,8 +7,8 @@
         mode: gd_c
         threads: 1
         kinematics_solver_timeout: 0.5
-        minimal_displacement_weight: 1.0
-        center_joints_weight: 0.1
+        minimal_displacement_weight: 10.0
+        center_joints_weight: 1.0
         avoid_joint_limits_weight: 1.0
         rotation_scale: 0.05
       ar_translator:
