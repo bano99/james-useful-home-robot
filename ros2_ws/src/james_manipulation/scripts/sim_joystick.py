@@ -27,31 +27,31 @@ class JoystickSim(Node):
         self.get_logger().info(f"Published: Y:{ly} X:{lx} Z:{ry}")
 
     def test_sequence(self):
-        self.get_logger().info("--- STARTING REPRODUCIBLE JOYSTICK TEST ---")
+        self.get_logger().info("--- STARTING REPRODUCIBLE JOYSTICK TEST (UP/DOWN Z-AXIS) ---")
         time.sleep(1.0) # wait for controller idle
 
-        # Test 1: Pure Forward Y axis Translation
-        self.get_logger().info("Test 1: Forward Y (ly=1.0) for 2 seconds")
-        for _ in range(20):
-            self.send_command(ly=1.0)
+        # Test 1: Z-Axis UP (ry=1.0)
+        self.get_logger().info("Test 1: UP Z-axis (ry=0.5) for 5 seconds")
+        for _ in range(50):
+            self.send_command(ry=0.5)  # ry is Z-axis, positive is up. 0.5 is half-speed
             time.sleep(0.1)
         
         self.get_logger().info("Test 1: Stopping")
         for _ in range(5):
-            self.send_command(ly=0.0)
+            self.send_command(ry=0.0)
             time.sleep(0.1)
             
         time.sleep(2.0)
 
-        # Test 2: Diagonal X/Y Translation
-        self.get_logger().info("Test 2: Diagonal X/Y (lx=1.0, ly=1.0) for 2 seconds")
-        for _ in range(20):
-            self.send_command(lx=1.0, ly=1.0)
+        # Test 2: Z-Axis DOWN (ry=-1.0)
+        self.get_logger().info("Test 2: DOWN Z-axis (ry=-0.5) for 5 seconds")
+        for _ in range(50):
+            self.send_command(ry=-0.5)
             time.sleep(0.1)
         
         self.get_logger().info("Test 2: Stopping")
         for _ in range(5):
-            self.send_command(lx=0.0, ly=0.0)
+            self.send_command(ry=0.0)
             time.sleep(0.1)
 
 def main(args=None):
