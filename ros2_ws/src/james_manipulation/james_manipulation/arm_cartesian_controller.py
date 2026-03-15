@@ -698,8 +698,11 @@ class ArmCartesianController(Node):
                 raw_pos = baseline.position[idx]
                 jc.position = (raw_pos + math.pi) % (2 * math.pi) - math.pi
                 
-                jc.tolerance_above = 0.035
-                jc.tolerance_below = 0.035
+                # [JAMES:FIX] Widen tolerance to ±17 degrees (0.3 rad). 
+                # This prevents 180° wrist flips but allows the mathematical drift 
+                # naturally required to maintain X/Y orientations near full-arm reach.
+                jc.tolerance_above = 0.3
+                jc.tolerance_below = 0.3
                 jc.weight = 1.0
                 constraints.joint_constraints.append(jc)
         req.ik_request.constraints = constraints
