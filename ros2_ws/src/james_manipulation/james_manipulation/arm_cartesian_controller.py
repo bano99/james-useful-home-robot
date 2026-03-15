@@ -422,12 +422,67 @@ class ArmCartesianController(Node):
              self.session_start_pose = copy.deepcopy(self.current_target_pose)
              
              # Initial burst of 3 moves to fill Teensy buffer (ACKs will take over from here)
-             for _ in range(3):
-                 self.produce_next_segment()
+             for i in range(3):
+                 if not self.produce_priming_segment():
+                     self.get_logger().warn(f'Priming aborted at segment {i+1}/3: IK failed')
+                     self.blending_active = False
+                     self.manual_control_active = False
+                     self.stop_sent = True
+                     break
         
         # NOTE: No 'else' here. produce_next_segment is now triggered by joint_state_callback.
         return
  
+    def produce_priming_segment(self):
+        """Synchronous Producer: Generates one 'Atomic Beef' segment for initial buffer priming."""
+        if not self.is_active:
+             return False
+
+        # [JAMES:MOD] V20: ATOMIC STEP CALCULATION
+        dx = self.pending_v_x
+        dy = self.pending_v_y
+        dz = self.pending_v_z
+        mag = math.sqrt(dx**2 + dy**2 + dz**2)
+        
+        # Step size clamped to minimum 1cm safety limit
+        step_len = max(self.min_step_size, self.atomic_step_size * self.movement_lead)
+
+        if mag > 1e-6:
+             self.current_target_pose.position.x += (dx / mag) * step_len
+             self.current_target_pose.position.y += (dy / mag) * step_len
+             self.current_target_pose.position.z += (dz / mag) * step_len
+             
+             if abs(self.pending_v_yaw) < 1e-4 and abs(self.pending_j4) < 1e-6 and abs(self.pending_j5) < 1e-6 and abs(self.pending_j6) < 1e-6:
+                  self.current_target_pose.orientation = copy.deepcopy(self.session_start_pose.orientation)
+                  
+             self.log(f"JOY -> Pushing Target (Sync): X={self.current_target_pose.position.x:.3f}, Y={self.current_target_pose.position.y:.3f}, Z={self.current_target_pose.position.z:.3f} (Step: {step_len:.3f})", throttle=0.2)
+        elif abs(self.pending_v_yaw) > 1e-6:
+             self.apply_yaw_step(self.pending_v_yaw * 0.05)
+        else:
+             return False # No movement requested
+             
+        # Carriage/Leash Logic
+        cur_dx = self.current_target_pose.position.x - self.last_sync_pose.position.x
+        cur_dy = self.current_target_pose.position.y - self.last_sync_pose.position.y
+        cur_dz = self.current_target_pose.position.z - self.last_sync_pose.position.z
+        cur_dist = math.sqrt(cur_dx**2 + cur_dy**2 + cur_dz**2)
+        
+        if cur_dist > 0.05: # Allow slightly longer leash during priming
+             scale = 0.05 / cur_dist
+             self.current_target_pose.position.x = self.last_sync_pose.position.x + cur_dx * scale
+             self.current_target_pose.position.y = self.last_sync_pose.position.y + cur_dy * scale
+             self.current_target_pose.position.z = self.last_sync_pose.position.z + cur_dz * scale
+
+        self.current_target_pose = self.apply_workspace_limits(self.current_target_pose)
+        
+        target_group = self.group_name
+        if mag > 1e-6:
+            target_group = self.translator_group
+        elif abs(self.pending_v_yaw) > 1e-6:
+            target_group = self.wrist_group
+
+        return self.call_ik_service_sync(group_name=target_group)
+
     def produce_next_segment(self):
         """Closed-loop Producer: Generates one 'Atomic Beef' segment (V20)"""
         if not self.is_active or self._ik_in_flight:
@@ -552,18 +607,59 @@ class ArmCartesianController(Node):
             self.get_logger().error('IK Service /compute_ik NOT READY', throttle_duration_sec=2.0)
             return
         
+        req = self._build_ik_request(group_name)
+        if not req:
+            return
+            
+        self._ik_in_flight = True
+        future = self.ik_client.call_async(req)
+        future.add_done_callback(self.ik_callback)
+
+    def call_ik_service_sync(self, group_name=None):
+        if not self.ik_client.service_is_ready():
+            self.get_logger().error('IK Service /compute_ik NOT READY')
+            return False
+            
+        req = self._build_ik_request(group_name)
+        if not req:
+            return False
+            
+        future = self.ik_client.call_async(req)
+        rclpy.spin_until_future_complete(self, future, timeout_sec=0.2)
+        
+        if future.done():
+            response = future.result()
+            if response and response.error_code.val == response.error_code.SUCCESS:
+                self.ik_success = True
+                self.last_ik_solution = response.solution.joint_state
+                
+                cmd_msg = JointState()
+                cmd_msg.header.stamp = self.get_clock().now().to_msg()
+                cmd_msg.name = response.solution.joint_state.name
+                cmd_msg.position = response.solution.joint_state.position
+                cmd_msg.velocity = [self.dynamic_sp]
+                self.joint_cmd_pub.publish(cmd_msg)
+                return True
+            else:
+                tp = self.current_target_pose.position
+                err = response.error_code.val if response else "Timeout"
+                self.get_logger().warn(f'SYNC IK FAILED (Error {err}) at Tgt(X:{tp.x:.3f}, Y:{tp.y:.3f}, Z:{tp.z:.3f})')
+                self.ik_success = False
+                return False
+        else:
+            self.get_logger().warn('SYNC IK Call Timed Out')
+            return False
+            
+    def _build_ik_request(self, group_name=None):
         if group_name is None:
             group_name = self.group_name
 
         req = GetPositionIK.Request()
         req.ik_request.group_name = group_name
         
-        # [Stability FIX] Use last successful solution as seed
         if self.last_ik_solution:
             req.ik_request.robot_state.joint_state = self.last_ik_solution
         elif self.current_joint_state:
-            # [JAMES:FIX] Normalize seed joints to [-pi, pi] to prevent IK failure 
-            # if joint states drift or wrap (e.g. J6 reaching 8.3 rad)
             normalized_js = copy.deepcopy(self.current_joint_state)
             normalized_js.position = [
                 (p + math.pi) % (2 * math.pi) - math.pi for p in normalized_js.position
@@ -572,11 +668,10 @@ class ArmCartesianController(Node):
         else:
             req.ik_request.robot_state.joint_state = self.current_joint_state
 
-        # [JAMES:DIAG] Target Pose details
         p = self.current_target_pose.position
         self.log(f"Target Pose: X:{p.x:.3f}, Y:{p.y:.3f}, Z:{p.z:.3f}", throttle=0.5)
             
-        req.ik_request.avoid_collisions = False # Collision checking in solver via kinematics.yaml
+        req.ik_request.avoid_collisions = False
         pose_stamped = PoseStamped()
         pose_stamped.header.frame_id = self.planning_frame
         pose_stamped.header.stamp = self.get_clock().now().to_msg()
@@ -584,42 +679,34 @@ class ArmCartesianController(Node):
         req.ik_request.pose_stamped = pose_stamped
         req.ik_request.timeout = rclpy.duration.Duration(seconds=self.ik_timeout).to_msg()
 
-        # [JAMES:STABILITY] Add "Iron Grip" Constraints - Lock J4, J5, J6
-        # When direct joint control is active, we MUST lock these joints in the IK request.
         constraints = Constraints()
         joints_to_lock = ['arm_joint_4', 'arm_joint_6']
         
-        # Lock J5 if translator group or if J5 is being manually moved
         if group_name == self.translator_group or abs(self.pending_j5) > 1e-6:
              joints_to_lock.append('arm_joint_5')
              
         for name in joints_to_lock:
-             # Use the target solution if we have one (it contains the manual increments)
              baseline = self.last_ik_solution if self.last_ik_solution else self.current_joint_state
              if baseline and name in baseline.name:
                 idx = baseline.name.index(name)
                 jc = JointConstraint()
                 jc.joint_name = name
                 jc.position = baseline.position[idx]
-                jc.tolerance_above = 0.035 # ~2° tolerance (was 0.01 = 0.57°, too tight for 3-step priming)
+                jc.tolerance_above = 0.035
                 jc.tolerance_below = 0.035
                 jc.weight = 1.0
                 constraints.joint_constraints.append(jc)
         req.ik_request.constraints = constraints
         
-        # [Telemetry] Log seed state and precise constraints
         if self.current_joint_state:
             js = ", ".join([f"{n}:{math.degrees(p):.1f}" for n, p in zip(self.current_joint_state.name, self.current_joint_state.position)])
             self.log(f"IK Seed Joints: {js}", throttle=1.0)
             
-        # [JAMES:DEBUG] Print exact constraints being sent
         if constraints.joint_constraints:
             cstr_str = " | ".join([f"{c.joint_name}: {math.degrees(c.position):.2f}° ±{math.degrees(c.tolerance_above):.2f}°" for c in constraints.joint_constraints])
             self.get_logger().info(f"IK Constraints: {cstr_str}")
-
-        self._ik_in_flight = True
-        future = self.ik_client.call_async(req)
-        future.add_done_callback(self.ik_callback)
+            
+        return req
 
     def ik_callback(self, future):
         self._ik_in_flight = False
