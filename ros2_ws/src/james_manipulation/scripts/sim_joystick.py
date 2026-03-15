@@ -30,29 +30,27 @@ class JoystickSim(Node):
         self.get_logger().info("--- STARTING REPRODUCIBLE JOYSTICK TEST (UP/DOWN Z-AXIS) ---")
         time.sleep(1.0) # wait for controller idle
 
-        # Test 1: Z-Axis UP (ry=1.0)
-        self.get_logger().info("Test 1: UP Z-axis (ry=0.5) for 5 seconds")
-        for _ in range(50):
-            self.send_command(ry=0.5, mode='vertical')  # ry is Z-axis, positive is up. 0.5 is half-speed
-            time.sleep(0.1)
-        
-        self.get_logger().info("Test 1: Stopping")
-        for _ in range(5):
+        # Test 1: DOWN 4 times (1.5 seconds each)
+        self.get_logger().info("Test: DOWN Z-axis (ry=-0.5) 4x 1.5s")
+        for i in range(4):
+            self.get_logger().info(f"DOWN interval {i+1}/4")
+            for _ in range(15): # 1.5 seconds at 10Hz
+                self.send_command(ry=-0.5, mode='vertical')
+                time.sleep(0.1)
             self.send_command(ry=0.0, mode='vertical')
-            time.sleep(0.1)
+            time.sleep(1.0) # Stop for 1 second
             
         time.sleep(2.0)
 
-        # Test 2: Z-Axis DOWN (ry=-1.0)
-        self.get_logger().info("Test 2: DOWN Z-axis (ry=-0.5) for 5 seconds")
-        for _ in range(50):
-            self.send_command(ry=-0.5, mode='vertical')
-            time.sleep(0.1)
-        
-        self.get_logger().info("Test 2: Stopping")
-        for _ in range(5):
+        # Test 2: UP 4 times (1.5 seconds each)
+        self.get_logger().info("Test: UP Z-axis (ry=0.5) 4x 1.5s")
+        for i in range(4):
+            self.get_logger().info(f"UP interval {i+1}/4")
+            for _ in range(15): # 1.5 seconds at 10Hz
+                self.send_command(ry=0.5, mode='vertical')
+                time.sleep(0.1)
             self.send_command(ry=0.0, mode='vertical')
-            time.sleep(0.1)
+            time.sleep(1.0) # Stop for 1 second
 
 def main(args=None):
     rclpy.init(args=args)

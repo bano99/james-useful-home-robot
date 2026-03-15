@@ -1,0 +1,169 @@
+[teensy_serial_bridge-3] [INFO] [1773578587.139492349] [teensy_serial_bridge]: Blending ENABLED (Joystick Mode: Latency prioritized, points may be skipped)
+[arm_cartesian_controller-5] [INFO] [1773578587.141127192] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.287, Z:0.600
+[arm_cartesian_controller-5] [INFO] [1773578587.143467057] [arm_cartesian_controller]: IK Seed Joints: arm_joint_1:2.7, arm_joint_2:-4.0, arm_joint_3:-19.0, arm_joint_4:6.4, arm_joint_5:42.2, arm_joint_6:-82.2
+[arm_cartesian_controller-5] [INFO] [1773578587.146242040] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.287, Z=0.603 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773578587.148945407] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.287, Z:0.603
+[arm_cartesian_controller-5] [INFO] [1773578587.152230510] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.287, Z=0.606 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773578587.154946741] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.287, Z:0.606
+[arm_cartesian_controller-5] [INFO] [1773578587.196167309] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.287, Z=0.609 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773578587.198993023] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.287, Z:0.609
+[arm_cartesian_controller-5] [INFO] [1773578587.240345886] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.287, Z=0.612 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773578587.243157641] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.287, Z:0.612
+[arm_cartesian_controller-5] [INFO] [1773578587.245485735] [arm_cartesian_controller]: IK Seed Joints: arm_joint_1:2.7, arm_joint_2:-3.9, arm_joint_3:-19.6, arm_joint_4:6.4, arm_joint_5:42.0, arm_joint_6:-82.2
+[arm_cartesian_controller-5] [INFO] [1773578587.264737851] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.287, Z=0.615 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773578587.267446165] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.287, Z:0.615
+[arm_cartesian_controller-5] [INFO] [1773578587.329754948] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.287, Z=0.618 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773578587.332964216] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.287, Z:0.618
+[arm_cartesian_controller-5] [INFO] [1773578587.341541986] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.287, Z=0.621 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773578587.344199570] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.287, Z:0.621
+[arm_cartesian_controller-5] [INFO] [1773578587.346619698] [arm_cartesian_controller]: IK Seed Joints: arm_joint_1:2.7, arm_joint_2:-3.7, arm_joint_3:-20.5, arm_joint_4:6.4, arm_joint_5:41.8, arm_joint_6:-82.2
+[arm_cartesian_controller-5] [INFO] [1773578587.396429702] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.287, Z=0.624 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773578587.399416150] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.287, Z:0.624
+[arm_cartesian_controller-5] [INFO] [1773578587.415207793] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.287, Z=0.627 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773578587.417931733] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.287, Z:0.627
+[arm_cartesian_controller-5] [INFO] [1773578587.420259514] [arm_cartesian_controller]: IK Seed Joints: arm_joint_1:2.7, arm_joint_2:-3.6, arm_joint_3:-21.2, arm_joint_4:6.4, arm_joint_5:41.6, arm_joint_6:-82.2
+[arm_cartesian_controller-5] [INFO] [1773578587.465040610] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.287, Z=0.630 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773578587.467696163] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.287, Z:0.630
+[arm_cartesian_controller-5] [INFO] [1773578587.529235338] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.287, Z=0.633 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773578587.532344134] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.287, Z:0.633
+[arm_cartesian_controller-5] [INFO] [1773578587.534727386] [arm_cartesian_controller]: IK Seed Joints: arm_joint_1:2.7, arm_joint_2:-3.3, arm_joint_3:-22.2, arm_joint_4:6.4, arm_joint_5:41.3, arm_joint_6:-82.2
+[arm_cartesian_controller-5] [INFO] [1773578587.541088784] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.287, Z=0.636 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773578587.543709596] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.287, Z:0.636
+[arm_cartesian_controller-5] [INFO] [1773578587.596221039] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.287, Z=0.639 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773578587.599303688] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.287, Z:0.639
+[arm_cartesian_controller-5] [INFO] [1773578587.663052516] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.287, Z=0.642 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773578587.724646433] [arm_cartesian_controller]: IK Seed Joints: arm_joint_1:2.7, arm_joint_2:-3.0, arm_joint_3:-23.9, arm_joint_4:6.4, arm_joint_5:40.9, arm_joint_6:-82.2
+[arm_cartesian_controller-5] [INFO] [1773578587.732453241] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.287, Z:0.642
+[arm_cartesian_controller-5] [INFO] [1773578587.796462494] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.287, Z=0.645 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773578587.799453578] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.287, Z:0.645
+[arm_cartesian_controller-5] [INFO] [1773578587.862846093] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.287, Z=0.648 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773578588.003533800] [arm_cartesian_controller]: IK Seed Joints: arm_joint_1:2.7, arm_joint_2:-2.4, arm_joint_3:-26.4, arm_joint_4:6.5, arm_joint_5:40.3, arm_joint_6:-82.2
+[arm_cartesian_controller-5] [INFO] [1773578588.065227355] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.287, Z=0.648 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773578588.067819833] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.287, Z:0.648
+[arm_cartesian_controller-5] [INFO] [1773578588.129622923] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.287, Z=0.651 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773578588.132286704] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.287, Z:0.651
+[arm_cartesian_controller-5] [INFO] [1773578588.196860402] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.287, Z=0.654 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773578588.199845861] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.287, Z:0.654
+[arm_cartesian_controller-5] [INFO] [1773578588.202214529] [arm_cartesian_controller]: IK Seed Joints: arm_joint_1:2.7, arm_joint_2:-2.0, arm_joint_3:-28.2, arm_joint_4:6.5, arm_joint_5:39.8, arm_joint_6:-82.2
+[arm_cartesian_controller-5] [INFO] [1773578588.208401755] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.287, Z=0.657 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773578588.211125434] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.287, Z:0.657
+[arm_cartesian_controller-5] [INFO] [1773578588.263262387] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.287, Z=0.660 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773578588.266129925] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.287, Z:0.660
+[arm_cartesian_controller-5] [INFO] [1773578588.329920213] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.287, Z=0.663 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773578588.511410818] [arm_cartesian_controller]: IK Seed Joints: arm_joint_1:2.7, arm_joint_2:-1.2, arm_joint_3:-31.0, arm_joint_4:6.5, arm_joint_5:39.0, arm_joint_6:-82.2
+[arm_cartesian_controller-5] [INFO] [1773578588.596271144] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.287, Z=0.663 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773578588.599030293] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.287, Z:0.663
+[arm_cartesian_controller-5] [INFO] [1773578588.664854343] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.287, Z=0.666 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773578588.667609325] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.287, Z:0.666
+[arm_cartesian_controller-5] [INFO] [1773578588.729523565] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.287, Z=0.669 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773578588.732641163] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.287, Z:0.669
+[arm_cartesian_controller-5] [INFO] [1773578588.749424347] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.287, Z=0.672 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773578588.752622989] [arm_cartesian_controller]: IK Seed Joints: arm_joint_1:2.7, arm_joint_2:-0.6, arm_joint_3:-33.1, arm_joint_4:6.5, arm_joint_5:38.4, arm_joint_6:-82.2
+[arm_cartesian_controller-5] [INFO] [1773578588.866174374] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.287, Z:0.672
+[arm_cartesian_controller-5] [INFO] [1773578588.929598817] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.287, Z=0.675 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773578588.932681726] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.287, Z:0.675
+[arm_cartesian_controller-5] [INFO] [1773578588.963246906] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.287, Z=0.678 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773578588.966492581] [arm_cartesian_controller]: IK Seed Joints: arm_joint_1:2.7, arm_joint_2:-0.1, arm_joint_3:-35.0, arm_joint_4:6.5, arm_joint_5:37.8, arm_joint_6:-82.2
+[arm_cartesian_controller-5] [INFO] [1773578589.066490154] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.287, Z:0.678
+[arm_cartesian_controller-5] [INFO] [1773578589.129739904] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.287, Z=0.681 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773578589.132807969] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.287, Z:0.681
+[arm_cartesian_controller-5] [INFO] [1773578589.196230381] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.287, Z=0.684 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773578589.299849839] [arm_cartesian_controller]: IK Seed Joints: arm_joint_1:2.8, arm_joint_2:0.8, arm_joint_3:-38.0, arm_joint_4:6.6, arm_joint_5:37.0, arm_joint_6:-82.2
+[arm_cartesian_controller-5] [INFO] [1773578589.330477781] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.286, Z:0.681
+[arm_cartesian_controller-5] [INFO] [1773578589.396328447] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.286, Z=0.684 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773578589.399123066] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.286, Z:0.684
+[arm_cartesian_controller-5] [INFO] [1773578589.463890416] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.286, Z=0.687 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773578589.466915459] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.286, Z:0.687
+[arm_cartesian_controller-5] [INFO] [1773578589.529558315] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.286, Z=0.690 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773578589.532731592] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.286, Z:0.690
+[arm_cartesian_controller-5] [INFO] [1773578589.596303956] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.286, Z=0.693 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773578589.633457989] [arm_cartesian_controller]: IK Seed Joints: arm_joint_1:2.8, arm_joint_2:1.7, arm_joint_3:-41.0, arm_joint_4:6.6, arm_joint_5:36.1, arm_joint_6:-82.2
+[arm_cartesian_controller-5] [INFO] [1773578589.664087182] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.287, Z:0.690
+[arm_cartesian_controller-5] [INFO] [1773578589.729648880] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.287, Z=0.693 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773578589.732715226] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.287, Z:0.693
+[arm_cartesian_controller-5] [INFO] [1773578589.796332540] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.287, Z=0.696 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773578589.799132368] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.287, Z:0.696
+[arm_cartesian_controller-5] [INFO] [1773578589.862946979] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.287, Z=0.699 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773578589.865710764] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.286, Z:0.698
+[arm_cartesian_controller-5] [INFO] [1773578589.886125990] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.286, Z=0.701 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773578589.889441198] [arm_cartesian_controller]: IK Seed Joints: arm_joint_1:2.8, arm_joint_2:2.5, arm_joint_3:-43.3, arm_joint_4:6.6, arm_joint_5:35.4, arm_joint_6:-82.2
+[arm_cartesian_controller-5] [INFO] [1773578589.997296778] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.286, Z:0.701
+[arm_cartesian_controller-5] [INFO] [1773578590.063107442] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.286, Z=0.704 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773578590.066196394] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.286, Z:0.704
+[arm_cartesian_controller-5] [INFO] [1773578590.129799592] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.286, Z=0.707 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773578590.184775072] [arm_cartesian_controller]: IK Seed Joints: arm_joint_1:2.8, arm_joint_2:3.4, arm_joint_3:-46.0, arm_joint_4:6.6, arm_joint_5:34.5, arm_joint_6:-82.2
+[arm_cartesian_controller-5] [INFO] [1773578590.196441168] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.286, Z:0.707
+[arm_cartesian_controller-5] [INFO] [1773578590.265496778] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.286, Z=0.710 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773578590.268128110] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.286, Z:0.710
+[arm_cartesian_controller-5] [WARN] [1773578590.274033661] [arm_cartesian_controller]: IK FAILED (Error -31) at Tgt(X:0.140, Y:0.286, Z:0.710)
+[arm_cartesian_controller-5] [INFO] [1773578592.134028681] [arm_cartesian_controller]: Joystick Idle -> Sending STOP (BM0)
+[teensy_serial_bridge-3] [INFO] [1773578592.136754131] [teensy_serial_bridge]: Blending DISABLED (Programmed Mode: Every point will be executed)
+[teensy_serial_bridge-3] [INFO] [1773578592.140706495] [teensy_serial_bridge]: Priority STOP received: Clearing all queues and resetting flow control.
+[arm_cartesian_controller-5] [INFO] [1773578594.233179089] [arm_cartesian_controller]: SYNC: TF Pose -> X=0.140, Y=0.286, Z=0.706
+[arm_cartesian_controller-5] [INFO] [1773578594.682497493] [arm_cartesian_controller]: Starting Move -> Initial Priming (BM1)
+[arm_cartesian_controller-5] [INFO] [1773578594.685196849] [arm_cartesian_controller]: SYNC: TF Pose -> X=0.140, Y=0.286, Z=0.706
+[arm_cartesian_controller-5] [INFO] [1773578594.687617082] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.286, Z=0.703 (Step: 0.003)
+[teensy_serial_bridge-3] [INFO] [1773578594.688788837] [teensy_serial_bridge]: Blending ENABLED (Joystick Mode: Latency prioritized, points may be skipped)
+[arm_cartesian_controller-5] [INFO] [1773578594.690558372] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.286, Z:0.703
+[arm_cartesian_controller-5] [INFO] [1773578594.692917457] [arm_cartesian_controller]: IK Seed Joints: arm_joint_1:2.8, arm_joint_2:7.6, arm_joint_3:-57.6, arm_joint_4:6.7, arm_joint_5:30.5, arm_joint_6:-82.2
+[arm_cartesian_controller-5] [INFO] [1773578594.695655980] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.286, Z=0.700 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773578594.698522112] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.286, Z:0.700
+[arm_cartesian_controller-5] [INFO] [1773578594.701810809] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.286, Z=0.697 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773578594.704555010] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.286, Z:0.697
+[arm_cartesian_controller-5] [WARN] [1773578594.714515636] [arm_cartesian_controller]: IK FAILED (Error -31) at Tgt(X:0.140, Y:0.286, Z:0.697)
+[arm_cartesian_controller-5] [WARN] [1773578594.718757592] [arm_cartesian_controller]: IK FAILED (Error -31) at Tgt(X:0.140, Y:0.286, Z:0.697)
+[arm_cartesian_controller-5] [INFO] [1773578599.782206038] [arm_cartesian_controller]: Joystick Idle -> Sending STOP (BM0)
+[teensy_serial_bridge-3] [INFO] [1773578599.785328115] [teensy_serial_bridge]: Blending DISABLED (Programmed Mode: Every point will be executed)
+[teensy_serial_bridge-3] [INFO] [1773578599.788368471] [teensy_serial_bridge]: Priority STOP received: Clearing all queues and resetting flow control.
+[arm_cartesian_controller-5] [INFO] [1773578604.983086982] [arm_cartesian_controller]: SYNC: TF Pose -> X=0.140, Y=0.287, Z=0.704
+
+
+[13:43:07.161] TX: XJA2.7030B-3.8859C-19.5780D6.3968E42.0138F-82.1840Sp20.00Ac10.00Dc10.00Rm10.00
+[13:43:07.164] TX: XJA2.7041B-3.7069C-20.4724D6.4049E41.7900F-82.1840Sp20.00Ac10.00Dc10.00Rm10.00
+[13:43:07.167] TX: XJA2.7064B-3.5958C-21.1737D6.4115E41.6162F-82.1840Sp20.00Ac10.00Dc10.00Rm10.00
+[13:43:07.235] RX: A2.711B-3.892C-19.578D6.403E42.020F-82.184G
+[13:43:07.236] TX: XJA2.7076B-3.3152C-22.1955D6.4205E41.3509F-82.1840Sp20.00Ac10.00Dc10.00Rm10.00
+[13:43:07.334] RX: A2.711B-3.713C-20.475D6.415E41.788F-82.184G
+[13:43:07.335] TX: XJA2.7112B-2.9439C-23.9417D6.4360E40.9017F-82.1840Sp20.00Ac10.00Dc10.00Rm10.00
+[13:43:07.410] RX: A2.711B-3.596C-21.175D6.415E41.603F-82.184G
+[13:43:07.412] TX: XJA2.7181B-2.4223C-26.3686D6.4575E40.2670F-82.1840Sp20.00Ac10.00Dc10.00Rm10.00
+[13:43:07.523] RX: A2.711B-3.318C-22.197D6.426E41.348F-82.184G
+[13:43:07.525] TX: XJA2.7226B-1.9895C-28.1772D6.4730E39.7825F-82.1840Sp20.00Ac10.00Dc10.00Rm10.00
+[13:43:07.718] RX: A2.711B-2.951C-23.937D6.438E40.908F-82.184G
+[13:43:07.719] TX: XJA2.7301B-1.2282C-30.9755D6.4964E39.0121F-82.1840Sp20.00Ac10.00Dc10.00Rm10.00
+[13:43:07.995] RX: A2.722B-2.430C-26.368D6.461E40.259F-82.184G
+[13:43:07.996] TX: XJA2.7356B-0.6250C-33.1092D6.5138E38.4110F-82.1840Sp20.00Ac10.00Dc10.00Rm10.00
+[13:43:08.191] RX: A2.722B-1.991C-28.179D6.473E39.772F-82.184G
+[13:43:08.193] TX: XJA2.7413B-0.1062C-35.0520D6.5294E37.8575F-82.1840Sp20.00Ac10.00Dc10.00Rm10.00
+[13:43:08.504] RX: A2.734B-1.229C-30.978D6.507E39.007F-82.184G
+[13:43:08.506] TX: XJA2.7506B0.8081C-38.0331D6.5524E36.9808F-82.1840Sp20.00Ac10.00Dc10.00Rm10.00
+[13:43:08.744] RX: A2.734B-0.628C-33.112D6.519E38.404F-82.184G
+[13:43:08.745] TX: XJA2.7611B1.6892C-41.0280D6.5749E36.0808F-82.1840Sp20.00Ac10.00Dc10.00Rm10.00
+[13:43:08.957] RX: A2.745B-0.108C-35.049D6.531E37.848F-82.184G
+[13:43:08.959] TX: XJA2.7706B2.4696C-43.2817D6.5911E35.3778F-82.1840Sp20.00Ac10.00Dc10.00Rm10.00
+[13:43:09.293] RX: A2.756B0.807C-38.036D6.554E36.968F-82.184G
+[13:43:09.294] TX: XJA2.7802B3.3649C-45.9672D6.6097E34.5246F-82.1840Sp20.00Ac10.00Dc10.00Rm10.00
+[13:43:09.627] RX: A2.767B1.686C-41.031D6.577E36.087F-82.184G
+[13:43:09.628] TX: XJA2.7957B4.6501C-49.5855D6.6334E33.3329F-82.1840Sp20.00Ac10.00Dc10.00Rm10.00
+[13:43:09.881] RX: A2.779B2.466C-43.283D6.600E35.368F-82.184G
+[13:43:09.882] TX: XJA2.8116B5.9013C-53.2751D6.6561E32.0783F-82.1840Sp20.00Ac10.00Dc10.00Rm10.00
+[13:43:10.178] RX: A2.779B3.363C-45.964D6.612E34.534F-82.184G
+[13:43:10.179] TX: XJA2.8257B7.1497C-56.3217D6.6730E30.9829F-82.1840Sp20.00Ac10.00Dc10.00Rm10.00
+[13:43:10.582] RX: A2.801B4.646C-49.587D6.635E33.329F-82.184G
+[13:43:10.584] TX: XJA2.8348B7.6113C-57.5974D6.6801E30.5187F-82.1840Sp20.00Ac10.00Dc10.00Rm10.00
+[13:43:10.991] RX: A2.812B5.892C-53.274D6.658E32.077F-82.184G
+[13:43:11.333] RX: A2.824B7.148C-56.323D6.681E30.988F-82.184G
+[13:43:11.477] RX: A2.835B7.605C-57.596D6.681E30.524F-82.184G
+[13:43:12.136] TX: BM0
+[13:43:12.140] RX: BLENDING:OFF
+[13:43:12.140] TX: ST
+[13:43:12.145] RX: STOPPED
+[13:43:14.688] TX: BM1
+[13:43:14.692] RX: BLENDING:ON
+[13:43:14.709] TX: XJA2.8287B7.2315C-56.4846D6.6750E30.9269F-82.1840Sp20.00Ac10.00Dc10.00Rm10.00
+[13:43:14.839] RX: A2.835B7.229C-56.484D6.681E30.918F-82.184G
+[13:43:19.785] TX: BM0
+[13:43:19.788] TX: ST
+[13:43:19.790] RX: BLENDING:OFF
+[13:43:19.796] RX: STOPPED
+
