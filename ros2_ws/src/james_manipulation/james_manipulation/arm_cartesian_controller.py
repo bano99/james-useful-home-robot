@@ -90,6 +90,7 @@ class ArmCartesianController(Node):
         self.blending_active = False
         self.log_throttle_map = {}
         self.dynamic_sp = 25.0 # Default speed
+        self._ik_in_flight = False
         
         # Leash and step parameters
         self.atomic_step_size = 0.003 # 3mm per Beefy segment
@@ -314,7 +315,7 @@ class ArmCartesianController(Node):
              pass # Use last successful target if TF is slow
 
         # [V20] CLOSED-LOOP TRIGGER: Pulse production on every feedback
-        if self.is_active and self.blending_active and self.ik_success:
+        if self.is_active and self.blending_active and self.ik_success and not self._ik_in_flight:
              self.produce_next_segment()
 
     def sync_pose_to_actual(self, loud=False, throttle=0.0):
@@ -429,7 +430,7 @@ class ArmCartesianController(Node):
  
     def produce_next_segment(self):
         """Closed-loop Producer: Generates one 'Atomic Beef' segment (V20)"""
-        if not self.is_active:
+        if not self.is_active or self._ik_in_flight:
              return
 
         # [Direct Joint Control Integration]
@@ -606,15 +607,22 @@ class ArmCartesianController(Node):
                 constraints.joint_constraints.append(jc)
         req.ik_request.constraints = constraints
         
-        # [Telemetry] Log seed state
+        # [Telemetry] Log seed state and precise constraints
         if self.current_joint_state:
             js = ", ".join([f"{n}:{math.degrees(p):.1f}" for n, p in zip(self.current_joint_state.name, self.current_joint_state.position)])
             self.log(f"IK Seed Joints: {js}", throttle=1.0)
+            
+        # [JAMES:DEBUG] Print exact constraints being sent
+        if constraints.joint_constraints:
+            cstr_str = " | ".join([f"{c.joint_name}: {math.degrees(c.position):.2f}° ±{math.degrees(c.tolerance_above):.2f}°" for c in constraints.joint_constraints])
+            self.get_logger().info(f"IK Constraints: {cstr_str}")
 
+        self._ik_in_flight = True
         future = self.ik_client.call_async(req)
         future.add_done_callback(self.ik_callback)
 
     def ik_callback(self, future):
+        self._ik_in_flight = False
         try:
             response = future.result()
             if response.error_code.val == response.error_code.SUCCESS:
