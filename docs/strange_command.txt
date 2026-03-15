@@ -1,0 +1,150 @@
+[arm_cartesian_controller-5] [INFO] [1773579304.135481372] [arm_cartesian_controller]: SYNC: TF Pose -> X=0.139, Y=0.290, Z=0.655
+[arm_cartesian_controller-5] [INFO] [1773579304.384837982] [arm_cartesian_controller]: Starting Move -> Initial Priming (BM1)
+[arm_cartesian_controller-5] [INFO] [1773579304.387592858] [arm_cartesian_controller]: SYNC: TF Pose -> X=0.139, Y=0.290, Z=0.655
+[arm_cartesian_controller-5] [INFO] [1773579304.390165123] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.139, Y=0.290, Z=0.652 (Step: 0.003)
+[teensy_serial_bridge-3] [INFO] [1773579304.390368358] [teensy_serial_bridge]: Blending ENABLED (Joystick Mode: Latency prioritized, points may be skipped)
+[arm_cartesian_controller-5] [INFO] [1773579304.392962239] [arm_cartesian_controller]: Target Pose: X:0.139, Y:0.290, Z:0.652
+[arm_cartesian_controller-5] [INFO] [1773579304.395320904] [arm_cartesian_controller]: IK Seed Joints: arm_joint_1:2.9, arm_joint_2:1.0, arm_joint_3:-37.1, arm_joint_4:6.7, arm_joint_5:37.2, arm_joint_6:-82.2
+[arm_cartesian_controller-5] [INFO] [1773579304.398010256] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.139, Y=0.290, Z=0.649 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773579304.400710703] [arm_cartesian_controller]: Target Pose: X:0.139, Y:0.290, Z:0.649
+[arm_cartesian_controller-5] [INFO] [1773579304.403856475] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.139, Y=0.290, Z=0.646 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773579304.406559838] [arm_cartesian_controller]: Target Pose: X:0.139, Y:0.290, Z:0.646
+[arm_cartesian_controller-5] [INFO] [1773579304.415992155] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.139, Y=0.290, Z=0.643 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773579304.418817136] [arm_cartesian_controller]: Target Pose: X:0.139, Y:0.290, Z:0.643
+[arm_cartesian_controller-5] [WARN] [1773579304.427954704] [arm_cartesian_controller]: IK FAILED (Error -31) at Tgt(X:0.139, Y:0.290, Z:0.643)
+[arm_cartesian_controller-5] [WARN] [1773579304.432161863] [arm_cartesian_controller]: IK FAILED (Error -31) at Tgt(X:0.139, Y:0.290, Z:0.643)
+[arm_cartesian_controller-5] [INFO] [1773579304.984809892] [arm_cartesian_controller]: Joystick Idle -> Sending STOP (BM0)
+[teensy_serial_bridge-3] [INFO] [1773579304.987908892] [teensy_serial_bridge]: Blending DISABLED (Programmed Mode: Every point will be executed)
+[teensy_serial_bridge-3] [INFO] [1773579304.991202273] [teensy_serial_bridge]: Priority STOP received: Clearing all queues and resetting flow control.
+
+
+
+
+
+
+
+
+
+[arm_cartesian_controller-5] [INFO] [1773579314.435400152] [arm_cartesian_controller]: SYNC: TF Pose -> X=0.139, Y=0.291, Z=0.649
+[arm_cartesian_controller-5] [INFO] [1773579315.084477728] [arm_cartesian_controller]: Starting Move -> Initial Priming (BM1)
+[arm_cartesian_controller-5] [INFO] [1773579315.086824361] [arm_cartesian_controller]: SYNC: TF Pose -> X=0.139, Y=0.291, Z=0.649
+[teensy_serial_bridge-3] [INFO] [1773579315.089759919] [teensy_serial_bridge]: Blending ENABLED (Joystick Mode: Latency prioritized, points may be skipped)
+[arm_cartesian_controller-5] [INFO] [1773579315.184831965] [arm_cartesian_controller]: Joystick Idle -> Sending STOP (BM0)
+[teensy_serial_bridge-3] [INFO] [1773579315.189211577] [teensy_serial_bridge]: Blending DISABLED (Programmed Mode: Every point will be executed)
+[teensy_serial_bridge-3] [INFO] [1773579315.192134635] [teensy_serial_bridge]: Priority STOP received: Clearing all queues and resetting flow control.
+[arm_cartesian_controller-5] [INFO] [1773579324.435411034] [arm_cartesian_controller]: SYNC: TF Pose -> X=0.139, Y=0.291, Z=0.649
+[arm_cartesian_controller-5] [INFO] [1773579334.735481462] [arm_cartesian_controller]: SYNC: TF Pose -> X=0.139, Y=0.291, Z=0.649
+[arm_cartesian_controller-5] [INFO] [1773579345.035427808] [arm_cartesian_controller]: SYNC: TF Pose -> X=0.139, Y=0.291, Z=0.649
+[arm_cartesian_controller-5] [INFO] [1773579355.335411117] [arm_cartesian_controller]: SYNC: TF Pose -> X=0.139, Y=0.291, Z=0.649
+[arm_cartesian_controller-5] [INFO] [1773579365.635422529] [arm_cartesian_controller]: SYNC: TF Pose -> X=0.139, Y=0.291, Z=0.649
+[arm_cartesian_controller-5] [INFO] [1773579375.084560448] [arm_cartesian_controller]: Starting Move -> Initial Priming (BM1)
+[arm_cartesian_controller-5] [INFO] [1773579375.086962760] [arm_cartesian_controller]: SYNC: TF Pose -> X=0.139, Y=0.291, Z=0.649
+[teensy_serial_bridge-3] [INFO] [1773579375.089722636] [teensy_serial_bridge]: Blending ENABLED (Joystick Mode: Latency prioritized, points may be skipped)
+[arm_cartesian_controller-5] [INFO] [1773579375.234904601] [arm_cartesian_controller]: Joystick Idle -> Sending STOP (BM0)
+[teensy_serial_bridge-3] [INFO] [1773579375.239232857] [teensy_serial_bridge]: Blending DISABLED (Programmed Mode: Every point will be executed)
+[teensy_serial_bridge-3] [INFO] [1773579375.243684191] [teensy_serial_bridge]: Priority STOP received: Clearing all queues and resetting flow control.
+[arm_cartesian_controller-5] [INFO] [1773579376.135475933] [arm_cartesian_controller]: SYNC: TF Pose -> X=0.136, Y=0.290, Z=0.650
+[arm_cartesian_controller-5] [INFO] [1773579386.485066718] [arm_cartesian_controller]: SYNC: TF Pose -> X=0.136, Y=0.290, Z=0.650
+[arm_cartesian_controller-5] [INFO] [1773579390.134847371] [arm_cartesian_controller]: Starting Move -> Initial Priming (BM1)
+[arm_cartesian_controller-5] [INFO] [1773579390.137467086] [arm_cartesian_controller]: SYNC: TF Pose -> X=0.136, Y=0.290, Z=0.650
+[teensy_serial_bridge-3] [INFO] [1773579390.140409624] [teensy_serial_bridge]: Blending ENABLED (Joystick Mode: Latency prioritized, points may be skipped)
+[arm_cartesian_controller-5] [INFO] [1773579390.284598698] [arm_cartesian_controller]: Joystick Idle -> Sending STOP (BM0)
+[teensy_serial_bridge-3] [INFO] [1773579390.287222267] [teensy_serial_bridge]: Blending DISABLED (Programmed Mode: Every point will be executed)
+[teensy_serial_bridge-3] [INFO] [1773579390.291367393] [teensy_serial_bridge]: Priority STOP received: Clearing all queues and resetting flow control.
+
+
+[13:55:04.649] RX: A2.891B0.834C-36.251D6.739E37.385F-82.184G
+[13:55:04.938] RX: A2.891B0.511C-35.202D6.728E37.709F-82.184G
+[13:55:04.988] TX: BM0
+[13:55:04.991] TX: ST
+[13:55:04.993] RX: BLENDING:OFF
+[13:55:04.998] RX: STOPPED
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[13:55:15.089] TX: BM1
+[13:55:15.091] TX: XJA2.8910B0.5110C-35.2020D59.6693E128.1991F-82.1840Sp1554.99Ac10.00Dc10.00Rm10.00
+[13:55:15.092] TX: XJA2.8910B0.5110C-35.2020D112.6106E-141.3108F-82.1840Sp1554.99Ac10.00Dc10.00Rm10.00
+[13:55:15.093] TX: XJA2.8910B0.5110C-35.2020D165.5519E-50.8207F-82.1840Sp1554.99Ac10.00Dc10.00Rm10.00
+[13:55:15.095] RX: BLENDING:ON
+[13:55:15.101] RX: XJ_LIMIT:000010
+[13:55:15.107] RX: XJ_LIMIT:000010
+[13:55:15.116] RX: J4_DEBUG: StepM=15752 Angle=165.5519 TargetSteps=29445 StepDif=-13693 Dir=1 StepLim=26380 AxisLimNeg=176.00
+[13:55:15.123] RX: J4_PARSE: J4start=23 DcStart=66 substr='D165.5519E-50.8' cmdLen=80
+[13:55:15.129] RX: XJ_LIMIT:000100
+[13:55:15.189] TX: BM0
+[13:55:15.192] TX: ST
+[13:55:15.194] RX: BLENDING:OFF
+[13:55:15.199] RX: STOPPED
+
+[13:56:15.089] TX: BM1
+[13:56:15.091] TX: XJA2.8910B0.5110C-35.2020D83.7765E37.7090F-82.1840Sp729.45Ac10.00Dc10.00Rm10.00
+[13:56:15.093] RX: BLENDING:ON
+[13:56:15.093] TX: XJA2.8910B0.5110C-35.2020D160.8250E37.7090F-82.1840Sp729.45Ac10.00Dc10.00Rm10.00
+[13:56:15.094] TX: XJA2.8910B0.5110C-35.2020D-122.1265E37.7090F-82.1840Sp729.45Ac10.00Dc10.00Rm10.00
+[13:56:15.240] TX: BM0
+[13:56:15.243] TX: ST
+[13:56:15.245] RX: BLENDING:OFF
+[13:56:15.251] RX: STOPPED
+[13:56:15.257] RX: A2.891B0.511C-35.202D14.407E37.709F-82.184G
+[13:56:30.140] TX: BM1
+[13:56:30.142] TX: XJA2.8910B0.5110C-35.2020D121.6131E121.6158F-71.1273Sp1530.03Ac10.00Dc10.00Rm10.00
+[13:56:30.143] TX: XJA2.8910B0.5110C-35.2020D-131.1807E205.5226F-60.0707Sp1530.03Ac10.00Dc10.00Rm10.00
+[13:56:30.145] TX: XJA2.8910B0.5110C-35.2020D-23.9746E-70.5706F-49.0140Sp1530.03Ac10.00Dc10.00Rm10.00
+[13:56:30.146] RX: BLENDING:ON
+[13:56:30.152] RX: XJ_LIMIT:000010
+[13:56:30.158] RX: XJ_LIMIT:000010
+[13:56:30.287] TX: BM0
+[13:56:30.290] RX: BLENDING:OFF
+[13:56:30.291] TX: ST
+[13:56:30.295] RX: STOPPED
+[13:56:30.302] RX: A2.891B0.511C-35.202D9.790E24.707F-78.198G
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+[13:55:15.089] TX: BM1
+[13:55:15.091] TX: XJA2.8910B0.5110C-35.2020D59.6693E128.1991F-82.1840Sp1554.99Ac10.00Dc10.00Rm10.00
+[13:55:15.092] TX: XJA2.8910B0.5110C-35.2020D112.6106E-141.3108F-82.1840Sp1554.99Ac10.00Dc10.00Rm10.00
+[13:55:15.093] TX: XJA2.8910B0.5110C-35.2020D165.5519E-50.8207F-82.1840Sp1554.99Ac10.00Dc10.00Rm10.00
+[13:55:15.095] RX: BLENDING:ON
+[13:55:15.101] RX: XJ_LIMIT:000010
+[13:55:15.107] RX: XJ_LIMIT:000010
+[13:55:15.116] RX: J4_DEBUG: StepM=15752 Angle=165.5519 TargetSteps=29445 StepDif=-13693 Dir=1 StepLim=26380 AxisLimNeg=176.00
+[13:55:15.123] RX: J4_PARSE: J4start=23 DcStart=66 substr='D165.5519E-50.8' cmdLen=80
+[13:55:15.129] RX: XJ_LIMIT:000100
+[13:55:15.189] TX: BM0
+[13:55:15.192] TX: ST
+[13:55:15.194] RX: BLENDING:OFF
+[13:55:15.199] RX: STOPPED

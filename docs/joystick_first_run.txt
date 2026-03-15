@@ -1,0 +1,192 @@
+[arm_cartesian_controller-5] [INFO] [1773579161.333861466] [arm_cartesian_controller]: SYNC: TF Pose -> X=0.140, Y=0.289, Z=0.686
+[arm_cartesian_controller-5] [INFO] [1773579162.232341396] [arm_cartesian_controller]: Starting Move -> Initial Priming (BM1)
+[arm_cartesian_controller-5] [INFO] [1773579162.234856783] [arm_cartesian_controller]: SYNC: TF Pose -> X=0.140, Y=0.289, Z=0.686
+[arm_cartesian_controller-5] [INFO] [1773579162.237470716] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.289, Z=0.683 (Step: 0.003)
+[teensy_serial_bridge-3] [INFO] [1773579162.238070890] [teensy_serial_bridge]: Blending ENABLED (Joystick Mode: Latency prioritized, points may be skipped)
+[arm_cartesian_controller-5] [INFO] [1773579162.240303144] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.289, Z:0.683
+[arm_cartesian_controller-5] [INFO] [1773579162.242711081] [arm_cartesian_controller]: IK Seed Joints: arm_joint_1:2.8, arm_joint_2:4.7, arm_joint_3:-48.8, arm_joint_4:6.7, arm_joint_5:33.5, arm_joint_6:-82.2
+[arm_cartesian_controller-5] [INFO] [1773579162.245444809] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.289, Z=0.680 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773579162.248111555] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.289, Z:0.680
+[arm_cartesian_controller-5] [INFO] [1773579162.251367851] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.289, Z=0.677 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773579162.254071526] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.289, Z:0.677
+[arm_cartesian_controller-5] [WARN] [1773579162.262363805] [arm_cartesian_controller]: IK FAILED (Error -31) at Tgt(X:0.140, Y:0.289, Z:0.677)
+[arm_cartesian_controller-5] [WARN] [1773579162.269467924] [arm_cartesian_controller]: IK FAILED (Error -31) at Tgt(X:0.140, Y:0.289, Z:0.677)
+[arm_cartesian_controller-5] [INFO] [1773579163.782203287] [arm_cartesian_controller]: Joystick Idle -> Sending STOP (BM0)
+[teensy_serial_bridge-3] [INFO] [1773579163.785249732] [teensy_serial_bridge]: Blending DISABLED (Programmed Mode: Every point will be executed)
+[teensy_serial_bridge-3] [INFO] [1773579163.789146984] [teensy_serial_bridge]: Priority STOP received: Clearing all queues and resetting flow control.
+[arm_cartesian_controller-5] [INFO] [1773579164.782463251] [arm_cartesian_controller]: Starting Move -> Initial Priming (BM1)
+[arm_cartesian_controller-5] [INFO] [1773579164.785164477] [arm_cartesian_controller]: SYNC: TF Pose -> X=0.140, Y=0.289, Z=0.684
+[arm_cartesian_controller-5] [INFO] [1773579164.787468974] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.289, Z=0.681 (Step: 0.003)
+[teensy_serial_bridge-3] [INFO] [1773579164.787759555] [teensy_serial_bridge]: Blending ENABLED (Joystick Mode: Latency prioritized, points may be skipped)
+[arm_cartesian_controller-5] [INFO] [1773579164.790318173] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.289, Z:0.681
+[arm_cartesian_controller-5] [INFO] [1773579164.792804706] [arm_cartesian_controller]: IK Seed Joints: arm_joint_1:2.8, arm_joint_2:4.4, arm_joint_3:-47.9, arm_joint_4:6.7, arm_joint_5:33.9, arm_joint_6:-82.2
+[arm_cartesian_controller-5] [INFO] [1773579164.795544528] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.289, Z=0.678 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773579164.798243984] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.289, Z:0.678
+[arm_cartesian_controller-5] [INFO] [1773579164.801482154] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.289, Z=0.675 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773579164.804110618] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.289, Z:0.675
+[arm_cartesian_controller-5] [WARN] [1773579164.814722030] [arm_cartesian_controller]: IK FAILED (Error -31) at Tgt(X:0.140, Y:0.289, Z:0.675)
+[arm_cartesian_controller-5] [WARN] [1773579164.818866529] [arm_cartesian_controller]: IK FAILED (Error -31) at Tgt(X:0.140, Y:0.289, Z:0.675)
+[arm_cartesian_controller-5] [INFO] [1773579166.333621024] [arm_cartesian_controller]: Joystick Idle -> Sending STOP (BM0)
+[teensy_serial_bridge-3] [INFO] [1773579166.337229778] [teensy_serial_bridge]: Blending DISABLED (Programmed Mode: Every point will be executed)
+[teensy_serial_bridge-3] [INFO] [1773579166.340919785] [teensy_serial_bridge]: Priority STOP received: Clearing all queues and resetting flow control.
+[arm_cartesian_controller-5] [INFO] [1773579167.333476347] [arm_cartesian_controller]: Starting Move -> Initial Priming (BM1)
+[arm_cartesian_controller-5] [INFO] [1773579167.335719799] [arm_cartesian_controller]: SYNC: TF Pose -> X=0.140, Y=0.290, Z=0.682
+[arm_cartesian_controller-5] [INFO] [1773579167.338200915] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.290, Z=0.679 (Step: 0.003)
+[teensy_serial_bridge-3] [INFO] [1773579167.338593114] [teensy_serial_bridge]: Blending ENABLED (Joystick Mode: Latency prioritized, points may be skipped)
+[arm_cartesian_controller-5] [INFO] [1773579167.341235173] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.290, Z:0.679
+[arm_cartesian_controller-5] [INFO] [1773579167.343822229] [arm_cartesian_controller]: IK Seed Joints: arm_joint_1:2.8, arm_joint_2:4.2, arm_joint_3:-47.0, arm_joint_4:6.7, arm_joint_5:34.1, arm_joint_6:-82.2
+[arm_cartesian_controller-5] [INFO] [1773579167.346629814] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.290, Z=0.676 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773579167.349634487] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.290, Z:0.676
+[arm_cartesian_controller-5] [INFO] [1773579167.352809947] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.290, Z=0.673 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773579167.355526018] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.290, Z:0.673
+[arm_cartesian_controller-5] [WARN] [1773579167.364197163] [arm_cartesian_controller]: IK FAILED (Error -31) at Tgt(X:0.140, Y:0.290, Z:0.673)
+[arm_cartesian_controller-5] [WARN] [1773579167.368535939] [arm_cartesian_controller]: IK FAILED (Error -31) at Tgt(X:0.140, Y:0.290, Z:0.673)
+[arm_cartesian_controller-5] [INFO] [1773579168.882496878] [arm_cartesian_controller]: Joystick Idle -> Sending STOP (BM0)
+[teensy_serial_bridge-3] [INFO] [1773579168.885405090] [teensy_serial_bridge]: Blending DISABLED (Programmed Mode: Every point will be executed)
+[teensy_serial_bridge-3] [INFO] [1773579168.889266716] [teensy_serial_bridge]: Priority STOP received: Clearing all queues and resetting flow control.
+[arm_cartesian_controller-5] [INFO] [1773579169.882463668] [arm_cartesian_controller]: Starting Move -> Initial Priming (BM1)
+[arm_cartesian_controller-5] [INFO] [1773579169.885162968] [arm_cartesian_controller]: SYNC: TF Pose -> X=0.140, Y=0.290, Z=0.679
+[arm_cartesian_controller-5] [INFO] [1773579169.887459547] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.290, Z=0.676 (Step: 0.003)
+[teensy_serial_bridge-3] [INFO] [1773579169.887761691] [teensy_serial_bridge]: Blending ENABLED (Joystick Mode: Latency prioritized, points may be skipped)
+[arm_cartesian_controller-5] [INFO] [1773579169.890378384] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.290, Z:0.676
+[arm_cartesian_controller-5] [INFO] [1773579169.892710225] [arm_cartesian_controller]: IK Seed Joints: arm_joint_1:2.8, arm_joint_2:3.9, arm_joint_3:-46.1, arm_joint_4:6.7, arm_joint_5:34.4, arm_joint_6:-82.2
+[arm_cartesian_controller-5] [INFO] [1773579169.895393899] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.290, Z=0.673 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773579169.898082209] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.290, Z:0.673
+[arm_cartesian_controller-5] [INFO] [1773579169.901219178] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.290, Z=0.670 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773579169.903867435] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.290, Z:0.670
+[arm_cartesian_controller-5] [WARN] [1773579169.911844340] [arm_cartesian_controller]: IK FAILED (Error -31) at Tgt(X:0.140, Y:0.290, Z:0.670)
+[arm_cartesian_controller-5] [WARN] [1773579169.915974620] [arm_cartesian_controller]: IK FAILED (Error -31) at Tgt(X:0.140, Y:0.290, Z:0.670)
+[arm_cartesian_controller-5] [INFO] [1773579171.432376580] [arm_cartesian_controller]: Joystick Idle -> Sending STOP (BM0)
+[arm_cartesian_controller-5] [INFO] [1773579171.435074526] [arm_cartesian_controller]: SYNC: TF Pose -> X=0.140, Y=0.291, Z=0.677
+[teensy_serial_bridge-3] [INFO] [1773579171.437476681] [teensy_serial_bridge]: Blending DISABLED (Programmed Mode: Every point will be executed)
+[teensy_serial_bridge-3] [INFO] [1773579171.441456852] [teensy_serial_bridge]: Priority STOP received: Clearing all queues and resetting flow control.
+[arm_cartesian_controller-5] [INFO] [1773579174.432319271] [arm_cartesian_controller]: Starting Move -> Initial Priming (BM1)
+[arm_cartesian_controller-5] [INFO] [1773579174.434968621] [arm_cartesian_controller]: SYNC: TF Pose -> X=0.140, Y=0.291, Z=0.677
+[arm_cartesian_controller-5] [INFO] [1773579174.437587293] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.291, Z=0.680 (Step: 0.003)
+[teensy_serial_bridge-3] [INFO] [1773579174.437799123] [teensy_serial_bridge]: Blending ENABLED (Joystick Mode: Latency prioritized, points may be skipped)
+[arm_cartesian_controller-5] [INFO] [1773579174.440638218] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.291, Z:0.680
+[arm_cartesian_controller-5] [INFO] [1773579174.443031675] [arm_cartesian_controller]: IK Seed Joints: arm_joint_1:2.8, arm_joint_2:3.7, arm_joint_3:-45.3, arm_joint_4:6.7, arm_joint_5:34.7, arm_joint_6:-82.2
+[arm_cartesian_controller-5] [INFO] [1773579174.445870198] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.291, Z=0.683 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773579174.448578352] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.291, Z:0.683
+[arm_cartesian_controller-5] [INFO] [1773579174.451934807] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.291, Z=0.686 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773579174.454709473] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.291, Z:0.686
+[arm_cartesian_controller-5] [WARN] [1773579174.463228896] [arm_cartesian_controller]: IK FAILED (Error -31) at Tgt(X:0.140, Y:0.291, Z:0.686)
+[arm_cartesian_controller-5] [WARN] [1773579174.470965950] [arm_cartesian_controller]: IK FAILED (Error -31) at Tgt(X:0.140, Y:0.291, Z:0.686)
+[arm_cartesian_controller-5] [INFO] [1773579175.982435227] [arm_cartesian_controller]: Joystick Idle -> Sending STOP (BM0)
+[teensy_serial_bridge-3] [INFO] [1773579175.985595426] [teensy_serial_bridge]: Blending DISABLED (Programmed Mode: Every point will be executed)
+[teensy_serial_bridge-3] [INFO] [1773579175.988811304] [teensy_serial_bridge]: Priority STOP received: Clearing all queues and resetting flow control.
+[arm_cartesian_controller-5] [INFO] [1773579176.982437036] [arm_cartesian_controller]: Starting Move -> Initial Priming (BM1)
+[arm_cartesian_controller-5] [INFO] [1773579176.985140346] [arm_cartesian_controller]: SYNC: TF Pose -> X=0.140, Y=0.290, Z=0.680
+[arm_cartesian_controller-5] [INFO] [1773579176.987440936] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.290, Z=0.683 (Step: 0.003)
+[teensy_serial_bridge-3] [INFO] [1773579176.987684485] [teensy_serial_bridge]: Blending ENABLED (Joystick Mode: Latency prioritized, points may be skipped)
+[arm_cartesian_controller-5] [INFO] [1773579176.990353940] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.290, Z:0.683
+[arm_cartesian_controller-5] [INFO] [1773579176.992787503] [arm_cartesian_controller]: IK Seed Joints: arm_joint_1:2.8, arm_joint_2:3.9, arm_joint_3:-46.2, arm_joint_4:6.7, arm_joint_5:34.4, arm_joint_6:-82.2
+[arm_cartesian_controller-5] [INFO] [1773579176.995526856] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.290, Z=0.686 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773579176.998271886] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.290, Z:0.686
+[arm_cartesian_controller-5] [INFO] [1773579177.001461461] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.290, Z=0.689 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773579177.004100967] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.290, Z:0.689
+[arm_cartesian_controller-5] [WARN] [1773579177.014778162] [arm_cartesian_controller]: IK FAILED (Error -31) at Tgt(X:0.140, Y:0.290, Z:0.689)
+[arm_cartesian_controller-5] [WARN] [1773579177.018962246] [arm_cartesian_controller]: IK FAILED (Error -31) at Tgt(X:0.140, Y:0.290, Z:0.689)
+[arm_cartesian_controller-5] [INFO] [1773579178.482159356] [arm_cartesian_controller]: Joystick Idle -> Sending STOP (BM0)
+[teensy_serial_bridge-3] [INFO] [1773579178.485830351] [teensy_serial_bridge]: Blending DISABLED (Programmed Mode: Every point will be executed)
+[teensy_serial_bridge-3] [INFO] [1773579178.489819169] [teensy_serial_bridge]: Priority STOP received: Clearing all queues and resetting flow control.
+[arm_cartesian_controller-5] [INFO] [1773579179.534143095] [arm_cartesian_controller]: Starting Move -> Initial Priming (BM1)
+[arm_cartesian_controller-5] [INFO] [1773579179.536392173] [arm_cartesian_controller]: SYNC: TF Pose -> X=0.140, Y=0.289, Z=0.683
+[arm_cartesian_controller-5] [INFO] [1773579179.538778286] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.289, Z=0.686 (Step: 0.003)
+[teensy_serial_bridge-3] [INFO] [1773579179.539201216] [teensy_serial_bridge]: Blending ENABLED (Joystick Mode: Latency prioritized, points may be skipped)
+[arm_cartesian_controller-5] [INFO] [1773579179.543010861] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.289, Z:0.686
+[arm_cartesian_controller-5] [INFO] [1773579179.545693858] [arm_cartesian_controller]: IK Seed Joints: arm_joint_1:2.9, arm_joint_2:4.2, arm_joint_3:-47.3, arm_joint_4:6.7, arm_joint_5:34.1, arm_joint_6:-82.2
+[arm_cartesian_controller-5] [INFO] [1773579179.548445399] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.289, Z=0.689 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773579179.551396425] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.289, Z:0.689
+[arm_cartesian_controller-5] [INFO] [1773579179.554694649] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.289, Z=0.692 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773579179.557429991] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.289, Z:0.692
+[arm_cartesian_controller-5] [WARN] [1773579179.565706802] [arm_cartesian_controller]: IK FAILED (Error -31) at Tgt(X:0.140, Y:0.289, Z:0.692)
+[arm_cartesian_controller-5] [WARN] [1773579179.570074277] [arm_cartesian_controller]: IK FAILED (Error -31) at Tgt(X:0.140, Y:0.289, Z:0.692)
+[arm_cartesian_controller-5] [INFO] [1773579181.032381004] [arm_cartesian_controller]: Joystick Idle -> Sending STOP (BM0)
+[teensy_serial_bridge-3] [INFO] [1773579181.035023948] [teensy_serial_bridge]: Blending DISABLED (Programmed Mode: Every point will be executed)
+[teensy_serial_bridge-3] [INFO] [1773579181.039345380] [teensy_serial_bridge]: Priority STOP received: Clearing all queues and resetting flow control.
+[arm_cartesian_controller-5] [INFO] [1773579182.032141412] [arm_cartesian_controller]: Starting Move -> Initial Priming (BM1)
+[arm_cartesian_controller-5] [INFO] [1773579182.034559402] [arm_cartesian_controller]: SYNC: TF Pose -> X=0.140, Y=0.289, Z=0.685
+[arm_cartesian_controller-5] [INFO] [1773579182.036932442] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.289, Z=0.688 (Step: 0.003)
+[teensy_serial_bridge-3] [INFO] [1773579182.037383809] [teensy_serial_bridge]: Blending ENABLED (Joystick Mode: Latency prioritized, points may be skipped)
+[arm_cartesian_controller-5] [INFO] [1773579182.039768100] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.289, Z:0.688
+[arm_cartesian_controller-5] [INFO] [1773579182.042194995] [arm_cartesian_controller]: IK Seed Joints: arm_joint_1:2.9, arm_joint_2:4.4, arm_joint_3:-48.1, arm_joint_4:6.7, arm_joint_5:33.8, arm_joint_6:-82.2
+[arm_cartesian_controller-5] [INFO] [1773579182.044850596] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.289, Z=0.691 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773579182.047541718] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.289, Z:0.691
+[arm_cartesian_controller-5] [INFO] [1773579182.050716136] [arm_cartesian_controller]: JOY -> Pushing Target: X=0.140, Y=0.289, Z=0.694 (Step: 0.003)
+[arm_cartesian_controller-5] [INFO] [1773579182.053416738] [arm_cartesian_controller]: Target Pose: X:0.140, Y:0.289, Z:0.694
+[arm_cartesian_controller-5] [WARN] [1773579182.061613547] [arm_cartesian_controller]: IK FAILED (Error -31) at Tgt(X:0.140, Y:0.289, Z:0.694)
+[arm_cartesian_controller-5] [WARN] [1773579182.068574537] [arm_cartesian_controller]: IK FAILED (Error -31) at Tgt(X:0.140, Y:0.289, Z:0.694)
+[arm_cartesian_controller-5] [INFO] [1773579183.582497197] [arm_cartesian_controller]: Joystick Idle -> Sending STOP (BM0)
+[arm_cartesian_controller-5] [INFO] [1773579183.585314469] [arm_cartesian_controller]: SYNC: TF Pose -> X=0.140, Y=0.288, Z=0.687
+[teensy_serial_bridge-3] [INFO] [1773579183.585436869] [teensy_serial_bridge]: Blending DISABLED (Programmed Mode: Every point will be executed)
+[teensy_serial_bridge-3] [INFO] [1773579183.588372009] [teensy_serial_bridge]: Priority STOP received: Clearing all queues and resetting flow control.
+
+
+[13:52:42.238] TX: BM1
+[13:52:42.242] RX: BLENDING:ON
+[13:52:42.259] TX: XJA2.8301B4.4111C-47.8723D6.6746E33.8525F-82.1840Sp20.00Ac10.00Dc10.00Rm10.00
+[13:52:42.370] RX: A2.835B4.404C-47.874D6.681E33.862F-82.184G
+[13:52:43.785] TX: BM0
+[13:52:43.787] RX: BLENDING:OFF
+[13:52:43.789] TX: ST
+[13:52:43.793] RX: STOPPED
+[13:52:44.787] TX: BM1
+[13:52:44.790] RX: BLENDING:ON
+[13:52:44.811] TX: XJA2.8304B4.1634C-47.0407D6.6753E34.1308F-82.1840Sp20.00Ac10.00Dc10.00Rm10.00
+[13:52:44.908] RX: A2.835B4.161C-47.040D6.681E34.140F-82.184G
+[13:52:46.337] TX: BM0
+[13:52:46.340] RX: BLENDING:OFF
+[13:52:46.341] TX: ST
+[13:52:46.346] RX: STOPPED
+[13:52:47.338] TX: BM1
+[13:52:47.344] RX: BLENDING:ON
+[13:52:47.360] TX: XJA2.8309B3.9228C-46.1045D6.6745E34.4366F-82.1840Sp20.00Ac10.00Dc10.00Rm10.00
+[13:52:47.470] RX: A2.835B3.919C-46.108D6.681E34.441F-82.184G
+[13:52:48.885] TX: BM0
+[13:52:48.886] RX: BLENDING:OFF
+[13:52:48.889] TX: ST
+[13:52:48.892] RX: STOPPED
+[13:52:49.887] TX: BM1
+[13:52:49.890] RX: BLENDING:ON
+[13:52:49.908] TX: XJA2.8304B3.6516C-45.2537D6.6750E34.7138F-82.1840Sp20.00Ac10.00Dc10.00Rm10.00
+[13:52:50.006] RX: A2.835B3.650C-45.256D6.681E34.719F-82.184G
+[13:52:51.438] TX: BM0
+[13:52:51.441] TX: ST
+[13:52:51.443] RX: BLENDING:OFF
+[13:52:51.448] RX: STOPPED
+[13:52:54.437] TX: BM1
+[13:52:54.439] RX: BLENDING:ON
+[13:52:54.460] TX: XJA2.8390B3.8810C-46.1892D6.6876E34.4264F-82.1840Sp20.00Ac10.00Dc10.00Rm10.00
+[13:52:54.566] RX: A2.846B3.874C-46.188D6.693E34.418F-82.184G
+[13:52:55.985] TX: BM0
+[13:52:55.988] TX: ST
+[13:52:55.990] RX: BLENDING:OFF
+[13:52:55.996] RX: STOPPED
+[13:52:56.987] TX: BM1
+[13:52:56.990] RX: BLENDING:ON
+[13:52:57.011] TX: XJA2.8505B4.1973C-47.2668D6.7004E34.0716F-82.1840Sp20.00Ac10.00Dc10.00Rm10.00
+[13:52:57.133] RX: A2.857B4.188C-47.265D6.705E34.070F-82.184G
+[13:52:58.485] TX: BM0
+[13:52:58.487] RX: BLENDING:OFF
+[13:52:58.489] TX: ST
+[13:52:58.493] RX: STOPPED
+[13:52:59.539] TX: BM1
+[13:52:59.540] RX: BLENDING:ON
+[13:52:59.562] TX: XJA2.8613B4.4026C-48.1178D6.7109E33.7972F-82.1840Sp20.00Ac10.00Dc10.00Rm10.00
+[13:52:59.663] RX: A2.869B4.395C-48.117D6.716E33.792F-82.184G
+[13:53:01.035] TX: BM0
+[13:53:01.037] RX: BLENDING:OFF
+[13:53:01.039] TX: ST
+[13:53:01.043] RX: STOPPED
+[13:53:02.037] TX: BM1
+[13:53:02.041] RX: BLENDING:ON
+[13:53:02.058] TX: XJA2.8736B4.6370C-48.9947D6.7220E33.5070F-82.1840Sp20.00Ac10.00Dc10.00Rm10.00
+[13:53:02.162] RX: A2.880B4.637C-48.996D6.728E33.514F-82.184G
+[13:53:03.585] TX: BM0
+[13:53:03.588] TX: ST
+[13:53:03.590] RX: BLENDING:OFF
+[13:53:03.596] RX: STOPPED
+
+
+

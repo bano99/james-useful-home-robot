@@ -477,7 +477,7 @@ class ArmCartesianController(Node):
         
         target_group = self.group_name
         if mag > 1e-6:
-            target_group = self.translator_group
+            target_group = self.group_name # Fixed: Use 6-DOF to naturally maintain orientation!
         elif abs(self.pending_v_yaw) > 1e-6:
             target_group = self.wrist_group
 
@@ -566,12 +566,9 @@ class ArmCartesianController(Node):
         self.current_target_pose = self.apply_workspace_limits(self.current_target_pose)
         
         # [Multi-Group Selection]
-        # Translation active -> use translator group (locks J4, J6)
-        # Only rotation active -> use wrist group (locks J1-J5)
-        # The translator group has position_only_ik enabled in kinematics.yaml
         target_group = self.group_name # Default: ar_manipulator
         if mag > 1e-6:
-            target_group = self.translator_group
+            target_group = self.group_name # Fixed: Use 6-DOF to naturally maintain orientation!
         elif abs(self.pending_v_yaw) > 1e-6:
             target_group = self.wrist_group
 
@@ -680,10 +677,12 @@ class ArmCartesianController(Node):
         req.ik_request.timeout = rclpy.duration.Duration(seconds=self.ik_timeout).to_msg()
 
         constraints = Constraints()
-        joints_to_lock = ['arm_joint_4', 'arm_joint_6']
         
-        if group_name == self.translator_group or abs(self.pending_j5) > 1e-6:
-             joints_to_lock.append('arm_joint_5')
+        # Only lock J4 and J6 to prevent 180° flips/windups during J5=0 singularities.
+        # We allow a wide ±1.0 rad (~57°) berth so the wrist is geometrically free to bend 
+        # exactly as 6-DOF IK requires to trace long Cartesian lines. 
+        # J5 is left completely free as the primary pitch actuator.
+        joints_to_lock = ['arm_joint_4', 'arm_joint_6']
              
         for name in joints_to_lock:
              baseline = self.last_ik_solution if self.last_ik_solution else self.current_joint_state
@@ -692,15 +691,10 @@ class ArmCartesianController(Node):
                 jc = JointConstraint()
                 jc.joint_name = name
                 
-                # [JAMES:FIX] Normalize the constraint target to [-pi, pi]!
-                # If the robot is physically at J4=494 deg, enforcing a constraint at 494 deg
-                # will cause MoveIt to reject it because URDF max is 165 deg. MoveIt prefers 134 deg.
+                # Normalize the constraint target to [-pi, pi]!
                 raw_pos = baseline.position[idx]
                 jc.position = (raw_pos + math.pi) % (2 * math.pi) - math.pi
                 
-                # [JAMES:FIX] Widen tolerance to ±17 degrees (0.3 rad). 
-                # This prevents 180° wrist flips but allows the mathematical drift 
-                # naturally required to maintain X/Y orientations near full-arm reach.
                 jc.tolerance_above = 0.3
                 jc.tolerance_below = 0.3
                 jc.weight = 1.0
