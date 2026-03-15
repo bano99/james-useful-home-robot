@@ -600,8 +600,8 @@ class ArmCartesianController(Node):
                 jc = JointConstraint()
                 jc.joint_name = name
                 jc.position = baseline.position[idx]
-                jc.tolerance_above = 0.01 # Tight lock for direct control
-                jc.tolerance_below = 0.01
+                jc.tolerance_above = 0.035 # ~2° tolerance (was 0.01 = 0.57°, too tight for 3-step priming)
+                jc.tolerance_below = 0.035
                 jc.weight = 1.0
                 constraints.joint_constraints.append(jc)
         req.ik_request.constraints = constraints
